@@ -113,6 +113,7 @@ export interface Translations {
   network: {
     settingUpTitle: string;
     settingUpDesc: string;
+    settingUpSlow: string;
     errorTitle: string;
   };
   trade: {
@@ -191,8 +192,10 @@ export interface Translations {
     step4Title: string;
     step4Desc: string;
     checkingStatus: string;
+    checkingSlow: string;
     proveHumanityBtn: string;
     verifying: string;
+    provingSlow: string;
     retryBtn: string;
     registeredTitle: string;
     registeredSub: string;

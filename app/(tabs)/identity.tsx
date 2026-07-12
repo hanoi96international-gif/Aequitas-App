@@ -37,12 +37,20 @@ function StepItem({ n, title, desc, state }: { n: number; title: string; desc: s
   );
 }
 
+// FIX (2026-07-12, "feels frozen" pass): both thresholds below exist for the
+// same reason — an operation that's genuinely still working looks identical
+// to a silently-stuck one unless the UI says something after a while.
+const CHECK_TIMEOUT_MS = 8_000;
+const PROVING_SLOW_MS = 8_000;
+
 export default function Identity() {
   const { address, signer, balance, refreshBalance } = useWallet();
   const { t } = useLanguage();
   const [status, setStatus] = useState<Status>('checking');
   const [log, setLog] = useState<LogEntry[]>([]);
   const [activeStep, setActiveStep] = useState(0);
+  const [checkSlow, setCheckSlow] = useState(false);
+  const [provingSlow, setProvingSlow] = useState(false);
 
   const STEPS = [
     { title: t('identity.step1Title'), desc: t('identity.step1Desc') },
@@ -68,11 +76,37 @@ export default function Identity() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balance?.is_human]);
 
+  // FIX (2026-07-12, "feels frozen" pass): status started at 'checking' and
+  // only ever left it once WalletContext's balance poll succeeded at least
+  // once — refreshBalance() silently swallows fetch failures with no error
+  // surfaced anywhere (by design, so a transient blip doesn't flash an error
+  // on every screen), so a single failed first attempt (very plausible right
+  // after wallet creation, before the network has settled) left this screen
+  // spinning on "Checking registration status…" forever, indistinguishable
+  // from a genuine hang. This mirrors Home's tab own resilience (placeholder
+  // dashes + keeps polling) instead of blocking silently: after a timeout,
+  // show a message and a manual retry that re-triggers the fetch directly.
+  useEffect(() => {
+    if (status !== 'checking') {
+      setCheckSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setCheckSlow(true), CHECK_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
+
+  function retryChecking() {
+    setCheckSlow(false);
+    refreshBalance();
+  }
+
   async function proveHumanity() {
     if (!signer) return;
     setStatus('proving');
     setLog([]);
     setActiveStep(0);
+    setProvingSlow(false);
+    const slowTimer = setTimeout(() => setProvingSlow(true), PROVING_SLOW_MS);
     try {
       addLog(t('identity.logCheckingBiometric'), 'info');
       const identity = await getDeviceIdentity();
@@ -107,6 +141,9 @@ export default function Identity() {
     } catch (e: any) {
       addLog(t('identity.logErrorPrefix') + (e?.message ?? t('identity.logUnknownError')), 'error');
       setStatus('error');
+    } finally {
+      clearTimeout(slowTimer);
+      setProvingSlow(false);
     }
   }
 
@@ -143,10 +180,21 @@ export default function Identity() {
             <StepItem key={i} n={i + 1} title={s.title} desc={s.desc} state={stepState(i)} />
           ))}
 
-          {status === 'checking' && (
+          {status === 'checking' && !checkSlow && (
             <View style={S.loadingBox}>
               <ActivityIndicator color={theme.purple} size="small" />
               <Text style={S.loadingText}>{t('identity.checkingStatus')}</Text>
+            </View>
+          )}
+
+          {status === 'checking' && checkSlow && (
+            <View style={S.loadingBox}>
+              <Text style={S.slowText}>{t('identity.checkingSlow')}</Text>
+              <TouchableOpacity onPress={retryChecking} activeOpacity={0.85} style={{ marginTop: 12 }}>
+                <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                  <Text style={S.btnPrimaryText}>{t('identity.retryBtn')}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -162,6 +210,7 @@ export default function Identity() {
             <View style={S.loadingBox}>
               <ActivityIndicator color={theme.purple} size="large" />
               <Text style={S.loadingText}>{t('identity.verifying')}</Text>
+              {provingSlow && <Text style={S.slowText}>{t('identity.provingSlow')}</Text>}
             </View>
           )}
 
@@ -239,6 +288,7 @@ const S = StyleSheet.create({
 
   loadingBox: { alignItems: 'center', paddingVertical: 24, marginTop: 8 },
   loadingText: { color: theme.purple, marginTop: 14, fontSize: 13, letterSpacing: 1 },
+  slowText: { color: theme.muted, marginTop: 10, fontSize: 11.5, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
 
   btnPrimary: { borderRadius: theme.radiusSm, padding: 18, alignItems: 'center', marginTop: 16 },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },

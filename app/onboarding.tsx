@@ -32,9 +32,21 @@ export default function Onboarding() {
   const [error, setError] = useState('');
 
   function startCreate() {
-    setMnemonic(wallet.generateMnemonic());
-    setConfirmed(false);
-    setStep('reveal');
+    // FIX (2026-07-12, "feels frozen" pass): generateMnemonic() is
+    // synchronous and, in the near-impossible case its underlying
+    // crypto-randomness source ever throws, had no error handling at all —
+    // an uncaught throw from inside a button handler here would leave the
+    // user stuck on this screen with no feedback and no visible way
+    // forward. Cheap to guard even though react-native-get-random-values
+    // (imported first in app/_layout.tsx) makes this essentially unreachable
+    // in practice.
+    try {
+      setMnemonic(wallet.generateMnemonic());
+      setConfirmed(false);
+      setStep('reveal');
+    } catch (e: any) {
+      setError(e?.message ?? t('onboarding.walletCreateError'));
+    }
   }
 
   async function confirmCreate() {
@@ -96,6 +108,8 @@ export default function Onboarding() {
                 <Text style={S.btnWCText}>{t('onboarding.connectWalletConnect')}</Text>
               </TouchableOpacity>
             )}
+
+            {error ? <Text style={S.errorText}>{error}</Text> : null}
           </View>
         )}
 

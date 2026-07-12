@@ -1,9 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '@/contexts/WalletContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { theme } from '@/constants/aequitas-theme';
+
+// FIX (2026-07-12, "feels frozen" pass): ensureNetwork can legitimately take
+// close to its full 60s timeout (WalletConnect round-trip to an external
+// wallet app, which itself may be slow to respond) — this modal used to show
+// nothing but a spinner and one static line the entire time, indistinguishable
+// from a genuine hang. A reassuring second line after a few seconds says the
+// wait itself is expected, not broken.
+const SETUP_SLOW_MS = 8_000;
 
 /**
  * Shown whenever a WalletConnect session is live but the connected wallet
@@ -19,6 +27,16 @@ import { theme } from '@/constants/aequitas-theme';
 export default function NetworkSetupOverlay() {
   const { mode, networkStatus, networkError, retryNetworkSetup, disconnectWallet } = useWallet();
   const { t } = useLanguage();
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    if (networkStatus !== 'pending') {
+      setSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setSlow(true), SETUP_SLOW_MS);
+    return () => clearTimeout(timer);
+  }, [networkStatus]);
 
   const visible = mode === 'walletconnect' && (networkStatus === 'pending' || networkStatus === 'error');
   if (!visible) return null;
@@ -51,6 +69,7 @@ export default function NetworkSetupOverlay() {
               <ActivityIndicator color={theme.purple} size="large" />
               <Text style={S.title}>{t('network.settingUpTitle')}</Text>
               <Text style={S.desc}>{t('network.settingUpDesc')}</Text>
+              {slow && <Text style={S.slowDesc}>{t('network.settingUpSlow')}</Text>}
             </>
           )}
         </View>
@@ -74,6 +93,7 @@ const S = StyleSheet.create({
   fullWidth: { width: '100%' },
   title: { color: theme.text, fontSize: 15, fontWeight: '700', letterSpacing: 1, textAlign: 'center', marginTop: 14 },
   desc: { color: theme.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 8, marginBottom: 18 },
+  slowDesc: { color: theme.muted, fontSize: 11.5, lineHeight: 17, textAlign: 'center', marginTop: -10, marginBottom: 18, opacity: 0.8 },
   btnPrimary: { borderRadius: theme.radiusSm, paddingVertical: 15, alignItems: 'center', width: '100%' },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },
   btnDanger: { marginTop: 12, padding: 10, alignItems: 'center' },
