@@ -92,7 +92,17 @@ export async function proveAndRegister(
   const proof = await requestProof({ bio: identity.bio, salt: identity.salt, wallet: signer.address });
   const { pA, pB, pC, pubSignals, zkNullifier, circuitVersion, bioHashKey } = proof;
   if (!zkNullifier) {
-    throw new Error('Proof-Server hat keinen ZK-Nullifier zurückgegeben (Circuit v2+ erforderlich) — bitte erneut versuchen');
+    throw new Error('Proof-Server hat keinen ZK-Nullifier zurückgegeben (Circuit v3 erforderlich) — bitte erneut versuchen');
+  }
+  // FIX (fresh Monster Audit 2026-07-13): register.go hard-requires
+  // circuitVersion === 3. This used to fall back to `circuitVersion || 2`
+  // when the field was missing/falsy and send that on to postRegister — 2
+  // is not 3, so the backend would always reject it anyway, just later
+  // (after the signMessage prompt below) and less clearly than catching it
+  // here, mirroring the identical fix already made in explorer.js's
+  // doRegister for the same reason.
+  if (circuitVersion !== 3) {
+    throw new Error(`Proof-Server hat Circuit v${circuitVersion ?? 'unbekannt'} zurückgegeben, aber v3 ist erforderlich — bitte erneut versuchen`);
   }
 
   const commitment = pubSignals[0];

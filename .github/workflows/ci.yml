@@ -3,20 +3,20 @@ name: CI
 # FIX (fresh Monster Audit 2026-07-12): this app had no CI workflow at all —
 # a red typecheck or lint error could sit unnoticed on any branch. Scoped to
 # what's verifiable without additional infrastructure (signing keys, EAS
-# credentials): typecheck + lint. No Jest step — this project has no test
-# suite yet (not a broken one to fix here; bootstrapping RN/Expo test
-# infra with proper native-module mocks is its own separate task, not a
-# CI-config change). No Android assemble step, for the same reason: adding
-# one that isn't wired to real signing config would just be a second gate
-# that fails for infrastructure reasons unrelated to code correctness — see
-# the aequitas-chain repo's own deploy-contabo.yml Node-version incident for
-# exactly why an unverified CI gate is worse than no gate.
+# credentials): typecheck + lint + unit tests. No Android assemble step —
+# adding one that isn't wired to real signing config would just be a second
+# gate that fails for infrastructure reasons unrelated to code correctness —
+# see the aequitas-chain repo's own deploy-contabo.yml Node-version incident
+# for exactly why an unverified CI gate is worse than no gate.
+#
+# UPDATE (2026-07-13): jest-expo test infra added (lib/__tests__/*), so the
+# "no test suite yet" caveat this comment used to have no longer applies.
 on:
   push:
   pull_request:
 
 jobs:
-  typecheck-and-lint:
+  typecheck-lint-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,3 +26,4 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx expo lint
+      - run: npx jest
