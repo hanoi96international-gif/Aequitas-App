@@ -21,7 +21,10 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT"]
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
     },
     "web": {
       "output": "static",
@@ -47,7 +50,16 @@
           "faceIDPermission": "Aequitas nutzt Face ID, um deine Wallet und deine Identitätsregistrierung zu schützen."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
