@@ -78,26 +78,37 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // WalletConnect taking over (or dropping) supersedes/clears local mode display.
-  useEffect(() => {
-    if (wcState?.isConnected && wcState.address) {
-      setMode('walletconnect');
-    } else if (mode === 'walletconnect') {
-      setMode(localAddress ? 'local' : 'none');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wcState?.isConnected, wcState?.address]);
-
   const runNetworkSetup = useCallback(async (wc: WCState) => {
     // AppKit's own connect modal may still be open (e.g. showing its broken
     // "network not supported" loop — see ensureAequitasChain's comment) —
     // close it so our own overlay is the one clear thing the user sees,
     // instead of two competing screens stacked on top of each other.
+    //
+    // FIX (race condition, real-device report: AppKit's broken "Select
+    // network" screen — the exact one ensureAequitasChain exists to bypass
+    // — was still reachable/tappable after connecting): close() used to
+    // only fire from a SEPARATE effect that waited for `mode` to become
+    // 'walletconnect' first, which only happened after THIS effect's own
+    // trigger effect had already run and scheduled a state update — an
+    // extra render cycle during which AppKit's modal, already mid-
+    // transition into its own network-selector sub-screen, was still the
+    // only interactive thing on screen. Calling close() directly from the
+    // same effect that detects the connection (see the trigger effect
+    // below, which now calls this immediately) removes that gap. A second,
+    // delayed close() call covers the case where AppKit was still
+    // animating into that sub-screen at the moment of the first call.
     try {
       wc.close();
     } catch {
       // best-effort — not fatal if AppKit's modal wasn't open or close() no-ops
     }
+    setTimeout(() => {
+      try {
+        wc.close();
+      } catch {
+        // best-effort, see above
+      }
+    }, 400);
     setNetworkStatus('pending');
     setNetworkError(null);
     try {
@@ -109,21 +120,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [t]);
 
-  // A fresh WalletConnect connection may land on a wallet that has never
-  // added the Aequitas chain (see ensureAequitasChain's own comment for why
-  // AppKit's built-in "switch network" screen can never fix that on its
-  // own). Drive the switch/add-chain flow ourselves the moment a session
-  // connects, instead of waiting for the user to hit — and get stuck on —
-  // AppKit's own unsupported-chain loop.
+  // WalletConnect taking over (or dropping) supersedes/clears local mode
+  // display, AND — combined into the same effect, not a separate one keyed
+  // off `mode` — immediately drives the switch/add-chain flow ourselves the
+  // moment a session connects (see runNetworkSetup's comment for why this
+  // used to be split across two effects and what race that caused). A
+  // fresh WalletConnect connection may land on a wallet that has never
+  // added the Aequitas chain; AppKit's built-in "switch network" screen can
+  // never fix that on its own (see ensureAequitasChain's own comment), so
+  // waiting for the user to hit it means watching it fail.
   useEffect(() => {
-    if (mode !== 'walletconnect' || !wcState) {
+    if (wcState?.isConnected && wcState.address) {
+      setMode('walletconnect');
+      runNetworkSetup(wcState);
+    } else {
       setNetworkStatus('idle');
       setNetworkError(null);
-      return;
+      if (mode === 'walletconnect') {
+        setMode(localAddress ? 'local' : 'none');
+      }
     }
-    runNetworkSetup(wcState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, wcState]);
+  }, [wcState?.isConnected, wcState?.address]);
 
   const retryNetworkSetup = useCallback(() => {
     if (wcState) runNetworkSetup(wcState);
