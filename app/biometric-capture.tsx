@@ -17,11 +17,21 @@ import {
   type ConsentDecision,
 } from '@/lib/biometricIdentity';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister } from '@/lib/identity';
+import { withTimeout } from '@/lib/signer';
 
 type Step = 'consent' | 'palm' | 'face_intro' | 'face_burst' | 'submitting' | 'result';
 
 const BURST_FRAME_COUNT = 15;
 const BURST_INTERVAL_MS = 100;
+// Real-device report: the burst loop got stuck forever on "please blink
+// now" -- expo-camera's takePictureAsync() has no timeout of its own, and a
+// single rapid-fire capture that stalls (confirmed possible under repeated
+// back-to-back calls) blocks the whole for-loop with no error and no way
+// out, same class of "external call can hang forever" problem withTimeout
+// already exists for on the WalletConnect side (see lib/signer.ts). A stuck
+// single-shot palm capture would hang the exact same way.
+const FRAME_TIMEOUT_MS = 3_000;
+const PALM_TIMEOUT_MS = 8_000;
 
 // Matches the app's one established primary-button look (see e.g.
 // identity.tsx's proveHumanityBtn/retryBtn) instead of a flat fill, so this
@@ -102,10 +112,17 @@ export default function BiometricCapture() {
 
   async function capturePalm() {
     if (!(await ensurePermission())) return;
-    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.85 });
-    if (photo?.uri) {
-      setPalmUri(photo.uri);
-      setStep('face_intro');
+    const ref = cameraRef.current;
+    if (!ref) return;
+    try {
+      const photo = await withTimeout(ref.takePictureAsync({ quality: 0.85 }), PALM_TIMEOUT_MS, 'timeout');
+      if (photo?.uri) {
+        setPalmUri(photo.uri);
+        setStep('face_intro');
+      }
+    } catch {
+      setSubmitError(t('identity.biometricResultFailed'));
+      setStep('result');
     }
   }
 
@@ -114,12 +131,25 @@ export default function BiometricCapture() {
     setStep('face_burst');
     const frames: string[] = [];
     for (let i = 0; i < BURST_FRAME_COUNT; i++) {
-      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.7 });
-      if (photo?.uri) frames.push(photo.uri);
+      const ref = cameraRef.current;
+      if (ref) {
+        try {
+          const photo = await withTimeout(ref.takePictureAsync({ quality: 0.7 }), FRAME_TIMEOUT_MS, 'timeout');
+          if (photo?.uri) frames.push(photo.uri);
+        } catch {
+          // A single stuck frame shouldn't cost the whole burst -- skip it
+          // and keep going, same "degrade instead of hang" idea as above.
+        }
+      }
       await new Promise((r) => setTimeout(r, BURST_INTERVAL_MS));
     }
+    if (frames.length === 0) {
+      setSubmitError(t('identity.biometricResultFailed'));
+      setStep('result');
+      return;
+    }
     setBurstUris(frames);
-    setFaceUri(frames[0] ?? null);
+    setFaceUri(frames[0]);
     await submit(frames[0], frames);
   }
 
