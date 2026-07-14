@@ -1,12 +1,13 @@
 // Phase 0 biometric proof-of-personhood capture screen (palm+face+consent,
 // see aequitas-biometric-beta). Pushed from the Identity tab ONLY when
 // BIOMETRIC_ENABLED is set (see lib/config.ts) -- unreachable otherwise.
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
+import { useFaceDetectorOutput, type Face } from 'react-native-vision-camera-face-detector';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
@@ -24,14 +25,37 @@ type Step = 'consent' | 'palm' | 'face_intro' | 'face_burst' | 'submitting' | 'r
 const BURST_FRAME_COUNT = 15;
 const BURST_INTERVAL_MS = 100;
 // Real-device report: the burst loop got stuck forever on "please blink
-// now" -- expo-camera's takePictureAsync() has no timeout of its own, and a
-// single rapid-fire capture that stalls (confirmed possible under repeated
-// back-to-back calls) blocks the whole for-loop with no error and no way
-// out, same class of "external call can hang forever" problem withTimeout
-// already exists for on the WalletConnect side (see lib/signer.ts). A stuck
-// single-shot palm capture would hang the exact same way.
+// now" -- a rapid-fire capture that stalls blocks the whole for-loop with
+// no error and no way out, same class of "external call can hang forever"
+// problem withTimeout already exists for on the WalletConnect side (see
+// lib/signer.ts). A stuck single-shot palm capture would hang the same way.
 const FRAME_TIMEOUT_MS = 3_000;
 const PALM_TIMEOUT_MS = 8_000;
+
+// Real-device feedback: "there should be a template/guide showing whether the
+// palm/face is actually in the right position" -- these thresholds are what
+// FaceGuide below uses to decide "well positioned" from the live
+// react-native-vision-camera-face-detector output (bounds centered, a
+// plausible size for a close-up capture, and facing roughly straight at the
+// camera). Deliberately not a hard gate on the capture button below: a face
+// detector that's slightly off in some lighting condition shouldn't be able
+// to strand someone who can otherwise clearly see themselves centered in the
+// oval -- the manual button always still works.
+const CENTER_TOLERANCE = 0.18;
+const MIN_SIZE_RATIO = 0.28;
+const MAX_SIZE_RATIO = 0.75;
+const MAX_ANGLE_DEG = 20;
+
+function isFacePositioned(face: Face): boolean {
+  const cx = face.bounds.x + face.bounds.width / 2;
+  const cy = face.bounds.y + face.bounds.height / 2;
+  const centeredX = Math.abs(cx / face.frameWidth - 0.5) < CENTER_TOLERANCE;
+  const centeredY = Math.abs(cy / face.frameHeight - 0.5) < CENTER_TOLERANCE;
+  const sizeRatio = face.bounds.width / face.frameWidth;
+  const sizedOk = sizeRatio > MIN_SIZE_RATIO && sizeRatio < MAX_SIZE_RATIO;
+  const angledOk = Math.abs(face.yawAngle) < MAX_ANGLE_DEG && Math.abs(face.pitchAngle) < MAX_ANGLE_DEG;
+  return centeredX && centeredY && sizedOk && angledOk;
+}
 
 // Matches the app's one established primary-button look (see e.g.
 // identity.tsx's proveHumanityBtn/retryBtn) instead of a flat fill, so this
@@ -75,6 +99,26 @@ function StepDots({ current }: { current: 1 | 2 | 3 }) {
   );
 }
 
+// Static positioning guide for the palm -- there is no mature, real-time
+// hand-landmark detection available for React Native (the server's
+// MediaPipe Hands pipeline is Python-only), so unlike the face guide below
+// this is visual-only, no live "well positioned" feedback.
+function PalmGuide() {
+  return (
+    <View style={S.guideWrap} pointerEvents="none">
+      <View style={S.palmFrame} />
+    </View>
+  );
+}
+
+function FaceGuide({ positioned }: { positioned: boolean }) {
+  return (
+    <View style={S.guideWrap} pointerEvents="none">
+      <View style={[S.faceOval, positioned && S.faceOvalOk]} />
+    </View>
+  );
+}
+
 export default function BiometricCapture() {
   const { t } = useLanguage();
   const { address, signer } = useWallet();
@@ -84,8 +128,20 @@ export default function BiometricCapture() {
   const [consentError, setConsentError] = useState('');
   const [consent, setConsent] = useState<ConsentDecision | null>(null);
 
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const backDevice = useCameraDevice('back');
+  const frontDevice = useCameraDevice('front');
+  const photoOutput = usePhotoOutput();
+
+  const [facePositioned, setFacePositioned] = useState(false);
+  const faceDetectorOutput = useFaceDetectorOutput({
+    performanceMode: 'fast',
+    cameraFacing: 'front',
+    onFacesDetected: (faces) => {
+      setFacePositioned(faces.length > 0 && isFacePositioned(faces[0]));
+    },
+    onError: () => setFacePositioned(false),
+  });
 
   const [palmUri, setPalmUri] = useState<string | null>(null);
   const [faceUri, setFaceUri] = useState<string | null>(null);
@@ -105,21 +161,16 @@ export default function BiometricCapture() {
   }
 
   async function ensurePermission(): Promise<boolean> {
-    if (permission?.granted) return true;
-    const res = await requestPermission();
-    return res.granted;
+    if (hasPermission) return true;
+    return requestPermission();
   }
 
   async function capturePalm() {
     if (!(await ensurePermission())) return;
-    const ref = cameraRef.current;
-    if (!ref) return;
     try {
-      const photo = await withTimeout(ref.takePictureAsync({ quality: 0.85 }), PALM_TIMEOUT_MS, 'timeout');
-      if (photo?.uri) {
-        setPalmUri(photo.uri);
-        setStep('face_intro');
-      }
+      const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), PALM_TIMEOUT_MS, 'timeout');
+      setPalmUri('file://' + file.filePath);
+      setStep('face_intro');
     } catch {
       setSubmitError(t('identity.biometricResultFailed'));
       setStep('result');
@@ -131,15 +182,12 @@ export default function BiometricCapture() {
     setStep('face_burst');
     const frames: string[] = [];
     for (let i = 0; i < BURST_FRAME_COUNT; i++) {
-      const ref = cameraRef.current;
-      if (ref) {
-        try {
-          const photo = await withTimeout(ref.takePictureAsync({ quality: 0.7 }), FRAME_TIMEOUT_MS, 'timeout');
-          if (photo?.uri) frames.push(photo.uri);
-        } catch {
-          // A single stuck frame shouldn't cost the whole burst -- skip it
-          // and keep going, same "degrade instead of hang" idea as above.
-        }
+      try {
+        const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), FRAME_TIMEOUT_MS, 'timeout');
+        frames.push('file://' + file.filePath);
+      } catch {
+        // A single stuck frame shouldn't cost the whole burst -- skip it
+        // and keep going, same "degrade instead of hang" idea as above.
       }
       await new Promise((r) => setTimeout(r, BURST_INTERVAL_MS));
     }
@@ -230,8 +278,11 @@ export default function BiometricCapture() {
 
       {step === 'palm' && (
         <View style={S.cameraWrap}>
-          {permission?.granted ? (
-            <CameraView ref={cameraRef} style={S.camera} facing="back" />
+          {hasPermission && backDevice ? (
+            <>
+              <Camera style={S.camera} device={backDevice} isActive outputs={[photoOutput]} />
+              <PalmGuide />
+            </>
           ) : (
             <View style={S.content}>
               <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
@@ -248,8 +299,11 @@ export default function BiometricCapture() {
 
       {step === 'face_intro' && (
         <View style={S.cameraWrap}>
-          {permission?.granted ? (
-            <CameraView ref={cameraRef} style={S.camera} facing="front" />
+          {hasPermission && frontDevice ? (
+            <>
+              <Camera style={S.camera} device={frontDevice} isActive outputs={[photoOutput, faceDetectorOutput]} />
+              <FaceGuide positioned={facePositioned} />
+            </>
           ) : (
             <View style={S.content}>
               <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
@@ -266,7 +320,8 @@ export default function BiometricCapture() {
 
       {step === 'face_burst' && (
         <View style={S.cameraWrap}>
-          <CameraView ref={cameraRef} style={S.camera} facing="front" />
+          {frontDevice && <Camera style={S.camera} device={frontDevice} isActive outputs={[photoOutput, faceDetectorOutput]} />}
+          <FaceGuide positioned={facePositioned} />
           <View style={S.overlayBox}>
             <StepDots current={2} />
             <ActivityIndicator color={theme.purple} size="large" style={S.spinnerGap} />
@@ -341,6 +396,11 @@ const S = StyleSheet.create({
   },
   overlayTitle: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 6 },
   overlayHint: { color: theme.muted, fontSize: 12, textAlign: 'center', lineHeight: 18 },
+
+  guideWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  palmFrame: { width: 230, height: 230, borderRadius: 24, borderWidth: 3, borderStyle: 'dashed', borderColor: theme.borderStrong },
+  faceOval: { width: 210, height: 280, borderRadius: 140, borderWidth: 3, borderStyle: 'dashed', borderColor: theme.borderStrong },
+  faceOvalOk: { borderColor: theme.neon, borderStyle: 'solid' },
 
   stepDots: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
