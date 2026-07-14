@@ -222,6 +222,27 @@ export interface Translations {
     logErrorPrefix: string;
     logUnknownError: string;
     registrationFailed: string;
+    biometricPrivacyNote: string;
+    biometricStepsIntro: string;
+    biometricConsentTitle: string;
+    biometricConsentBody: string;
+    biometricConsentBiometricLabel: string;
+    biometricConsentBonusLabel: string;
+    biometricConsentRequired: string;
+    biometricConsentConfirmBtn: string;
+    biometricCancelBtn: string;
+    biometricPalmTitle: string;
+    biometricPalmHint: string;
+    biometricCaptureBtn: string;
+    biometricFaceTitle: string;
+    biometricFaceHint: string;
+    biometricLivenessCapturing: string;
+    biometricProcessing: string;
+    biometricCameraPermissionDenied: string;
+    biometricResultDuplicate: string;
+    biometricResultNew: string;
+    biometricResultFailed: string;
+    biometricBackBtn: string;
   };
   node: {
     title: string;

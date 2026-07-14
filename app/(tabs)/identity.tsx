@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useWallet } from '@/contexts/WalletContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
+import { BIOMETRIC_ENABLED } from '@/lib/config';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
@@ -101,6 +103,10 @@ export default function Identity() {
   }
 
   async function proveHumanity() {
+    if (BIOMETRIC_ENABLED) {
+      router.push('/biometric-capture');
+      return;
+    }
     if (!signer) return;
     setStatus('proving');
     setLog([]);
@@ -168,17 +174,33 @@ export default function Identity() {
 
         <View style={S.hero}>
           <Text style={S.heroTitle}>{t('identity.heroTitle')}</Text>
-          <Text style={S.heroSub}>{t('identity.heroSub')}</Text>
+          <Text style={S.heroSub}>{BIOMETRIC_ENABLED ? t('identity.biometricPrivacyNote') : t('identity.heroSub')}</Text>
         </View>
 
-        <View style={S.privBadge}>
-          <Text style={S.privBadgeText}>{t('identity.privBadge')}</Text>
-        </View>
+        {/* FIX: heroSub/privBadge's "your biometric data never leaves this
+            device" claim is true for the device-secret flow below, but
+            would be FALSE for the real palm+face capture flow (photos are
+            sent to a matching coordinator) -- see biometric-capture.tsx.
+            Swapping the copy here when BIOMETRIC_ENABLED prevents
+            reintroducing the exact kind of identity-copy overclaim this
+            app's own history has already had to audit and fix once. */}
+        {!BIOMETRIC_ENABLED && (
+          <View style={S.privBadge}>
+            <Text style={S.privBadgeText}>{t('identity.privBadge')}</Text>
+          </View>
+        )}
 
         <View style={S.card}>
-          {STEPS.map((s, i) => (
-            <StepItem key={i} n={i + 1} title={s.title} desc={s.desc} state={stepState(i)} />
-          ))}
+          {/* step1Desc etc. describe the device-secret flow specifically
+              ("never leaves the device") -- inaccurate for the real
+              palm+face flow, so that stepper is replaced with one accurate
+              line here; the actual consent/explanation lives in
+              biometric-capture.tsx's own screen. */}
+          {BIOMETRIC_ENABLED ? (
+            <Text style={S.stepDesc}>{t('identity.biometricStepsIntro')}</Text>
+          ) : (
+            STEPS.map((s, i) => <StepItem key={i} n={i + 1} title={s.title} desc={s.desc} state={stepState(i)} />)
+          )}
 
           {status === 'checking' && !checkSlow && (
             <View style={S.loadingBox}>

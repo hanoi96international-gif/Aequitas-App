@@ -69,6 +69,20 @@ export async function checkAlreadyRegistered(bioHash: string) {
 }
 
 /**
+ * Builds a DeviceIdentity from a bio_hash that did NOT come from
+ * getDeviceIdentity()'s device-secret derivation -- specifically, the
+ * biometric proof-of-personhood coordinator's bio_hash (see
+ * biometric-capture.tsx / lib/biometricIdentity.ts). Same salt formula as
+ * getDeviceIdentity() for consistency; the salt only needs to be a stable
+ * blinding factor for the commitment, not itself secret or regenerable.
+ */
+export function identityFromBioHash(bioHash: string): DeviceIdentity {
+  const bio = BigInt(bioHash) % FIELD_SIZE;
+  const salt = (bio * 7n + 12345n) % FIELD_SIZE;
+  return { bio: bio.toString(), salt: salt.toString() };
+}
+
+/**
  * Generates the Groth16 proof, signs the registration message, and submits
  * it — mirrors aequitas-dapp.html's doRegister exactly (see that file's own
  * 2026-07-03 security-audit comment: registerWithSig is the only real,

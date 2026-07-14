@@ -52,6 +52,12 @@
       ],
       "expo-secure-store",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Aequitas nutzt die Kamera nur mit deiner ausdrücklichen Zustimmung, um Handfläche und Gesicht für den biometrischen Test-Abgleich (Phase 0) aufzunehmen."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
