@@ -249,7 +249,7 @@ const de: Translations = {
     biometricGuideOffCenter: 'Bitte im Oval zentrieren',
     biometricGuideAngled: 'Bitte gerade in die Kamera schauen',
     biometricGuideOk: 'Position erkannt ✓',
-    biometricLivenessCapturing: 'Aufnahme läuft — bitte jetzt blinzeln…',
+    biometricLivenessCapturing: 'Aufnahme läuft — bitte kurz stillhalten und natürlich blinzeln…',
     biometricProcessing: 'Wird beim Abgleichsdienst geprüft…',
     biometricCameraPermissionDenied: 'Für diesen Test wird die Kamera-Berechtigung benötigt.',
     biometricResultDuplicate: 'Für diese Biometrie existiert bereits ein passender Eintrag.',

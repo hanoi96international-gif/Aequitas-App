@@ -249,7 +249,7 @@ const fr: Translations = {
     biometricGuideOffCenter: "Centre ton visage dans l'ovale",
     biometricGuideAngled: 'Regarde la caméra bien en face',
     biometricGuideOk: 'Position détectée ✓',
-    biometricLivenessCapturing: 'Capture en cours — cligne des yeux maintenant…',
+    biometricLivenessCapturing: 'Capture en cours — reste immobile et cligne des yeux naturellement…',
     biometricProcessing: 'Vérification auprès du service de comparaison…',
     biometricCameraPermissionDenied: 'La permission d\'accès à la caméra est requise pour ce test.',
     biometricResultDuplicate: 'Un enregistrement correspondant existe déjà pour cette biométrie.',

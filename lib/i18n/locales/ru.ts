@@ -249,7 +249,7 @@ const ru: Translations = {
     biometricGuideOffCenter: 'Расположите лицо по центру овала',
     biometricGuideAngled: 'Смотрите прямо в камеру',
     biometricGuideOk: 'Положение верное ✓',
-    biometricLivenessCapturing: 'Съёмка идёт — моргни сейчас…',
+    biometricLivenessCapturing: 'Съёмка идёт — оставайся неподвижным и моргай естественно…',
     biometricProcessing: 'Проверка через сервис сопоставления…',
     biometricCameraPermissionDenied: 'Для этого теста нужен доступ к камере.',
     biometricResultDuplicate: 'Для этой биометрии уже есть совпадающая запись.',

@@ -249,7 +249,7 @@ const tr: Translations = {
     biometricGuideOffCenter: 'Yüzünüzü oval içinde ortalayın',
     biometricGuideAngled: 'Kameraya düz bakın',
     biometricGuideOk: 'Konum doğru ✓',
-    biometricLivenessCapturing: 'Çekiliyor — şimdi göz kırp…',
+    biometricLivenessCapturing: 'Çekiliyor — sabit dur ve doğal şekilde göz kırp…',
     biometricProcessing: 'Eşleştirme hizmetiyle kontrol ediliyor…',
     biometricCameraPermissionDenied: 'Bu test için kamera izni gerekiyor.',
     biometricResultDuplicate: 'Bu biyometrik veri için zaten eşleşen bir kayıt var.',

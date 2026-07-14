@@ -249,7 +249,7 @@ const ar: Translations = {
     biometricGuideOffCenter: 'ضع وجهك في منتصف البيضاوي',
     biometricGuideAngled: 'انظر مباشرة إلى الكاميرا',
     biometricGuideOk: 'الوضعية صحيحة ✓',
-    biometricLivenessCapturing: 'جارٍ الالتقاط — ارمش الآن…',
+    biometricLivenessCapturing: 'جارٍ الالتقاط — ابقَ ثابتًا وارمش بشكل طبيعي…',
     biometricProcessing: 'جارٍ التحقق مع خدمة المطابقة…',
     biometricCameraPermissionDenied: 'إذن الكاميرا مطلوب لهذا الاختبار.',
     biometricResultDuplicate: 'يوجد بالفعل تسجيل مطابق لهذه البيانات البيومترية.',

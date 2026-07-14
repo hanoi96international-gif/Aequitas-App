@@ -249,7 +249,7 @@ const hi: Translations = {
     biometricGuideOffCenter: 'अपने चेहरे को अंडाकार के बीच में रखें',
     biometricGuideAngled: 'कैमरे की ओर सीधे देखें',
     biometricGuideOk: 'स्थिति सही है ✓',
-    biometricLivenessCapturing: 'कैप्चर हो रहा है — अभी पलक झपकाएँ…',
+    biometricLivenessCapturing: 'कैप्चर हो रहा है — स्थिर रहें और स्वाभाविक रूप से पलक झपकाएँ…',
     biometricProcessing: 'मिलान सेवा से जाँच की जा रही है…',
     biometricCameraPermissionDenied: 'इस परीक्षण के लिए कैमरा अनुमति आवश्यक है।',
     biometricResultDuplicate: 'इस बायोमेट्रिक के लिए पहले से एक मेल खाता पंजीकरण मौजूद है।',

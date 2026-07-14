@@ -249,7 +249,7 @@ const zh: Translations = {
     biometricGuideOffCenter: '请将脸部对准椭圆框中央',
     biometricGuideAngled: '请正对镜头',
     biometricGuideOk: '位置正确 ✓',
-    biometricLivenessCapturing: '正在拍摄 — 请现在眨眼…',
+    biometricLivenessCapturing: '正在拍摄 — 请保持不动并自然眨眼…',
     biometricProcessing: '正在与匹配服务核对…',
     biometricCameraPermissionDenied: '此测试需要相机权限。',
     biometricResultDuplicate: '该生物特征已存在匹配的注册记录。',

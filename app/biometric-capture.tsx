@@ -23,7 +23,15 @@ import { withTimeout } from '@/lib/signer';
 
 type Step = 'consent' | 'palm' | 'face_intro' | 'face_burst' | 'submitting' | 'result';
 
-const BURST_FRAME_COUNT = 15;
+// Real-device follow-up ("search for something better for palmprint/eye
+// verification"): extended from 15 frames (1.5s, enough for blink
+// detection alone) to 50 frames (5s) so the server's new pulse (rPPG)
+// check (matching-service/app/pulse.py) has enough of the burst to find a
+// plausible heartbeat frequency at all -- a real cardiac cycle needs
+// several seconds to show up clearly in an FFT, not under 2 seconds. This
+// is a real, deliberate UX cost (a longer "hold still" moment) traded for
+// a liveness signal a simple video-replay-of-a-blink can't fake.
+const BURST_FRAME_COUNT = 50;
 const BURST_INTERVAL_MS = 100;
 // Real-device report: the burst loop got stuck forever on "please blink
 // now" -- a rapid-fire capture that stalls blocks the whole for-loop with
@@ -288,7 +296,7 @@ export default function BiometricCapture() {
     try {
       const deviceId = await getOrCreateDeviceId();
       const res = await registerBiometric(
-        { palmUri, faceUri: finalFaceUri, faceBurstUris: finalBurst },
+        { palmUri, faceUri: finalFaceUri, faceBurstUris: finalBurst, burstIntervalMs: BURST_INTERVAL_MS },
         { mode: 'test', deviceId, walletAddress: address, consent }
       );
       setResult(res);

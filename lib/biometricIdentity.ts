@@ -32,6 +32,10 @@ export interface BiometricCapture {
   palmUri: string;
   faceUri: string;
   faceBurstUris: string[];
+  /** Milliseconds between face_burst frames -- the coordinator/validator
+   * needs this to convert its pulse (rPPG) FFT bins back to real BPM, see
+   * matching-service/app/pulse.py's estimate_pulse(). */
+  burstIntervalMs: number;
 }
 
 export interface ConsentDecision {
@@ -46,6 +50,10 @@ export interface RegisterVote {
   matched_bio_hash?: string | null;
   best_palm_score?: number;
   best_face_score?: number;
+  best_periocular_score?: number;
+  pulse_detected?: boolean | null;
+  pulse_bpm?: number | null;
+  pulse_confidence?: number;
   error?: string | null;
 }
 
@@ -91,6 +99,7 @@ export async function registerBiometric(
   capture.faceBurstUris.forEach((uri, i) => {
     form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
   });
+  form.append('burst_interval_ms', String(capture.burstIntervalMs));
 
   const resp = await fetch(`${COORDINATOR_BASE}/register`, { method: 'POST', body: form });
   if (!resp.ok) {

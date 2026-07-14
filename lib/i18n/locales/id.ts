@@ -249,7 +249,7 @@ const id: Translations = {
     biometricGuideOffCenter: 'Posisikan wajah di tengah oval',
     biometricGuideAngled: 'Lihat lurus ke kamera',
     biometricGuideOk: 'Posisi terdeteksi ✓',
-    biometricLivenessCapturing: 'Mengambil foto — kedipkan mata sekarang…',
+    biometricLivenessCapturing: 'Mengambil foto — tetap diam dan berkediplah secara alami…',
     biometricProcessing: 'Memeriksa dengan layanan pencocokan…',
     biometricCameraPermissionDenied: 'Izin kamera diperlukan untuk uji coba ini.',
     biometricResultDuplicate: 'Pendaftaran yang cocok sudah ada untuk data biometrik ini.',
