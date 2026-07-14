@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import * as localWallet from '../lib/wallet';
 import { localWalletSigner, withTimeout, type AequitasSigner } from '../lib/signer';
 import { appKit, resetWalletConnectStorage, useWalletConnect } from '../lib/walletconnect';
@@ -78,7 +79,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Guards against a stale runNetworkSetup call's result landing after a
+  // newer one already did — see the AppState effect below, which can start a
+  // fresh attempt while an old one (from before the app backgrounded) is
+  // still technically in flight.
+  const setupGenRef = useRef(0);
+
   const runNetworkSetup = useCallback(async (wc: WCState) => {
+    const gen = ++setupGenRef.current;
     // AppKit's own connect modal may still be open (e.g. showing its broken
     // "network not supported" loop — see ensureAequitasChain's comment) —
     // close it so our own overlay is the one clear thing the user sees,
@@ -113,8 +121,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setNetworkError(null);
     try {
       await withTimeout(wc.ensureNetwork(), 60_000, t('trade.signTimeout'));
+      if (gen !== setupGenRef.current) return;
       setNetworkStatus('ready');
     } catch (e: any) {
+      if (gen !== setupGenRef.current) return;
       setNetworkStatus('error');
       setNetworkError(e?.message ?? t('identity.logUnknownError'));
     }
@@ -146,6 +156,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const retryNetworkSetup = useCallback(() => {
     if (wcState) runNetworkSetup(wcState);
   }, [wcState, runNetworkSetup]);
+
+  // Real-device report: network setup reliably times out on the FIRST
+  // attempt (which spans the app backgrounding for the user to approve in
+  // MetaMask and foregrounding again), then reliably succeeds the moment the
+  // user notices the error and manually taps retry. See withTimeout's own
+  // comment in lib/signer.ts: the WalletConnect relay socket doesn't
+  // recover on its own across that background/foreground transition, so the
+  // original request can hang until its timeout fires regardless of how
+  // long that timeout is — a fresh request issued after foregrounding is
+  // what actually succeeds, not a longer wait. Firing that same retry
+  // automatically the moment the app comes back to the foreground removes
+  // the need for the user to notice the error and tap the button themselves.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && wcState && (networkStatus === 'pending' || networkStatus === 'error')) {
+        runNetworkSetup(wcState);
+      }
+    });
+    return () => sub.remove();
+  }, [wcState, networkStatus, runNetworkSetup]);
 
   const address = mode === 'walletconnect' ? wcState?.address ?? null : localAddress;
 

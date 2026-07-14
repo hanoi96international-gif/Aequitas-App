@@ -146,6 +146,25 @@ export async function resetWalletConnectStorage(): Promise<void> {
  * which nothing in the SDK makes on its own.
  */
 export async function ensureAequitasChain(request: WcRequest): Promise<void> {
+  // Real-device report: reconnecting (e.g. after an app/wallet restart) with
+  // a wallet that already has the chain added and active still re-ran the
+  // full switch/add/switch dance below every single time, each step its own
+  // round trip to the external wallet app — this is the "have to select the
+  // Aequitas chain again" complaint. eth_chainId is a read-only EIP-1193
+  // query wallets answer immediately with no approval prompt, so checking it
+  // first turns the already-set-up case (the common one, once a user has
+  // gotten through this flow once) into a single cheap call instead of up to
+  // three round trips.
+  try {
+    const current = await request({ method: 'eth_chainId', params: [] });
+    if (typeof current === 'string' && current.toLowerCase() === CHAIN_ID_HEX.toLowerCase()) {
+      return;
+    }
+  } catch {
+    // Some wallets/relays may not answer this either — fall through to the
+    // normal switch/add flow below, same as any other failure here.
+  }
+
   try {
     await request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] });
     return;
