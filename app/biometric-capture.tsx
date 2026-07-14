@@ -34,27 +34,33 @@ const PALM_TIMEOUT_MS = 8_000;
 
 // Real-device feedback: "there should be a template/guide showing whether the
 // palm/face is actually in the right position" -- these thresholds are what
-// FaceGuide below uses to decide "well positioned" from the live
-// react-native-vision-camera-face-detector output (bounds centered, a
-// plausible size for a close-up capture, and facing roughly straight at the
-// camera). Deliberately not a hard gate on the capture button below: a face
-// detector that's slightly off in some lighting condition shouldn't be able
-// to strand someone who can otherwise clearly see themselves centered in the
-// oval -- the manual button always still works.
+// FaceGuide below uses to turn the live react-native-vision-camera-face-detector
+// output (bounds centered, a plausible size for a close-up capture, facing
+// roughly straight at the camera) into one specific status, so the user
+// isn't just told "wrong" but WHAT to fix. Deliberately not a hard gate on
+// the capture button below: a face detector that's slightly off in some
+// lighting condition shouldn't be able to strand someone who can otherwise
+// clearly see themselves centered in the oval -- the manual button always
+// still works regardless of this status.
 const CENTER_TOLERANCE = 0.18;
 const MIN_SIZE_RATIO = 0.28;
 const MAX_SIZE_RATIO = 0.75;
 const MAX_ANGLE_DEG = 20;
 
-function isFacePositioned(face: Face): boolean {
+type FaceGuideStatus = 'none' | 'too_far' | 'too_close' | 'off_center' | 'angled' | 'ok';
+
+function getFaceGuideStatus(face: Face): FaceGuideStatus {
+  const sizeRatio = face.bounds.width / face.frameWidth;
+  if (sizeRatio <= MIN_SIZE_RATIO) return 'too_far';
+  if (sizeRatio >= MAX_SIZE_RATIO) return 'too_close';
   const cx = face.bounds.x + face.bounds.width / 2;
   const cy = face.bounds.y + face.bounds.height / 2;
   const centeredX = Math.abs(cx / face.frameWidth - 0.5) < CENTER_TOLERANCE;
   const centeredY = Math.abs(cy / face.frameHeight - 0.5) < CENTER_TOLERANCE;
-  const sizeRatio = face.bounds.width / face.frameWidth;
-  const sizedOk = sizeRatio > MIN_SIZE_RATIO && sizeRatio < MAX_SIZE_RATIO;
+  if (!centeredX || !centeredY) return 'off_center';
   const angledOk = Math.abs(face.yawAngle) < MAX_ANGLE_DEG && Math.abs(face.pitchAngle) < MAX_ANGLE_DEG;
-  return centeredX && centeredY && sizedOk && angledOk;
+  if (!angledOk) return 'angled';
+  return 'ok';
 }
 
 // Matches the app's one established primary-button look (see e.g.
@@ -111,10 +117,23 @@ function PalmGuide() {
   );
 }
 
-function FaceGuide({ positioned }: { positioned: boolean }) {
+function FaceGuide({ status }: { status: FaceGuideStatus }) {
+  const { t } = useLanguage();
+  const hint = (() => {
+    switch (status) {
+      case 'none': return t('identity.biometricGuideNone');
+      case 'too_far': return t('identity.biometricGuideTooFar');
+      case 'too_close': return t('identity.biometricGuideTooClose');
+      case 'off_center': return t('identity.biometricGuideOffCenter');
+      case 'angled': return t('identity.biometricGuideAngled');
+      case 'ok': return t('identity.biometricGuideOk');
+    }
+  })();
+  const ok = status === 'ok';
   return (
     <View style={S.guideWrap} pointerEvents="none">
-      <View style={[S.faceOval, positioned && S.faceOvalOk]} />
+      <View style={[S.faceOval, ok && S.faceOvalOk]} />
+      <Text style={[S.guideHint, ok && S.guideHintOk]}>{hint}</Text>
     </View>
   );
 }
@@ -133,14 +152,14 @@ export default function BiometricCapture() {
   const frontDevice = useCameraDevice('front');
   const photoOutput = usePhotoOutput();
 
-  const [facePositioned, setFacePositioned] = useState(false);
+  const [faceGuideStatus, setFaceGuideStatus] = useState<FaceGuideStatus>('none');
   const faceDetectorOutput = useFaceDetectorOutput({
     performanceMode: 'fast',
     cameraFacing: 'front',
     onFacesDetected: (faces) => {
-      setFacePositioned(faces.length > 0 && isFacePositioned(faces[0]));
+      setFaceGuideStatus(faces.length > 0 ? getFaceGuideStatus(faces[0]) : 'none');
     },
-    onError: () => setFacePositioned(false),
+    onError: () => setFaceGuideStatus('none'),
   });
 
   const [palmUri, setPalmUri] = useState<string | null>(null);
@@ -302,7 +321,7 @@ export default function BiometricCapture() {
           {hasPermission && frontDevice ? (
             <>
               <Camera style={S.camera} device={frontDevice} isActive outputs={[photoOutput, faceDetectorOutput]} />
-              <FaceGuide positioned={facePositioned} />
+              <FaceGuide status={faceGuideStatus} />
             </>
           ) : (
             <View style={S.content}>
@@ -321,7 +340,7 @@ export default function BiometricCapture() {
       {step === 'face_burst' && (
         <View style={S.cameraWrap}>
           {frontDevice && <Camera style={S.camera} device={frontDevice} isActive outputs={[photoOutput, faceDetectorOutput]} />}
-          <FaceGuide positioned={facePositioned} />
+          <FaceGuide status={faceGuideStatus} />
           <View style={S.overlayBox}>
             <StepDots current={2} />
             <ActivityIndicator color={theme.purple} size="large" style={S.spinnerGap} />
@@ -401,6 +420,11 @@ const S = StyleSheet.create({
   palmFrame: { width: 230, height: 230, borderRadius: 24, borderWidth: 3, borderStyle: 'dashed', borderColor: theme.borderStrong },
   faceOval: { width: 210, height: 280, borderRadius: 140, borderWidth: 3, borderStyle: 'dashed', borderColor: theme.borderStrong },
   faceOvalOk: { borderColor: theme.neon, borderStyle: 'solid' },
+  guideHint: {
+    marginTop: 14, color: theme.text, fontSize: 12.5, fontWeight: '700', letterSpacing: 0.5,
+    backgroundColor: 'rgba(12,14,22,0.7)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radiusSm,
+  },
+  guideHintOk: { color: theme.neon },
 
   stepDots: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },

@@ -236,6 +236,12 @@ export interface Translations {
     biometricCaptureBtn: string;
     biometricFaceTitle: string;
     biometricFaceHint: string;
+    biometricGuideNone: string;
+    biometricGuideTooFar: string;
+    biometricGuideTooClose: string;
+    biometricGuideOffCenter: string;
+    biometricGuideAngled: string;
+    biometricGuideOk: string;
     biometricLivenessCapturing: string;
     biometricProcessing: string;
     biometricCameraPermissionDenied: string;
