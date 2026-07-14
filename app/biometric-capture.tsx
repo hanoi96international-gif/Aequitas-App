@@ -4,6 +4,7 @@
 import React, { useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -21,6 +22,48 @@ type Step = 'consent' | 'palm' | 'face_intro' | 'face_burst' | 'submitting' | 'r
 
 const BURST_FRAME_COUNT = 15;
 const BURST_INTERVAL_MS = 100;
+
+// Matches the app's one established primary-button look (see e.g.
+// identity.tsx's proveHumanityBtn/retryBtn) instead of a flat fill, so this
+// screen doesn't read as a visually separate, less-finished part of the app.
+function GradientButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+        <Text style={S.btnPrimaryText}>{label}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
+// Palm (1) -> Face (2) progress, echoing identity.tsx's StepItem circles
+// (done = gradient check, active = spinner ring, pending = plain number) so
+// the capture flow reads as one more step of the same registration process
+// rather than a bolted-on separate feature.
+function StepDots({ current }: { current: 1 | 2 | 3 }) {
+  return (
+    <View style={S.stepDots}>
+      {([1, 2] as const).map((n) => (
+        <React.Fragment key={n}>
+          {n < current ? (
+            <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.stepDot}>
+              <Text style={S.stepDotCheck}>✓</Text>
+            </LinearGradient>
+          ) : n === current ? (
+            <View style={[S.stepDot, S.stepDotActive]}>
+              <ActivityIndicator size="small" color={theme.purple} />
+            </View>
+          ) : (
+            <View style={[S.stepDot, S.stepDotPending]}>
+              <Text style={S.stepDotNum}>{n}</Text>
+            </View>
+          )}
+          {n === 1 && <View style={S.stepLine} />}
+        </React.Fragment>
+      ))}
+    </View>
+  );
+}
 
 export default function BiometricCapture() {
   const { t } = useLanguage();
@@ -127,31 +170,31 @@ export default function BiometricCapture() {
     <SafeAreaView style={S.safe}>
       {step === 'consent' && (
         <View style={S.content}>
-          <Text style={S.title}>{t('identity.biometricConsentTitle')}</Text>
-          <Text style={S.body}>{t('identity.biometricConsentBody')}</Text>
+          <View style={S.card}>
+            <Text style={S.title}>{t('identity.biometricConsentTitle')}</Text>
+            <Text style={S.body}>{t('identity.biometricConsentBody')}</Text>
 
-          <TouchableOpacity style={S.checkRow} onPress={() => setBiometricChecked((v) => !v)} activeOpacity={0.8}>
-            <View style={[S.checkbox, biometricChecked && S.checkboxChecked]}>
-              {biometricChecked && <Text style={S.checkboxMark}>✓</Text>}
-            </View>
-            <Text style={S.checkLabel}>{t('identity.biometricConsentBiometricLabel')}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={S.checkRow} onPress={() => setBiometricChecked((v) => !v)} activeOpacity={0.8}>
+              <View style={[S.checkbox, biometricChecked && S.checkboxChecked]}>
+                {biometricChecked && <Text style={S.checkboxMark}>✓</Text>}
+              </View>
+              <Text style={S.checkLabel}>{t('identity.biometricConsentBiometricLabel')}</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={S.checkRow} onPress={() => setBonusChecked((v) => !v)} activeOpacity={0.8}>
-            <View style={[S.checkbox, bonusChecked && S.checkboxChecked]}>
-              {bonusChecked && <Text style={S.checkboxMark}>✓</Text>}
-            </View>
-            <Text style={S.checkLabel}>{t('identity.biometricConsentBonusLabel')}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={S.checkRow} onPress={() => setBonusChecked((v) => !v)} activeOpacity={0.8}>
+              <View style={[S.checkbox, bonusChecked && S.checkboxChecked]}>
+                {bonusChecked && <Text style={S.checkboxMark}>✓</Text>}
+              </View>
+              <Text style={S.checkLabel}>{t('identity.biometricConsentBonusLabel')}</Text>
+            </TouchableOpacity>
 
-          {consentError ? <Text style={S.errorText}>{consentError}</Text> : null}
+            {consentError ? <Text style={S.errorText}>{consentError}</Text> : null}
 
-          <TouchableOpacity style={S.btnPrimary} onPress={confirmConsent} activeOpacity={0.85}>
-            <Text style={S.btnPrimaryText}>{t('identity.biometricConsentConfirmBtn')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={S.btnGhost} onPress={close} activeOpacity={0.8}>
-            <Text style={S.btnGhostText}>{t('identity.biometricCancelBtn')}</Text>
-          </TouchableOpacity>
+            <GradientButton label={t('identity.biometricConsentConfirmBtn')} onPress={confirmConsent} />
+            <TouchableOpacity style={S.btnGhost} onPress={close} activeOpacity={0.8}>
+              <Text style={S.btnGhostText}>{t('identity.biometricCancelBtn')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -165,11 +208,10 @@ export default function BiometricCapture() {
             </View>
           )}
           <View style={S.overlayBox}>
+            <StepDots current={1} />
             <Text style={S.overlayTitle}>{t('identity.biometricPalmTitle')}</Text>
             <Text style={S.overlayHint}>{t('identity.biometricPalmHint')}</Text>
-            <TouchableOpacity style={S.btnPrimary} onPress={capturePalm} activeOpacity={0.85}>
-              <Text style={S.btnPrimaryText}>{t('identity.biometricCaptureBtn')}</Text>
-            </TouchableOpacity>
+            <GradientButton label={t('identity.biometricCaptureBtn')} onPress={capturePalm} />
           </View>
         </View>
       )}
@@ -184,11 +226,10 @@ export default function BiometricCapture() {
             </View>
           )}
           <View style={S.overlayBox}>
+            <StepDots current={2} />
             <Text style={S.overlayTitle}>{t('identity.biometricFaceTitle')}</Text>
             <Text style={S.overlayHint}>{t('identity.biometricFaceHint')}</Text>
-            <TouchableOpacity style={S.btnPrimary} onPress={startFaceCapture} activeOpacity={0.85}>
-              <Text style={S.btnPrimaryText}>{t('identity.biometricCaptureBtn')}</Text>
-            </TouchableOpacity>
+            <GradientButton label={t('identity.biometricCaptureBtn')} onPress={startFaceCapture} />
           </View>
         </View>
       )}
@@ -197,7 +238,8 @@ export default function BiometricCapture() {
         <View style={S.cameraWrap}>
           <CameraView ref={cameraRef} style={S.camera} facing="front" />
           <View style={S.overlayBox}>
-            <ActivityIndicator color={theme.purple} size="large" />
+            <StepDots current={2} />
+            <ActivityIndicator color={theme.purple} size="large" style={S.spinnerGap} />
             <Text style={S.overlayHint}>{t('identity.biometricLivenessCapturing')}</Text>
           </View>
         </View>
@@ -205,27 +247,29 @@ export default function BiometricCapture() {
 
       {step === 'submitting' && (
         <View style={S.content}>
-          <ActivityIndicator color={theme.purple} size="large" />
-          <Text style={S.body}>{t('identity.biometricProcessing')}</Text>
+          <View style={S.card}>
+            <ActivityIndicator color={theme.purple} size="large" />
+            <Text style={[S.body, S.spinnerGap]}>{t('identity.biometricProcessing')}</Text>
+          </View>
         </View>
       )}
 
       {step === 'result' && (
         <View style={S.content}>
-          {submitError ? (
-            <Text style={S.errorText}>{submitError}</Text>
-          ) : (
-            <Text style={S.body}>
-              {result?.decision === 'duplicate_detected'
-                ? t('identity.biometricResultDuplicate')
-                : result?.decision === 'new_enrollment'
-                  ? t('identity.biometricResultNew')
-                  : t('identity.biometricResultFailed')}
-            </Text>
-          )}
-          <TouchableOpacity style={S.btnPrimary} onPress={close} activeOpacity={0.85}>
-            <Text style={S.btnPrimaryText}>{t('identity.biometricBackBtn')}</Text>
-          </TouchableOpacity>
+          <View style={S.card}>
+            {submitError ? (
+              <Text style={S.errorText}>{submitError}</Text>
+            ) : (
+              <Text style={S.body}>
+                {result?.decision === 'duplicate_detected'
+                  ? t('identity.biometricResultDuplicate')
+                  : result?.decision === 'new_enrollment'
+                    ? t('identity.biometricResultNew')
+                    : t('identity.biometricResultFailed')}
+              </Text>
+            )}
+            <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
+          </View>
         </View>
       )}
     </SafeAreaView>
@@ -235,8 +279,16 @@ export default function BiometricCapture() {
 const S = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.bg },
   content: { flex: 1, padding: 24, justifyContent: 'center' },
+  card: {
+    backgroundColor: theme.card,
+    borderRadius: theme.radius,
+    borderWidth: 1,
+    borderColor: theme.border,
+    padding: 24,
+  },
   title: { fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 12 },
   body: { fontSize: 13, color: theme.muted, lineHeight: 20, marginBottom: 16, textAlign: 'center' },
+  spinnerGap: { marginTop: 14 },
 
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   checkbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 1.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
@@ -246,7 +298,7 @@ const S = StyleSheet.create({
 
   errorText: { color: theme.red, fontSize: 12, marginBottom: 12, textAlign: 'center' },
 
-  btnPrimary: { backgroundColor: theme.purple, borderRadius: theme.radiusSm, padding: 16, alignItems: 'center', marginTop: 12 },
+  btnPrimary: { borderRadius: theme.radiusSm, padding: 16, alignItems: 'center', marginTop: 12 },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1 },
   btnGhost: { padding: 12, alignItems: 'center', marginTop: 8 },
   btnGhostText: { color: theme.muted, fontSize: 12 },
@@ -259,4 +311,12 @@ const S = StyleSheet.create({
   },
   overlayTitle: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 6 },
   overlayHint: { color: theme.muted, fontSize: 12, textAlign: 'center', lineHeight: 18 },
+
+  stepDots: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  stepDotActive: { backgroundColor: theme.card2, borderWidth: 1.5, borderColor: theme.purple },
+  stepDotPending: { backgroundColor: theme.card2, borderWidth: 1, borderColor: theme.borderStrong },
+  stepDotNum: { color: theme.muted, fontSize: 12, fontWeight: '700' },
+  stepDotCheck: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  stepLine: { width: 28, height: 2, backgroundColor: theme.borderStrong, marginHorizontal: 4 },
 });
