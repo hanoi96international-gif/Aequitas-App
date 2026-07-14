@@ -1,13 +1,14 @@
 // Phase 0 biometric proof-of-personhood capture screen (palm+face+consent,
 // see aequitas-biometric-beta). Pushed from the Identity tab ONLY when
 // BIOMETRIC_ENABLED is set (see lib/config.ts) -- unreachable otherwise.
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
 import { useFaceDetectorOutput, type Face } from 'react-native-vision-camera-face-detector';
+import { detectHand, type HandBounds } from 'mediapipe-hand-detector';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
@@ -63,6 +64,30 @@ function getFaceGuideStatus(face: Face): FaceGuideStatus {
   return 'ok';
 }
 
+// Real-device follow-up: "there must be something better for palmprint than
+// what we have now" -- true real-time hand tracking has no ready-made React
+// Native library (checked: react-native-mediapipe only implements face/pose/
+// object detection, no hand landmark module despite the name), so this
+// polls MediaPipe's own official HandLandmarker (mediapipe-hand-detector, a
+// small local native module wrapping the same model the server already uses
+// in Python) on periodically-captured preview frames instead of a live
+// frame-processor stream -- less fluid than the face guide, but real
+// detection against the actual model, not a static decoration.
+const PALM_POLL_INTERVAL_MS = 600;
+
+type PalmGuideStatus = 'none' | 'too_far' | 'too_close' | 'off_center' | 'ok';
+
+function getPalmGuideStatus(bounds: HandBounds): PalmGuideStatus {
+  const width = bounds.maxX - bounds.minX;
+  if (width <= MIN_SIZE_RATIO) return 'too_far';
+  if (width >= MAX_SIZE_RATIO) return 'too_close';
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cy = (bounds.minY + bounds.maxY) / 2;
+  const centered = Math.abs(cx - 0.5) < CENTER_TOLERANCE && Math.abs(cy - 0.5) < CENTER_TOLERANCE;
+  if (!centered) return 'off_center';
+  return 'ok';
+}
+
 // Matches the app's one established primary-button look (see e.g.
 // identity.tsx's proveHumanityBtn/retryBtn) instead of a flat fill, so this
 // screen doesn't read as a visually separate, less-finished part of the app.
@@ -105,14 +130,22 @@ function StepDots({ current }: { current: 1 | 2 | 3 }) {
   );
 }
 
-// Static positioning guide for the palm -- there is no mature, real-time
-// hand-landmark detection available for React Native (the server's
-// MediaPipe Hands pipeline is Python-only), so unlike the face guide below
-// this is visual-only, no live "well positioned" feedback.
-function PalmGuide() {
+function PalmGuide({ status }: { status: PalmGuideStatus }) {
+  const { t } = useLanguage();
+  const hint = (() => {
+    switch (status) {
+      case 'none': return t('identity.biometricPalmGuideNone');
+      case 'too_far': return t('identity.biometricPalmGuideTooFar');
+      case 'too_close': return t('identity.biometricPalmGuideTooClose');
+      case 'off_center': return t('identity.biometricPalmGuideOffCenter');
+      case 'ok': return t('identity.biometricPalmGuideOk');
+    }
+  })();
+  const ok = status === 'ok';
   return (
     <View style={S.guideWrap} pointerEvents="none">
-      <View style={S.palmFrame} />
+      <View style={[S.palmFrame, ok && S.palmFrameOk]} />
+      <Text style={[S.guideHint, ok && S.guideHintOk]}>{hint}</Text>
     </View>
   );
 }
@@ -161,6 +194,32 @@ export default function BiometricCapture() {
     },
     onError: () => setFaceGuideStatus('none'),
   });
+
+  const [palmGuideStatus, setPalmGuideStatus] = useState<PalmGuideStatus>('none');
+  const palmPollBusyRef = useRef(false);
+
+  // Periodic polling (not a real-time frame-processor stream -- see
+  // getPalmGuideStatus's own comment on why) against the actual
+  // MediaPipe HandLandmarker model while the palm step is visible. Skips a
+  // tick instead of queueing if the previous detection call hasn't returned
+  // yet, so a slow device can't pile up capture calls.
+  useEffect(() => {
+    if (step !== 'palm' || !hasPermission || !backDevice) return;
+    const interval = setInterval(async () => {
+      if (palmPollBusyRef.current) return;
+      palmPollBusyRef.current = true;
+      try {
+        const file = await photoOutput.capturePhotoToFile({}, {});
+        const bounds = await detectHand('file://' + file.filePath);
+        setPalmGuideStatus(bounds ? getPalmGuideStatus(bounds) : 'none');
+      } catch {
+        setPalmGuideStatus('none');
+      } finally {
+        palmPollBusyRef.current = false;
+      }
+    }, PALM_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [step, hasPermission, backDevice, photoOutput]);
 
   const [palmUri, setPalmUri] = useState<string | null>(null);
   const [faceUri, setFaceUri] = useState<string | null>(null);
@@ -300,7 +359,7 @@ export default function BiometricCapture() {
           {hasPermission && backDevice ? (
             <>
               <Camera style={S.camera} device={backDevice} isActive outputs={[photoOutput]} />
-              <PalmGuide />
+              <PalmGuide status={palmGuideStatus} />
             </>
           ) : (
             <View style={S.content}>
@@ -418,6 +477,7 @@ const S = StyleSheet.create({
 
   guideWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   palmFrame: { width: 230, height: 230, borderRadius: 24, borderWidth: 3, borderStyle: 'dashed', borderColor: theme.borderStrong },
+  palmFrameOk: { borderColor: theme.neon, borderStyle: 'solid' },
   faceOval: { width: 210, height: 280, borderRadius: 140, borderWidth: 3, borderStyle: 'dashed', borderColor: theme.borderStrong },
   faceOvalOk: { borderColor: theme.neon, borderStyle: 'solid' },
   guideHint: {

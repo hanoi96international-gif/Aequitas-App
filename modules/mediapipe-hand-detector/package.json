@@ -1,0 +1,8 @@
+{
+  "name": "mediapipe-hand-detector",
+  "version": "1.0.0",
+  "description": "Local Expo module: MediaPipe Hand Landmarker (Android) for the palm-capture positioning guide.",
+  "main": "src/index.ts",
+  "license": "UNLICENSED",
+  "private": true
+}

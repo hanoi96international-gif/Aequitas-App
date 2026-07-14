@@ -233,6 +233,11 @@ export interface Translations {
     biometricCancelBtn: string;
     biometricPalmTitle: string;
     biometricPalmHint: string;
+    biometricPalmGuideNone: string;
+    biometricPalmGuideTooFar: string;
+    biometricPalmGuideTooClose: string;
+    biometricPalmGuideOffCenter: string;
+    biometricPalmGuideOk: string;
     biometricCaptureBtn: string;
     biometricFaceTitle: string;
     biometricFaceHint: string;
