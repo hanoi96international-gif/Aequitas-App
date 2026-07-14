@@ -145,35 +145,62 @@ export async function resetWalletConnectStorage(): Promise<void> {
  * ourselves needs no session/pairing changes — only this explicit call,
  * which nothing in the SDK makes on its own.
  */
+// Persisted once wallet_addEthereumChain has ever succeeded, so a returning
+// connection can be recognized without guessing from wallet state alone.
+const CHAIN_SETUP_DONE_KEY = 'aequitas_chain_setup_done_v1';
+
 export async function ensureAequitasChain(request: WcRequest): Promise<void> {
-  // Real-device report: reconnecting (e.g. after an app/wallet restart) with
-  // a wallet that already has the chain added and active still re-ran the
-  // full switch/add/switch dance below every single time, each step its own
-  // round trip to the external wallet app — this is the "have to select the
-  // Aequitas chain again" complaint. eth_chainId is a read-only EIP-1193
-  // query wallets answer immediately with no approval prompt, so checking it
-  // first turns the already-set-up case (the common one, once a user has
-  // gotten through this flow once) into a single cheap call instead of up to
-  // three round trips.
-  try {
-    const current = await request({ method: 'eth_chainId', params: [] });
-    if (typeof current === 'string' && current.toLowerCase() === CHAIN_ID_HEX.toLowerCase()) {
-      return;
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  const setUpBefore = (await AsyncStorage.getItem(CHAIN_SETUP_DONE_KEY)) === '1';
+
+  // Real-device report: even a RETURNING connection (wallet already has the
+  // chain added and active) re-ran the full switch/add/switch dance below
+  // every single time, each step its own round trip to the external wallet
+  // app — this is the "have to select the Aequitas chain again" complaint.
+  // eth_chainId is a read-only EIP-1193 query wallets answer immediately
+  // with no approval prompt, so checking it first turns the already-set-up
+  // case into a single cheap call instead of up to three round trips. Only
+  // worth trying once this flow has actually completed successfully before
+  // — on a genuine first-ever connection it's guaranteed to mismatch, so
+  // skipping it entirely below saves that wasted round trip on the
+  // already-friction-heaviest path.
+  if (setUpBefore) {
+    try {
+      const current = await request({ method: 'eth_chainId', params: [] });
+      if (typeof current === 'string' && current.toLowerCase() === CHAIN_ID_HEX.toLowerCase()) {
+        return;
+      }
+    } catch {
+      // Some wallets/relays may not answer this either — fall through to
+      // the normal switch/add flow below, same as any other failure here.
     }
-  } catch {
-    // Some wallets/relays may not answer this either — fall through to the
-    // normal switch/add flow below, same as any other failure here.
+
+    try {
+      await request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] });
+      return;
+    } catch {
+      // The wallet apparently lost the chain since last time (reset,
+      // reinstalled, different account) — fall through and add it again,
+      // same as a genuine first-ever connection below.
+    }
   }
 
-  try {
-    await request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] });
-    return;
-  } catch {
-    // Expected on a wallet that has never added this chain — fall through
-    // to add it. Any other switch failure (e.g. the wallet really did
-    // reject) will also surface below, from the add or the final re-switch.
-  }
-
+  // Real-device report: "when connecting for the first time, everything
+  // must complete in one go" — not the repeated app <-> MetaMask
+  // round-tripping this flow used to do. On a genuine first connection the
+  // wallet cannot possibly already have this custom chain, so trying
+  // wallet_switchEthereumChain first (as AppKit's own broken flow does, and
+  // as this function used to unconditionally do too) is a guaranteed,
+  // wasted round trip: per EIP-3326 a wallet that's never heard of a
+  // chainId rejects it instantly (see this function's top comment).
+  // wallet_addEthereumChain is the ONE request that can actually succeed
+  // here, and MetaMask (the wallet this flow is built and tested against)
+  // switches to the newly added chain automatically as part of approving
+  // it — so this single call, and the single approval screen it shows, is
+  // the entire first-time setup. No follow-up confirmatory switch call: on
+  // a wallet that doesn't auto-switch after adding, that call would just be
+  // yet another app-switch round trip the user would experience as more of
+  // exactly the back-and-forth being fixed here.
   await request({
     method: 'wallet_addEthereumChain',
     params: [
@@ -187,12 +214,7 @@ export async function ensureAequitasChain(request: WcRequest): Promise<void> {
     ],
   });
 
-  // MetaMask switches to a chain automatically as part of approving the add,
-  // but send an explicit follow-up so we don't silently continue against
-  // the wrong chain if a particular wallet needs it as a separate step —
-  // and so a genuine failure here (rather than being swallowed) surfaces to
-  // the caller as a real, retryable error.
-  await request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] });
+  await AsyncStorage.setItem(CHAIN_SETUP_DONE_KEY, '1');
 }
 
 export function useWalletConnect() {
