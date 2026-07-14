@@ -2,7 +2,7 @@ import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PRO
 import { walletConnectSigner, type AequitasSigner } from './signer';
 import type { AppKitNetwork, Storage } from '@reown/appkit-react-native';
 
-type WcRequest = (args: { method: string; params: unknown[] }) => Promise<any>;
+type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
 
 export const aequitasNetwork: AppKitNetwork = {
   id: CHAIN_ID_DEC,
@@ -12,6 +12,39 @@ export const aequitasNetwork: AppKitNetwork = {
   blockExplorers: { default: { name: 'Aequitas Explorer', url: WEBAPP } },
   chainNamespace: 'eip155',
   caipNetworkId: `eip155:${CHAIN_ID_DEC}`,
+};
+
+/**
+ * Root cause of the "Invalid chainId" error thrown INSTANTLY (no relay/wallet
+ * round trip at all -- confirmed via on-device logcat, `{ context: 'client'
+ * }, 'Invalid chainId'` fires ~200ms after the deep-link into MetaMask, far
+ * too fast to be a real response) on every single WalletConnect request this
+ * app sends, including the very first wallet_addEthereumChain call of a fresh
+ * connection: confirmed by reading `@walletconnect/sign-client`'s own source
+ * (isValidRequest -> isValidNamespacesChainId) that EVERY outgoing request is
+ * validated CLIENT-SIDE against the chains already present in the session's
+ * approved namespaces, before it's ever sent to the wallet -- regardless of
+ * method, so this applies to wallet_addEthereumChain/wallet_switchEthereumChain
+ * exactly like any other call. AppKit's own EthersAdapter.switchNetwork (see
+ * the installed SDK's src/adapter.ts) passes this same chainId as request()'s
+ * second argument, scoped to whichever network is being switched TO -- which
+ * only works because AppKit's typical usage lists several wallet-recognized
+ * chains in `networks`, all of which got negotiated into the session up
+ * front. This app's `networks` used to list ONLY Aequitas Chain, a chain no
+ * wallet has ever heard of -- so the session could never negotiate ANY chain
+ * our own raw requests could validly be routed through, dooming literally
+ * every request (add-chain included) before it left the device. Ethereum
+ * mainnet is added below purely as that missing, universally-wallet-known
+ * routing anchor; the app has no mainnet functionality and never surfaces it
+ * as something to use.
+ */
+const anchorNetwork: AppKitNetwork = {
+  id: 1,
+  name: 'Ethereum',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: ['https://cloudflare-eth.com'] } },
+  chainNamespace: 'eip155',
+  caipNetworkId: 'eip155:1',
 };
 
 /**
@@ -68,7 +101,7 @@ export const appKit = (() => {
 
     return createAppKit({
       projectId: WALLETCONNECT_PROJECT_ID,
-      networks: [aequitasNetwork],
+      networks: [aequitasNetwork, anchorNetwork],
       defaultNetwork: aequitasNetwork,
       adapters: [new EthersAdapter()],
       storage: asyncStorageAdapter,
@@ -234,7 +267,14 @@ export function useWalletConnect() {
   const { address, isConnected } = useAccount();
   const { provider } = useProvider();
 
-  const rawRequest: WcRequest | null = provider ? (args) => provider.request(args) : null;
+  // Defaults every call's routing chainId to anchorNetwork (see its own
+  // comment above) unless a caller explicitly overrides it -- so every
+  // existing request() call site (ensureAequitasChain, walletConnectSigner's
+  // personal_sign/eth_sendTransaction) gets a validly-routable request
+  // without each one needing to know or repeat this anchor.
+  const rawRequest: WcRequest | null = provider
+    ? (args, chainId) => provider.request(args, chainId ?? anchorNetwork.caipNetworkId)
+    : null;
 
   const signer: AequitasSigner | null =
     isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest) : null;
