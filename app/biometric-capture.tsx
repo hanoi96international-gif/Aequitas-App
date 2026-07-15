@@ -2,7 +2,7 @@
 // see aequitas-biometric-beta). Pushed from the Identity tab ONLY when
 // BIOMETRIC_ENABLED is set (see lib/config.ts) -- unreachable otherwise.
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -192,11 +192,27 @@ export default function BiometricCapture() {
   const backDevice = useCameraDevice('back');
   const frontDevice = useCameraDevice('front');
   const photoOutput = usePhotoOutput();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const [faceGuideStatus, setFaceGuideStatus] = useState<FaceGuideStatus>('none');
+  // Real-device report: the guide claimed "face detected/centered" even
+  // when the face was visibly outside the oval. Root cause: autoMode
+  // defaults to false in this library, meaning bounds/frameWidth/
+  // frameHeight are relative to the raw camera SENSOR frame, not to the
+  // screen/preview -- getFaceGuideStatus's ratio math was correct, just
+  // measuring the wrong coordinate space entirely (sensor orientation and
+  // front-camera mirroring both differ from what's shown on screen).
+  // autoMode:true makes the library do that scaling/rotation itself, but
+  // requires the actual window size to scale against -- the <Camera> here
+  // fills the whole screen (cameraWrap/camera are both flex:1, overlayBox
+  // is position:absolute on top of it), so window dimensions match its
+  // rendered size.
   const faceDetectorOutput = useFaceDetectorOutput({
     performanceMode: 'fast',
     cameraFacing: 'front',
+    autoMode: true,
+    windowWidth,
+    windowHeight,
     onFacesDetected: (faces) => {
       setFaceGuideStatus(faces.length > 0 ? getFaceGuideStatus(faces[0]) : 'none');
     },
@@ -421,7 +437,18 @@ export default function BiometricCapture() {
         </View>
       )}
 
-      {step === 'face_intro' && (
+      {(step === 'face_intro' || step === 'face_burst') && (
+        // Real-device report: every single burst frame failed with
+        // "Camera is closed" / "Capture request is cancelled on closed
+        // CameraGraph" -- face_intro and face_burst used to be two
+        // SEPARATE JSX branches, each with its own <Camera> element.
+        // React treats those as different elements and unmounts/remounts
+        // the underlying native camera session on every face_intro ->
+        // face_burst transition, right as startFaceCapture()'s loop
+        // starts calling capturePhotoToFile on it -- a real hardware
+        // session teardown/init race, not a timing fluke. One <Camera>
+        // now stays mounted across both steps; only the overlay content
+        // below it (button vs. spinner) switches.
         <View style={S.cameraWrap}>
           {hasPermission && frontDevice ? (
             <>
@@ -435,21 +462,18 @@ export default function BiometricCapture() {
           )}
           <View style={S.overlayBox}>
             <StepDots current={2} />
-            <Text style={S.overlayTitle}>{t('identity.biometricFaceTitle')}</Text>
-            <Text style={S.overlayHint}>{t('identity.biometricFaceHint')}</Text>
-            <GradientButton label={t('identity.biometricCaptureBtn')} onPress={startFaceCapture} />
-          </View>
-        </View>
-      )}
-
-      {step === 'face_burst' && (
-        <View style={S.cameraWrap}>
-          {frontDevice && <Camera style={S.camera} device={frontDevice} isActive outputs={[photoOutput, faceDetectorOutput]} />}
-          <FaceGuide status={faceGuideStatus} />
-          <View style={S.overlayBox}>
-            <StepDots current={2} />
-            <ActivityIndicator color={theme.purple} size="large" style={S.spinnerGap} />
-            <Text style={S.overlayHint}>{t('identity.biometricLivenessCapturing')}</Text>
+            {step === 'face_intro' ? (
+              <>
+                <Text style={S.overlayTitle}>{t('identity.biometricFaceTitle')}</Text>
+                <Text style={S.overlayHint}>{t('identity.biometricFaceHint')}</Text>
+                <GradientButton label={t('identity.biometricCaptureBtn')} onPress={startFaceCapture} />
+              </>
+            ) : (
+              <>
+                <ActivityIndicator color={theme.purple} size="large" style={S.spinnerGap} />
+                <Text style={S.overlayHint}>{t('identity.biometricLivenessCapturing')}</Text>
+              </>
+            )}
           </View>
         </View>
       )}

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
+import android.util.Log
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -55,6 +56,7 @@ class MediapipeHandDetectorModule : Module() {
     val bitmap = BitmapFactory.decodeFile(path) ?: return null
     val orientation = ExifInterface(path)
       .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    Log.d("MediapipeHandDetector", "raw bitmap ${bitmap.width}x${bitmap.height}, EXIF orientation=$orientation")
     val rotationDegrees = when (orientation) {
       ExifInterface.ORIENTATION_ROTATE_90 -> 90f
       ExifInterface.ORIENTATION_ROTATE_180 -> 180f
@@ -76,6 +78,7 @@ class MediapipeHandDetectorModule : Module() {
       val mpImage = BitmapImageBuilder(bitmap).build()
       val result = getOrCreateLandmarker().detect(mpImage)
       val landmarks = result.landmarks()
+      Log.d("MediapipeHandDetector", "upright bitmap ${bitmap.width}x${bitmap.height}, hands found=${landmarks.size}")
       if (landmarks.isEmpty()) return@AsyncFunction null
 
       val points = landmarks[0]
