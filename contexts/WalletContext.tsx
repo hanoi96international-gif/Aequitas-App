@@ -31,7 +31,7 @@ interface WalletContextValue {
   networkError: string | null;
   createLocalWallet: (mnemonic: string) => Promise<{ address: string; mnemonic?: string }>;
   importLocalWallet: (secret: string) => Promise<void>;
-  openWalletConnect: () => void;
+  openWalletConnect: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   retryNetworkSetup: () => void;
@@ -255,7 +255,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setBalance(null);
   }, [mode, wcState, localAddress]);
 
-  const openWalletConnect = useCallback(() => {
+  const openWalletConnect = useCallback(async () => {
+    // Real-device report: repeated connection attempts fail with
+    // MetaMask's own "Connection declined... can be declined if a
+    // previous request is still active" -- exactly the wedged-session
+    // symptom resetWalletConnectStorage's own comment documents (a stuck
+    // unresolved request in the persisted wc@2:* keys that the SDK's own
+    // disconnect() doesn't reliably clear). This button is only ever
+    // reachable from onboarding, i.e. only when there's no active
+    // connection to protect -- so wiping storage unconditionally right
+    // before opening removes any chance of stale state from an earlier
+    // attempt blocking this one, instead of leaving the user to
+    // rediscover "just retry a few times" on their own each time.
+    await resetWalletConnectStorage();
     wcState?.open();
   }, [wcState]);
 
