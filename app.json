@@ -61,7 +61,8 @@
             "extraProguardRules": "-dontwarn javax.lang.model.**"
           }
         }
-      ]
+      ],
+      "./plugins/withRawPropsJsiValueFix.js"
     ],
     "experiments": {
       "typedRoutes": true,
