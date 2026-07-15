@@ -227,7 +227,12 @@ export default function BiometricCapture() {
       if (cameraBusyRef.current) return;
       cameraBusyRef.current = true;
       try {
-        const file = await photoOutput.capturePhotoToFile({}, {});
+        // Real-device report: this invisible background poll (the user
+        // never pressed anything for it) was firing the audible camera
+        // shutter sound every 600ms -- silenced, unlike the actual
+        // capture button presses below which keep it as expected
+        // "yes, that was captured" feedback.
+        const file = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
         const bounds = await detectHand('file://' + file.filePath);
         setPalmGuideStatus(bounds ? getPalmGuideStatus(bounds) : 'none');
       } catch (e) {
@@ -291,7 +296,16 @@ export default function BiometricCapture() {
     const frames: string[] = [];
     for (let i = 0; i < BURST_FRAME_COUNT; i++) {
       try {
-        const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), FRAME_TIMEOUT_MS, 'timeout');
+        // Real-device report: 50 individual shutter-sound clicks in 5
+        // seconds ("macht ununterbrochen das Kamera Geräusch") -- this is
+        // one continuous burst the user already started, not 50 separate
+        // capture actions, so per-frame audible feedback doesn't mean
+        // anything here (unlike the actual capture buttons elsewhere).
+        const file = await withTimeout(
+          photoOutput.capturePhotoToFile({ enableShutterSound: false }, {}),
+          FRAME_TIMEOUT_MS,
+          'timeout'
+        );
         frames.push('file://' + file.filePath);
       } catch (e) {
         // A single stuck frame shouldn't cost the whole burst -- skip it

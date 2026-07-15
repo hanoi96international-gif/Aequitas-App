@@ -1,6 +1,9 @@
 package expo.modules.mediapipehanddetector
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -42,12 +45,32 @@ class MediapipeHandDetectorModule : Module() {
     return HandLandmarker.createFromOptions(context, options).also { handLandmarker = it }
   }
 
+  // Real-device report: hand detection never fired at all, on any capture.
+  // capturePhotoToFile (like most Android camera APIs) saves the JPEG in
+  // the sensor's native orientation plus an EXIF rotation tag -- it is NOT
+  // already upright the way the live preview displays it. Decoding the
+  // raw pixels without applying that tag handed MediaPipe a sideways or
+  // upside-down image every time, which it couldn't recognize as a hand.
+  private fun decodeUprightBitmap(path: String): Bitmap? {
+    val bitmap = BitmapFactory.decodeFile(path) ?: return null
+    val orientation = ExifInterface(path)
+      .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    val rotationDegrees = when (orientation) {
+      ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+      ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+      ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+      else -> return bitmap
+    }
+    val matrix = Matrix().apply { postRotate(rotationDegrees) }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+  }
+
   override fun definition() = ModuleDefinition {
     Name("MediapipeHandDetector")
 
     AsyncFunction("detectHand") { imagePath: String ->
       val cleanPath = imagePath.removePrefix("file://")
-      val bitmap = BitmapFactory.decodeFile(cleanPath)
+      val bitmap = decodeUprightBitmap(cleanPath)
         ?: return@AsyncFunction null
 
       val mpImage = BitmapImageBuilder(bitmap).build()
