@@ -204,26 +204,37 @@ export default function BiometricCapture() {
   });
 
   const [palmGuideStatus, setPalmGuideStatus] = useState<PalmGuideStatus>('none');
-  const palmPollBusyRef = useRef(false);
+  // Real-device report: the actual palm capture button started failing
+  // with "Testaufnahme konnte nicht abgeschlossen werden" every time
+  // (capturePalm's withTimeout hitting PALM_TIMEOUT_MS) -- this same ref
+  // is now a lock SHARED between the guide's background polling below and
+  // capturePalm() itself, since both call photoOutput.capturePhotoToFile
+  // on the same output and vision-camera doesn't handle two concurrent
+  // capture requests cleanly. Before this, a poll landing at the same
+  // moment as the user's tap could stall the real capture for the full
+  // 8s timeout.
+  const cameraBusyRef = useRef(false);
 
   // Periodic polling (not a real-time frame-processor stream -- see
   // getPalmGuideStatus's own comment on why) against the actual
   // MediaPipe HandLandmarker model while the palm step is visible. Skips a
   // tick instead of queueing if the previous detection call hasn't returned
-  // yet, so a slow device can't pile up capture calls.
+  // yet (or a real capture is in flight, see cameraBusyRef above), so a
+  // slow device can't pile up capture calls.
   useEffect(() => {
     if (step !== 'palm' || !hasPermission || !backDevice) return;
     const interval = setInterval(async () => {
-      if (palmPollBusyRef.current) return;
-      palmPollBusyRef.current = true;
+      if (cameraBusyRef.current) return;
+      cameraBusyRef.current = true;
       try {
         const file = await photoOutput.capturePhotoToFile({}, {});
         const bounds = await detectHand('file://' + file.filePath);
         setPalmGuideStatus(bounds ? getPalmGuideStatus(bounds) : 'none');
-      } catch {
+      } catch (e) {
+        console.error('[biometric-capture] palm guide poll failed', e);
         setPalmGuideStatus('none');
       } finally {
-        palmPollBusyRef.current = false;
+        cameraBusyRef.current = false;
       }
     }, PALM_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
@@ -253,13 +264,24 @@ export default function BiometricCapture() {
 
   async function capturePalm() {
     if (!(await ensurePermission())) return;
+    // Wait out a poll-triggered capture if one's in flight (always brief),
+    // then hold the same lock so the guide's own poll skips itself for
+    // the duration of this real capture -- see cameraBusyRef's comment.
+    const waitDeadline = Date.now() + 2_000;
+    while (cameraBusyRef.current && Date.now() < waitDeadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    cameraBusyRef.current = true;
     try {
       const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), PALM_TIMEOUT_MS, 'timeout');
       setPalmUri('file://' + file.filePath);
       setStep('face_intro');
-    } catch {
+    } catch (e) {
+      console.error('[biometric-capture] palm capture failed', e);
       setSubmitError(t('identity.biometricResultFailed'));
       setStep('result');
+    } finally {
+      cameraBusyRef.current = false;
     }
   }
 
@@ -271,9 +293,10 @@ export default function BiometricCapture() {
       try {
         const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), FRAME_TIMEOUT_MS, 'timeout');
         frames.push('file://' + file.filePath);
-      } catch {
+      } catch (e) {
         // A single stuck frame shouldn't cost the whole burst -- skip it
         // and keep going, same "degrade instead of hang" idea as above.
+        console.error('[biometric-capture] face burst frame failed', e);
       }
       await new Promise((r) => setTimeout(r, BURST_INTERVAL_MS));
     }
@@ -321,6 +344,7 @@ export default function BiometricCapture() {
       }
       setStep('result');
     } catch (e: any) {
+      console.error('[biometric-capture] submit failed', e);
       setSubmitError(e?.message ?? t('identity.biometricResultFailed'));
       setStep('result');
     }
