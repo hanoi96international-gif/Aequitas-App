@@ -138,7 +138,7 @@ function StepDots({ current }: { current: 1 | 2 | 3 }) {
   );
 }
 
-function PalmGuide({ status }: { status: PalmGuideStatus }) {
+function PalmGuide({ status, debug }: { status: PalmGuideStatus; debug: string }) {
   const { t } = useLanguage();
   const hint = (() => {
     switch (status) {
@@ -154,6 +154,8 @@ function PalmGuide({ status }: { status: PalmGuideStatus }) {
     <View style={S.guideWrap} pointerEvents="none">
       <View style={[S.palmFrame, ok && S.palmFrameOk]} />
       <Text style={[S.guideHint, ok && S.guideHintOk]}>{hint}</Text>
+      {/* TEMPORARY diagnostic, see palmDebug's own comment */}
+      <Text style={S.debugText}>{debug}</Text>
     </View>
   );
 }
@@ -220,6 +222,11 @@ export default function BiometricCapture() {
   });
 
   const [palmGuideStatus, setPalmGuideStatus] = useState<PalmGuideStatus>('none');
+  // TEMPORARY diagnostic (remove once the "keine Hand gefunden" root cause
+  // is confirmed) -- real-device logcat access has been unreliable for
+  // seeing whether this poll ever actually runs at all, so this puts the
+  // same information directly on screen instead.
+  const [palmDebug, setPalmDebug] = useState('poll not started yet');
   // Real-device report: the actual palm capture button started failing
   // with "Testaufnahme konnte nicht abgeschlossen werden" every time
   // (capturePalm's withTimeout hitting PALM_TIMEOUT_MS) -- this same ref
@@ -238,10 +245,20 @@ export default function BiometricCapture() {
   // yet (or a real capture is in flight, see cameraBusyRef above), so a
   // slow device can't pile up capture calls.
   useEffect(() => {
-    if (step !== 'palm' || !hasPermission || !backDevice) return;
+    if (step !== 'palm' || !hasPermission || !backDevice) {
+      setPalmDebug(`effect gated off: step=${step} hasPermission=${hasPermission} backDevice=${!!backDevice}`);
+      return;
+    }
+    setPalmDebug('effect started, waiting for first tick...');
+    let tick = 0;
     const interval = setInterval(async () => {
-      if (cameraBusyRef.current) return;
+      tick++;
+      if (cameraBusyRef.current) {
+        setPalmDebug(`tick ${tick}: skipped, camera busy`);
+        return;
+      }
       cameraBusyRef.current = true;
+      setPalmDebug(`tick ${tick}: capturing photo...`);
       try {
         // Real-device report: this invisible background poll (the user
         // never pressed anything for it) was firing the audible camera
@@ -249,9 +266,12 @@ export default function BiometricCapture() {
         // capture button presses below which keep it as expected
         // "yes, that was captured" feedback.
         const file = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
+        setPalmDebug(`tick ${tick}: captured, running detectHand...`);
         const bounds = await detectHand('file://' + file.filePath);
+        setPalmDebug(`tick ${tick}: bounds=${bounds ? JSON.stringify(bounds) : 'null (no hand)'}`);
         setPalmGuideStatus(bounds ? getPalmGuideStatus(bounds) : 'none');
-      } catch (e) {
+      } catch (e: any) {
+        setPalmDebug(`tick ${tick}: ERROR ${e?.message ?? String(e)}`);
         console.error('[biometric-capture] palm guide poll failed', e);
         setPalmGuideStatus('none');
       } finally {
@@ -421,7 +441,7 @@ export default function BiometricCapture() {
           {hasPermission && backDevice ? (
             <>
               <Camera style={S.camera} device={backDevice} isActive outputs={[photoOutput]} />
-              <PalmGuide status={palmGuideStatus} />
+              <PalmGuide status={palmGuideStatus} debug={palmDebug} />
             </>
           ) : (
             <View style={S.content}>
@@ -555,6 +575,12 @@ const S = StyleSheet.create({
     backgroundColor: 'rgba(12,14,22,0.7)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radiusSm,
   },
   guideHintOk: { color: theme.neon },
+  // TEMPORARY diagnostic style, see palmDebug's own comment
+  debugText: {
+    marginTop: 8, color: '#ffcc00', fontSize: 10, fontFamily: 'monospace',
+    backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6,
+    maxWidth: '90%', textAlign: 'center',
+  },
 
   stepDots: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
