@@ -10,6 +10,7 @@
 // accuracy validation + Phase 2 legal review are actually done.
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import { getAttestationPayload } from './attestation';
 import { COORDINATOR_BASE } from './config';
 
 // Matches aequitas-biometric-beta/docs/einwilligung-entwurf.md -- bump if
@@ -206,15 +207,18 @@ export async function registerBiometric(
   if (capture.challengeNonce) {
     form.append('challenge_nonce', capture.challengeNonce);
   }
-  // Device attestation (Play Integrity/App Attest) is NOT sent from this
-  // client -- @expo/app-integrity has no version compatible with this
-  // project's Expo SDK (54); the earliest published version targets SDK 55,
-  // and installing it crashed the app at native-module bootstrap
-  // (NoClassDefFoundError: expo.modules.kotlin.types.AnyTypeCache) before
-  // any JS even runs, confirmed via a real device build. The coordinator's
-  // attestation_status/attestation_reason fields below still exist in its
-  // response regardless (see attestation.py) -- they'll just always read
-  // "not_configured" since nothing is ever sent.
+  // See lib/attestation.ts's own top comment for why this is
+  // @pagopa/io-react-native-integrity now, not @expo/app-integrity (which
+  // crashed the whole app on this project's Expo SDK). Still gracefully
+  // sends nothing when unconfigured/unavailable -- the coordinator's
+  // attestation_status/attestation_reason fields keep reading
+  // "not_configured" either way until real server-side verification is
+  // provisioned (see attestation.py).
+  const attestation = await getAttestationPayload();
+  if (attestation) {
+    form.append('attestation_platform', attestation.platform);
+    form.append('attestation_token', attestation.token);
+  }
 
   const resp = await fetch(`${COORDINATOR_BASE}/register`, { method: 'POST', body: form });
   if (!resp.ok) {
