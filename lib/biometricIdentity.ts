@@ -28,14 +28,76 @@ export async function getOrCreateDeviceId(): Promise<string> {
   return id;
 }
 
+/** Matches matching-service/app/imu_motion.py's own expected shape --
+ * `t` is milliseconds elapsed since the face_burst recording started;
+ * rotationRate is whatever unit the native sensor reports (expo-sensors'
+ * Gyroscope gives rad/s, capture-web's DeviceMotionEvent gives deg/s) --
+ * the server only ever correlates this against itself within one request,
+ * never against an absolute threshold, so the unit doesn't need to match
+ * across platforms. */
+export interface ImuSample {
+  t: number;
+  rotationRate?: { alpha: number; beta: number; gamma: number } | null;
+  acceleration?: { x: number; y: number; z: number } | null;
+}
+
 export interface BiometricCapture {
   palmUri: string;
   faceUri: string;
   faceBurstUris: string[];
   /** Milliseconds between face_burst frames -- the coordinator/validator
    * needs this to convert its pulse (rPPG) FFT bins back to real BPM, see
-   * matching-service/app/pulse.py's estimate_pulse(). */
+   * matching-service/app/pulse.py's estimate_pulse(). Also used for the
+   * fingertip channel below and IMU windowing (see imu_motion.py) -- all
+   * three assume the SAME interval, see biometric-capture.tsx's own
+   * comment on why a mismatched interval would silently corrupt the BPM
+   * math. */
   burstIntervalMs: number;
+  /** Optional: absent on a device/OS build without a gyroscope, or if
+   * expo-sensors itself failed to start -- see imu_motion.py's own
+   * graceful "not checked" degradation for why this is fine to omit
+   * rather than block registration on. */
+  imuSamples?: ImuSample[];
+  /** Optional: the user can skip the fingertip-pulse step entirely (see
+   * fingertip_pulse.py's own docstring) -- absent here just means that
+   * channel wasn't checked, not a failure. */
+  fingertipBurstUris?: string[];
+  /** One-time nonce from requestChallenge() below, echoed back so every
+   * validator can independently verify the face_burst actually performed
+   * the randomly-issued challenge (see matching-service/app/challenge.py's
+   * docstring for the injection-attack threat model this defends against).
+   * Absent if requestChallenge() itself failed (network hiccup) -- same
+   * "informational only, degrade gracefully" posture as every other beta
+   * liveness check here, not a hard requirement to register. */
+  challengeNonce?: string;
+}
+
+export type ChallengeType = 'look_left' | 'look_right' | 'look_up' | 'look_down' | 'smile';
+
+export interface IssuedChallenge {
+  nonce: string;
+  challengeType: ChallengeType;
+}
+
+/** Call this BEFORE starting face capture, per coordinator/app/main.py's
+ * own /challenge docstring -- the whole point is that the challenge is
+ * picked AFTER the user has committed to a real registration attempt, not
+ * knowable in advance to whoever prepared a capture (or a pre-recorded/
+ * injected video) ahead of time. Returns null on any failure (network
+ * hiccup, coordinator unreachable) rather than throwing -- the challenge
+ * step is informational-only, so a failed request here should just skip
+ * straight to capture without it, not block the whole flow. */
+export async function requestChallenge(): Promise<IssuedChallenge | null> {
+  if (!COORDINATOR_BASE) return null;
+  try {
+    const resp = await fetch(`${COORDINATOR_BASE}/challenge`, { method: 'POST' });
+    if (!resp.ok) return null;
+    const body = await resp.json();
+    if (!body?.nonce || !body?.challenge_type) return null;
+    return { nonce: body.nonce, challengeType: body.challenge_type };
+  } catch {
+    return null;
+  }
 }
 
 export interface ConsentDecision {
@@ -54,6 +116,31 @@ export interface RegisterVote {
   pulse_detected?: boolean | null;
   pulse_bpm?: number | null;
   pulse_confidence?: number;
+  // See antispoof.py/moire.py/parallax.py/imu_motion.py/fingertip_pulse.py --
+  // all informational only (never affect `decision` itself yet), same
+  // reasoning as pulse_detected above already had before these existed.
+  antispoof_checked?: boolean;
+  antispoof_passed?: boolean | null;
+  antispoof_confidence?: number;
+  moire_checked?: boolean;
+  moire_likely_screen_replay?: boolean;
+  moire_score?: number;
+  parallax_checked?: boolean;
+  parallax_passed?: boolean | null;
+  parallax_correlation?: number;
+  imu_checked?: boolean;
+  imu_passed?: boolean | null;
+  imu_correlation?: number;
+  challenge_type?: string | null;
+  challenge_checked?: boolean;
+  challenge_passed?: boolean | null;
+  challenge_measured_delta?: number;
+  fingertip_checked?: boolean;
+  fingertip_detected?: boolean;
+  fingertip_bpm?: number | null;
+  fingertip_confidence?: number;
+  pulse_consistent?: boolean | null;
+  pulse_bpm_difference?: number | null;
   error?: string | null;
 }
 
@@ -65,6 +152,16 @@ export interface BiometricRegisterResult {
   votes: RegisterVote[];
   commit_results?: unknown[] | null;
   proof_server_check?: unknown;
+  // Always "not_configured" until real Play Integrity / App Attest
+  // verification is implemented server-side (see attestation.py) --
+  // informational only, never affects `decision`.
+  attestation_status?: string;
+  attestation_reason?: string | null;
+  // Echoes back what requestChallenge() actually issued, once the
+  // coordinator confirms it consumed a valid, unexpired challenge_nonce --
+  // null if no challenge was requested/consumed (see coordinator/app/
+  // main.py's /register).
+  challenge_type?: string | null;
 }
 
 function toUploadFile(uri: string, name: string) {
@@ -100,6 +197,24 @@ export async function registerBiometric(
     form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
   });
   form.append('burst_interval_ms', String(capture.burstIntervalMs));
+  if (capture.imuSamples?.length) {
+    form.append('imu_samples', JSON.stringify(capture.imuSamples));
+  }
+  capture.fingertipBurstUris?.forEach((uri, i) => {
+    form.append('fingertip_burst', toUploadFile(uri, `fingertip_${i}.jpg`));
+  });
+  if (capture.challengeNonce) {
+    form.append('challenge_nonce', capture.challengeNonce);
+  }
+  // Device attestation (Play Integrity/App Attest) is NOT sent from this
+  // client -- @expo/app-integrity has no version compatible with this
+  // project's Expo SDK (54); the earliest published version targets SDK 55,
+  // and installing it crashed the app at native-module bootstrap
+  // (NoClassDefFoundError: expo.modules.kotlin.types.AnyTypeCache) before
+  // any JS even runs, confirmed via a real device build. The coordinator's
+  // attestation_status/attestation_reason fields below still exist in its
+  // response regardless (see attestation.py) -- they'll just always read
+  // "not_configured" since nothing is ever sent.
 
   const resp = await fetch(`${COORDINATOR_BASE}/register`, { method: 'POST', body: form });
   if (!resp.ok) {

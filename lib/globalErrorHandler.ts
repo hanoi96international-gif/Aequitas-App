@@ -1,3 +1,5 @@
+import { LogBox } from 'react-native';
+
 /**
  * @reown/appkit-react-native's AppKit constructor calls `this.initConnectors()`
  * — an async method — WITHOUT awaiting it (constructors can't be async), then
@@ -46,3 +48,21 @@ if (g.ErrorUtils && typeof g.ErrorUtils.setGlobalHandler === 'function') {
     previousHandler?.(error, isFatal);
   });
 }
+
+/**
+ * react-native-vision-camera's own native torch-prop watcher (not our call
+ * site) tries to switch the flash off as biometric-capture.tsx's
+ * `torchMode` prop flips to 'off' when the fingertip-pulse step ends — but
+ * by then the underlying camera session has often already torn down (the
+ * step's Camera component unmounts/deactivates in the same render pass),
+ * so CameraX throws `OperationCanceledException: Camera is not active`.
+ * Harmless: the camera closing turns the torch off regardless. Confirmed
+ * live via logcat (androidx.camera.camera2.impl.TorchControl.setTorchAsync)
+ * — there is no app-level call to wrap in try/catch here, it's entirely
+ * inside VisionCamera's native bridge, so LogBox's own ignore list is the
+ * only place this specific, known-benign class of rejection can be
+ * silenced without touching react-native-vision-camera itself. Still fully
+ * logged to adb logcat/Metro for real debugging, just not surfaced as a
+ * user-facing red toast mid-capture.
+ */
+LogBox.ignoreLogs(['CameraControl$OperationCanceledException: Camera is not active']);
