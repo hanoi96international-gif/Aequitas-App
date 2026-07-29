@@ -20,6 +20,11 @@ on:
         default: release
         type: choice
         options: [release, debug]
+      allow_unconfigured:
+        description: "Auch ohne WalletConnect-Projekt-ID bauen (die App hat dann keinen Wallet-verbinden-Knopf)"
+        required: false
+        default: false
+        type: boolean
 
 # Ein neuer Push bricht den noch laufenden Build desselben Branches ab. Ohne
 # das laufen zwei Gradle-Builds nebeneinander, von denen der aeltere eine APK
@@ -43,6 +48,26 @@ jobs:
       # Fehler -- der Build wuerde still den falschen Typ erzeugen.
       VARIANT: ${{ inputs.variant || 'release' }}
 
+      # Build-Konfiguration der App.
+      #
+      # Diese Werte landen im JS-Bundle und sind damit oeffentlich -- hier
+      # gehoert nur hinein, was ohnehin jeder sehen darf (URLs, die
+      # WalletConnect-Projekt-ID). Niemals ein Token oder ein privater
+      # Schluessel.
+      #
+      # Warum das ueberhaupt hier stehen muss: lib/config.ts liest sie ueber
+      # process.env.EXPO_PUBLIC_*. Lokal kommen sie aus .env.local, und die
+      # ist gitignored, liegt also nicht im Repo. Ein CI-Build ohne diese
+      # Weitergabe erzeugt eine App, in der WALLETCONNECT_PROJECT_ID leer ist
+      # -- walletconnect.ts gibt dann `null` zurueck, WalletContext meldet
+      # walletConnectAvailable=false, und der Verbinden-Knopf ist einfach
+      # nicht mehr da. Genau das ist im ersten Release passiert.
+      EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID }}
+      EXPO_PUBLIC_COORDINATOR_BASE: ${{ vars.EXPO_PUBLIC_COORDINATOR_BASE }}
+      EXPO_PUBLIC_API_BASE: ${{ vars.EXPO_PUBLIC_API_BASE }}
+      EXPO_PUBLIC_WEBAPP: ${{ vars.EXPO_PUBLIC_WEBAPP }}
+      EXPO_PUBLIC_RPC_URL: ${{ vars.EXPO_PUBLIC_RPC_URL }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -62,6 +87,33 @@ jobs:
       # setzt nur ANDROID_HOME und legt die Build-Tools in den PATH — sie
       # laedt kein SDK herunter, wenn schon eines da ist.
       - uses: android-actions/setup-android@v3
+
+      # Vor allem anderen, weil ein hier uebersehener Fehler erst 25 Minuten
+      # spaeter als fehlender Knopf in einer fertigen APK auffaellt -- und
+      # zwar erst auf dem Geraet, nicht im Log.
+      #
+      # allow_unconfigured ist die bewusste Ausnahme fuer einen reinen
+      # Kompiliertest. Sie muss man anfordern; sie passiert nicht von selbst.
+      - name: Build-Konfiguration pruefen
+        run: |
+          if [ -z "$EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID" ]; then
+            if [ "${{ inputs.allow_unconfigured }}" = "true" ]; then
+              echo "::warning title=APK ohne WalletConnect::EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID ist nicht hinterlegt. In dieser APK fehlt der Wallet-verbinden-Knopf vollstaendig -- nur die lokale Wallet (Seed-Phrase) ist nutzbar. Bewusst zugelassen ueber allow_unconfigured."
+            else
+              echo "::error title=Kein WalletConnect-Projekt-ID::Das Repository-Secret EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID fehlt. Ohne sie liefert lib/walletconnect.ts null, WalletContext meldet walletConnectAvailable=false, und der Verbinden-Knopf ist in der fertigen App nicht vorhanden. Secret hinterlegen (Settings -> Secrets and variables -> Actions) oder den Build mit allow_unconfigured=true starten, wenn das gewollt ist."
+              exit 1
+            fi
+          fi
+          {
+            echo "### Build-Konfiguration"
+            echo ""
+            echo "| Variable | Zustand |"
+            echo "|---|---|"
+            echo "| WalletConnect-Projekt-ID | $([ -n "$EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID" ] && echo 'gesetzt' || echo '**fehlt — kein WalletConnect**') |"
+            echo "| Coordinator | ${EXPO_PUBLIC_COORDINATOR_BASE:-_nicht gesetzt — biometrischer Weg wird nicht angeboten_} |"
+            echo "| API | ${EXPO_PUBLIC_API_BASE:-https://aequitas.digital/api (Standard)} |"
+            echo "| RPC | ${EXPO_PUBLIC_RPC_URL:-https://aequitas.digital/rpc (Standard)} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Abhaengigkeiten installieren
         run: npm ci
