@@ -1,9 +1,17 @@
 name: Android APK bauen
 
-# Manuell ausgeloest, nicht bei jedem Push: ein Android-Build dauert Minuten
-# und verbraucht Runner-Zeit; bei jedem Commit zu bauen waere Verschwendung,
-# solange niemand die Artefakte abholt.
 on:
+  # workflow_dispatch allein reicht nicht, solange diese Datei noch nicht auf
+  # dem Standardbranch liegt: GitHub findet einen manuell ausloesbaren
+  # Workflow nur dort und antwortet sonst mit 404. Ein push-Trigger dagegen
+  # wird aus der Fassung des gepushten Commits ausgewertet und laeuft sofort.
+  # Deshalb hier zusaetzlich, eng auf den Build-Branch begrenzt, damit nicht
+  # jeder Commit irgendwo im Projekt einen Android-Build ausloest.
+  push:
+    branches:
+      - claude/eas-build
+    paths-ignore:
+      - "**/*.md"
   workflow_dispatch:
     inputs:
       variant:
@@ -20,6 +28,12 @@ jobs:
     # 360 Minuten ist unnoetig grosszuegig, 45 reichen und decken einen
     # haengenden Gradle-Daemon auf, statt eine Stunde Runner-Zeit zu verheizen.
     timeout-minutes: 45
+
+    env:
+      # Bei einem Push gibt es keine inputs; ohne diesen Fallback waere die
+      # Variable leer, und jede Abfrage darauf liefe ins Leere statt in einen
+      # Fehler -- der Build wuerde still den falschen Typ erzeugen.
+      VARIANT: ${{ inputs.variant || 'release' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -59,43 +73,11 @@ jobs:
       - name: Natives Android-Projekt erzeugen
         run: npx expo prebuild --platform android --clean --no-install
 
-      # Signieren mit dem ECHTEN Keystore, sofern hinterlegt. Fehlt er, baut
-      # Gradle den Release-Build mit dem Debug-Schluessel aus der
-      # Expo-Vorlage weiter -- die APK ist installierbar, aber NICHT
-      # signaturgleich mit einem bisherigen Release.
-      #
-      # Der Unterschied, der hier zaehlt: der BUILD-TYP ist in beiden Faellen
-      # release (minifiziert, ohne Debug-Symbole). Nur der SCHLUESSEL ist ein
-      # anderer. Fuer einen Geraetetest ist das folgenlos; fuer ein Update
-      # bestehender Installationen nicht, denn Android verweigert ein Update
-      # mit fremder Signatur. Der Nutzer muesste deinstallieren -- und das
-      # loescht bei dieser App das geraetegebundene Geheimnis und damit die
-      # Identitaet.
-      - name: Keystore einspielen
-        id: keystore
-        if: inputs.variant == 'release'
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Release-Build mit Debug-Schluessel::ANDROID_KEYSTORE_BASE64 ist nicht hinterlegt. Der Build-Typ ist release, signiert wird aber mit dem Debug-Schluessel der Expo-Vorlage. Fuer einen Geraetetest in Ordnung; ein Update bestehender Installationen ist damit NICHT moeglich."
-          else
-            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
-            cat >> android/gradle.properties <<EOF
-          MYAPP_UPLOAD_STORE_FILE=release.keystore
-          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
-          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
-          EOF
-            echo "signed=upload-key" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Bauen
         working-directory: android
         run: |
           chmod +x ./gradlew
-          if [ "${{ inputs.variant }}" = "debug" ]; then
+          if [ "$VARIANT" = "debug" ]; then
             ./gradlew assembleDebug --no-daemon
           else
             ./gradlew assembleRelease --no-daemon
@@ -112,20 +94,76 @@ jobs:
             exit 1
           fi
           echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      # Nachtraeglich signieren statt Gradle umzukonfigurieren.
+      #
+      # Der Grund: `expo prebuild` erzeugt eine build.gradle, in der
+      # buildTypes.release ausdruecklich signingConfigs.debug verwendet.
+      # Eigene Eintraege in gradle.properties aendern daran NICHTS -- sie
+      # werden schlicht nie gelesen. Ein Build, der so tut, als haette er den
+      # echten Schluessel benutzt, waere schlimmer als gar keiner. apksigner
+      # ersetzt die vorhandene Signatur und ist unabhaengig davon, was die
+      # generierte build.gradle gerade tut.
+      #
+      # Was hier auf dem Spiel steht: Android verweigert ein Update, dessen
+      # Signatur nicht zur installierten passt. Wer mit fremdem Schluessel
+      # signiert, zwingt bestehende Nutzer zum Deinstallieren -- und das
+      # loescht das geraetegebundene Geheimnis und damit ihre Identitaet.
+      - name: Mit Release-Schluessel signieren
+        id: sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          APK: ${{ steps.apk.outputs.path }}
+        run: |
+          if [ "$VARIANT" != "release" ]; then
+            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Release-Build mit Debug-Schluessel::ANDROID_KEYSTORE_BASE64 ist nicht hinterlegt. Der Build-Typ ist release (minifiziert, ohne Debug-Symbole), signiert wird aber mit dem Debug-Schluessel der Expo-Vorlage. Fuer einen Geraetetest in Ordnung; ein Update bestehender Installationen ist damit NICHT moeglich."
+            exit 0
+          fi
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner nicht gefunden — ohne Build-Tools laesst sich nicht signieren."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          "$apksigner" sign \
+            --ks "$RUNNER_TEMP/release.keystore" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            "$APK"
+          # Ohne diese Pruefung wuerde eine fehlgeschlagene Signatur erst auf
+          # dem Geraet auffallen, mit einer Fehlermeldung des Installers, die
+          # die Ursache nicht nennt.
+          "$apksigner" verify --print-certs "$APK"
+          rm -f "$RUNNER_TEMP/release.keystore"
+          echo "signed=upload-key" >> "$GITHUB_OUTPUT"
+
+      - name: Zusammenfassung
+        env:
+          APK: ${{ steps.apk.outputs.path }}
+        run: |
           {
             echo "### APK gebaut"
             echo ""
             echo "| | |"
             echo "|---|---|"
-            echo "| Datei | \`$(basename "$path")\` |"
-            echo "| Groesse | $(du -h "$path" | cut -f1) |"
-            echo "| Build-Typ | ${{ inputs.variant }} |"
-            echo "| Signatur | ${{ steps.keystore.outputs.signed || 'debug-key' }} |"
+            echo "| Datei | \`$(basename "$APK")\` |"
+            echo "| Groesse | $(du -h "$APK" | cut -f1) |"
+            echo "| Build-Typ | $VARIANT |"
+            echo "| Signatur | ${{ steps.sign.outputs.signed }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: aequitas-${{ inputs.variant }}-apk
+          name: aequitas-${{ inputs.variant || 'release' }}-apk
           path: ${{ steps.apk.outputs.path }}
           # Standard sind 90 Tage. Eine APK dieser App sollte nicht
           # monatelang abrufbar herumliegen.
