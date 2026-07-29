@@ -23,7 +23,8 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "CAMERA"
       ]
     },
     "web": {
@@ -48,6 +49,13 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Aequitas nutzt Face ID, um deine Wallet und deine Identitätsregistrierung zu schützen."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Aequitas nutzt die Kamera, um Handfläche und Gesicht einmalig abzugleichen — damit sich niemand zweimal registrieren kann.",
+          "recordAudioAndroid": false
         }
       ],
       "expo-secure-store",

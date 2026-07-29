@@ -173,10 +173,31 @@ export interface ProveResponse {
   bioHashKey?: string;
 }
 
-export async function requestProof(params: { bio: string; salt: string; wallet: string }): Promise<ProveResponse> {
+export async function requestProof(params: {
+  bio: string;
+  salt: string;
+  wallet: string;
+  /**
+   * Ed25519-Signatur des Coordinators über (bio, wallet, issued_at).
+   *
+   * Optional, weil der Proof-Server sie je nach BIO_ATTESTATION_MODE
+   * verlangt (`required`), duldet (`optional`) oder ignoriert (`off`) — die
+   * App kennt den Modus der Gegenstelle nicht und schickt sie deshalb
+   * einfach mit, wann immer sie vorliegt. Fehlt sie unter `required`, lehnt
+   * der Server ab; genau das ist der Zweck: ein frei erfundener `bio`
+   * bekommt dann keinen Nullifier mehr.
+   *
+   * Beide Felder gehören zusammen — `issuedAt` ist Teil der signierten
+   * Nachricht und dient serverseitig zugleich als Ablauffrist.
+   */
+  bioAttestation?: string;
+  bioAttestationIssuedAt?: number;
+}): Promise<ProveResponse> {
   // Goes through the chain server's authenticated proxy (/api/prove), never
   // directly to the proof server — the proof server's own /prove requires a
   // CHAIN_SERVICE_TOKEN the app must not hold (see api.go's handleProveProxy).
+  // Der Proxy reicht den Body unverändert weiter (doProofServerRequestFailover),
+  // die Attestierungsfelder erreichen den Proof-Server also unberührt.
   const r = await fetch(API_BASE + '/prove', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

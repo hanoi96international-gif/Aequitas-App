@@ -1,6 +1,6 @@
-import type { Translations } from '../types';
+import type { PartialTranslations } from '../types';
 
-const de: Translations = {
+const de: PartialTranslations = {
   common: {
     appName: 'AEQUITAS',
     copied: 'Kopiert',
@@ -23,7 +23,7 @@ const de: Translations = {
     statTotalSupply: 'TOTAL SUPPLY',
     statTotalSupplySub: '= Humans × 1.000 AEQ',
     statValidators: 'VALIDATORS',
-    statValidatorsSub: 'distinct proposers, recent',
+    statValidatorsSub: 'verschiedene Proposer, zuletzt',
     ubiNextPayout: 'NÄCHSTE UBI-AUSSCHÜTTUNG',
     ubiSub: 'Täglich · automatisch · für jeden verifizierten Menschen',
     equalityIndex: 'EQUALITY INDEX',
@@ -39,7 +39,7 @@ const de: Translations = {
     loadingBlocks: 'Lade Blöcke…',
     badgeMerge: 'MERGE',
     badgeStd: 'STD',
-    tokenomicsPools: 'TOKENOMICS POOLS · 0.1% SWAP FEE SPLIT',
+    tokenomicsPools: 'TOKENOMICS-POOLS · AUFTEILUNG DER 0,1 % SWAP-GEBÜHR',
     poolValidatorsName: 'Validators',
     poolValidatorsDesc: 'Belohnt Nodes, die Blöcke produzieren und das Netzwerk sichern.',
     poolLiquidityName: 'Liquidity',
@@ -50,14 +50,14 @@ const de: Translations = {
     poolTreasuryDesc: 'Finanziert Entwicklung und Infrastruktur.',
     networkPhase: 'NETZWERK-PHASE',
     phaseBootstrap: 'Bootstrap',
-    phaseBootstrapDesc: 'Sliding wealth cap 5×→25×',
-    phaseGrowth: 'Growth',
-    phaseGrowthDesc: 'Expanding human registry',
-    phaseStability: 'Stability',
-    phaseStabilityDesc: 'Redistribution active',
-    phaseMaturity: 'Maturity',
-    phaseMaturityDesc: 'Full decentralization',
-    footerQuote: 'Money exists because people exist.\nNothing more, nothing less.',
+    phaseBootstrapDesc: 'Gleitende Vermögensobergrenze 5×→25×',
+    phaseGrowth: 'Wachstum',
+    phaseGrowthDesc: 'Wachsendes Menschenregister',
+    phaseStability: 'Stabilität',
+    phaseStabilityDesc: 'Umverteilung aktiv',
+    phaseMaturity: 'Reife',
+    phaseMaturityDesc: 'Vollständige Dezentralisierung',
+    footerQuote: 'Geld existiert, weil Menschen existieren.\nNicht mehr und nicht weniger.',
   },
   onboarding: {
     welcome: 'WILLKOMMEN',
@@ -224,6 +224,57 @@ const de: Translations = {
     logErrorPrefix: 'Fehler: ',
     logUnknownError: 'Unbekannter Fehler',
     registrationFailed: 'Registrierung fehlgeschlagen',
+    modeBiometric:
+      '🧬 Biometrische Prüfung aktiv — Handfläche und Gesicht werden gegen alle bisherigen Registrierungen abgeglichen. Eine Registrierung pro Mensch.',
+    modeDeviceOnly:
+      '⚠️ Kein Prüfdienst erreichbar. Dieses Gerät kann nur belegen, dass ein Gerät beteiligt war — nicht, welcher Mensch. Ein Mensch mit mehreren Geräten bekäme mehrere Identitäten.',
+    startBiometricBtn: 'PRÜFUNG STARTEN',
+    connectWalletFirst: 'ZUERST WALLET VERBINDEN',
+    logReusingEnrollment: 'Kürzliche Prüfung wiederverwendet — keine neue Aufnahme nötig',
+    logBiometricPassed: 'Biometrische Prüfung bestanden',
+  },
+  bio: {
+    title: 'PRÜFUNG',
+    consentTitle: 'Eine Registrierung pro Mensch',
+    consentIntro:
+      'Damit sich niemand zweimal registrieren kann, werden deine Handfläche und dein Gesicht mit allen bisherigen Registrierungen verglichen. Was dabei genau passiert:',
+    consentPoint1:
+      'Du fotografierst deine Handfläche und danach kurz dein Gesicht, während du eine Aufgabe ausführst, die auf dem Bildschirm steht.',
+    consentPoint2:
+      'Die Aufnahmen gehen an mehrere unabhängige Validatoren. Die vergleichen und stimmen ab. Ein einzelner kann nicht allein entscheiden.',
+    consentPoint3:
+      'Gespeichert wird eine mathematische Vorlage, nicht die Fotos. Aus der Vorlage lässt sich kein Bild von dir zurückrechnen.',
+    consentPoint4:
+      'Am Ende steht eine Zufallszahl, die nichts über deinen Körper aussagt. Nur diese Zahl geht an die Blockchain — nie ein Bild.',
+    consentCheckbox: 'Ich habe das gelesen und bin mit dem Abgleich einverstanden.',
+    startBtn: 'STARTEN',
+    preparing: 'Aufgabe wird vorbereitet…',
+    stepPalmLabel: 'SCHRITT 1 VON 2 — HANDFLÄCHE',
+    palmInstruction: 'Offene Handfläche in den Rahmen halten',
+    palmHint: 'Finger gespreizt, etwa 25 cm Abstand, gleichmäßiges Licht — direkte Sonne und harte Schatten vermeiden.',
+    captureBtn: 'AUFNEHMEN',
+    stepFaceLabel: 'SCHRITT 2 VON 2 — GESICHT',
+    switching: 'Wechsel zur Frontkamera…',
+    taskLabel: 'DEINE AUFGABE',
+    taskNowLabel: 'JETZT:',
+    countdownHint: 'Bis zum Ende des Countdowns stillhalten, dann die Aufgabe ausführen und halten.',
+    submitting: 'Abgleich läuft…',
+    submittingHint: 'Mehrere Validatoren prüfen unabhängig voneinander. Das dauert ein paar Sekunden.',
+    resultOkTitle: 'Prüfung bestanden',
+    resultDuplicateTitle: 'Bereits bekannt',
+    resultFailTitle: 'Prüfung nicht bestanden',
+    continueBtn: 'WEITER ZUR REGISTRIERUNG',
+    continueAnywayBtn: 'BESTEHENDE REGISTRIERUNG WIEDERHERSTELLEN',
+    retryBtn: 'ERNEUT VERSUCHEN',
+    closeBtn: 'Schließen',
+    errNoCameraPermission:
+      'Ohne Kamerazugriff ist der Abgleich nicht möglich. In den Systemeinstellungen lässt er sich erteilen.',
+    errCoordinatorUnreachable: 'Der Prüfdienst ist nicht erreichbar.',
+    errCaptureFailed: 'Die Kamera hat kein Bild geliefert.',
+    errTooFewFrames: 'Zu wenige verwertbare Bilder. Bitte bei besserem Licht erneut versuchen.',
+    errSubmitFailed: 'Die Aufnahmen konnten nicht übermittelt werden.',
+    errNoAttestation:
+      'Der Dienst hat einen Wert ohne Signatur geliefert. Die Registrierung würde abgelehnt, deshalb wird sie gar nicht erst gestartet.',
   },
   node: {
     title: '⚙️ Eigenen Node betreiben',

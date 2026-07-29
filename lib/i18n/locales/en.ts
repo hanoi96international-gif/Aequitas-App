@@ -224,6 +224,56 @@ const en: Translations = {
     logErrorPrefix: 'Error: ',
     logUnknownError: 'Unknown error',
     registrationFailed: 'Registration failed',
+    modeBiometric:
+      '🧬 Biometric verification active — palm and face are compared against every existing registration. One registration per person.',
+    modeDeviceOnly:
+      '⚠️ No verification service reachable. This device can only prove that a device took part — not which person. One person with several devices would get several identities.',
+    startBiometricBtn: 'START VERIFICATION',
+    connectWalletFirst: 'CONNECT WALLET FIRST',
+    logReusingEnrollment: 'Recent verification reused — no new capture needed',
+    logBiometricPassed: 'Biometric verification passed',
+  },
+  bio: {
+    title: 'VERIFICATION',
+    consentTitle: 'One registration per person',
+    consentIntro:
+      'To make sure nobody registers twice, your palm and your face are compared against all existing registrations. Here is exactly what happens.',
+    consentPoint1:
+      'You photograph your palm, then a short sequence of your face while performing a task shown on screen.',
+    consentPoint2:
+      'The images go to several independent validators. They compare, then vote. A single one cannot decide alone.',
+    consentPoint3:
+      'What is stored is a mathematical template, not the photographs. The template cannot be turned back into a picture of you.',
+    consentPoint4:
+      'The result is a random number that says nothing about your body. Only that number reaches the blockchain — never an image.',
+    consentCheckbox: 'I have read this and agree to the comparison.',
+    startBtn: 'START',
+    preparing: 'Preparing task…',
+    stepPalmLabel: 'STEP 1 OF 2 — PALM',
+    palmInstruction: 'Hold your open palm inside the frame',
+    palmHint: 'Fingers spread, roughly 25 cm away, even lighting — avoid direct sunlight and hard shadows.',
+    captureBtn: 'TAKE PICTURE',
+    stepFaceLabel: 'STEP 2 OF 2 — FACE',
+    switching: 'Switching to the front camera…',
+    taskLabel: 'YOUR TASK',
+    taskNowLabel: 'NOW:',
+    countdownHint: 'Hold still until the countdown ends, then perform the task and hold it.',
+    submitting: 'Comparing…',
+    submittingHint: 'Several validators are checking independently. This takes a few seconds.',
+    resultOkTitle: 'Verification passed',
+    resultDuplicateTitle: 'Already known',
+    resultFailTitle: 'Verification failed',
+    continueBtn: 'CONTINUE TO REGISTRATION',
+    continueAnywayBtn: 'RESTORE EXISTING REGISTRATION',
+    retryBtn: 'TRY AGAIN',
+    closeBtn: 'Close',
+    errNoCameraPermission: 'Without camera access the comparison cannot run. You can grant it in the system settings.',
+    errCoordinatorUnreachable: 'The verification service cannot be reached.',
+    errCaptureFailed: 'The camera did not return a picture.',
+    errTooFewFrames: 'Too few usable frames. Please try again in better light.',
+    errSubmitFailed: 'The images could not be submitted.',
+    errNoAttestation:
+      'The service returned a value without a signature. Registration would be rejected, so it is not being started.',
   },
   node: {
     title: '⚙️ Run Your Own Node',

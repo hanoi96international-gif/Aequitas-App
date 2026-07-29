@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: "debug = sofort installierbar, selbstsigniert · release = braucht die Keystore-Secrets"
+        description: "release = minifiziert, braucht die Keystore-Secrets · debug = sofort installierbar, selbstsigniert"
         required: true
-        default: debug
+        default: release
         type: choice
-        options: [debug, release]
+        options: [release, debug]
 
 jobs:
   build:
@@ -44,68 +44,90 @@ jobs:
       - name: Abhaengigkeiten installieren
         run: npm ci
 
+      # Vor dem teuren Android-Build. Ein Tippfehler in einer Uebersetzung
+      # oder ein Typfehler faellt hier nach Sekunden auf statt nach zwanzig
+      # Minuten Gradle — und zwar mit einer Fehlermeldung, die die Ursache
+      # nennt, statt mit einem Metro-Bundlerfehler tief im Gradle-Log.
+      - name: Typen und Tests pruefen
+        run: |
+          npx tsc --noEmit
+          npx jest --ci
+
       # Managed Expo-Projekt ohne android/-Verzeichnis: das native Projekt
-      # wird aus app.json erzeugt. --clean, damit ein Rest aus einem frueheren
-      # Lauf nicht stillschweigend mitgebaut wird.
+      # wird aus app.json erzeugt. --clean, damit kein Rest eines frueheren
+      # Laufs stillschweigend mitgebaut wird.
       - name: Natives Android-Projekt erzeugen
         run: npx expo prebuild --platform android --clean --no-install
 
-      # Nur fuer release: der Keystore kommt aus den Repository-Secrets.
-      # OHNE diese Secrets signiert Gradle einen Release-Build mit dem
-      # Debug-Schluessel — die APK laesst sich installieren, ist aber NICHT
-      # dieselbe Signatur wie ein bisheriges Release. Bestehende Nutzer
-      # koennten damit nicht aktualisieren, sondern muessten deinstallieren,
-      # und genau das vernichtet bei dieser App das geraetegebundene
-      # Geheimnis und damit die Identitaet.
+      # Signieren mit dem ECHTEN Keystore, sofern hinterlegt. Fehlt er, baut
+      # Gradle den Release-Build mit dem Debug-Schluessel aus der
+      # Expo-Vorlage weiter -- die APK ist installierbar, aber NICHT
+      # signaturgleich mit einem bisherigen Release.
+      #
+      # Der Unterschied, der hier zaehlt: der BUILD-TYP ist in beiden Faellen
+      # release (minifiziert, ohne Debug-Symbole). Nur der SCHLUESSEL ist ein
+      # anderer. Fuer einen Geraetetest ist das folgenlos; fuer ein Update
+      # bestehender Installationen nicht, denn Android verweigert ein Update
+      # mit fremder Signatur. Der Nutzer muesste deinstallieren -- und das
+      # loescht bei dieser App das geraetegebundene Geheimnis und damit die
+      # Identitaet.
       - name: Keystore einspielen
+        id: keystore
         if: inputs.variant == 'release'
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 ist nicht gesetzt. Ein Release-Build wuerde mit dem Debug-Schluessel signiert und waere fuer bestehende Installationen kein gueltiges Update. Entweder die Secrets hinterlegen oder variant=debug waehlen."
-            exit 1
-          fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
-
-      - name: Signatur konfigurieren
-        if: inputs.variant == 'release'
-        run: |
-          cat >> android/gradle.properties <<EOF
-          AEQ_UPLOAD_STORE_FILE=release.keystore
-          AEQ_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          AEQ_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
-          AEQ_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Release-Build mit Debug-Schluessel::ANDROID_KEYSTORE_BASE64 ist nicht hinterlegt. Der Build-Typ ist release, signiert wird aber mit dem Debug-Schluessel der Expo-Vorlage. Fuer einen Geraetetest in Ordnung; ein Update bestehender Installationen ist damit NICHT moeglich."
+          else
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+            cat >> android/gradle.properties <<EOF
+          MYAPP_UPLOAD_STORE_FILE=release.keystore
+          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
+          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
           EOF
+            echo "signed=upload-key" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Bauen
         working-directory: android
         run: |
           chmod +x ./gradlew
-          if [ "${{ inputs.variant }}" = "release" ]; then
-            ./gradlew assembleRelease --no-daemon
-          else
+          if [ "${{ inputs.variant }}" = "debug" ]; then
             ./gradlew assembleDebug --no-daemon
+          else
+            ./gradlew assembleRelease --no-daemon
           fi
 
       - name: APK finden
         id: apk
         run: |
           # -print -quit statt head: bricht bei der ersten Fundstelle ab und
-          # vermeidet ein SIGPIPE in find, das den Schritt rot faerben wuerde.
+          # vermeidet ein SIGPIPE, das den Schritt rot faerben wuerde.
           path=$(find android/app/build/outputs/apk -name '*.apk' -print -quit)
           if [ -z "$path" ]; then
             echo "::error::Kein APK erzeugt — Gradle-Ausgabe oben pruefen."
             exit 1
           fi
           echo "path=$path" >> "$GITHUB_OUTPUT"
-          echo "APK: $path ($(du -h "$path" | cut -f1))"
+          {
+            echo "### APK gebaut"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Datei | \`$(basename "$path")\` |"
+            echo "| Groesse | $(du -h "$path" | cut -f1) |"
+            echo "| Build-Typ | ${{ inputs.variant }} |"
+            echo "| Signatur | ${{ steps.keystore.outputs.signed || 'debug-key' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
           name: aequitas-${{ inputs.variant }}-apk
           path: ${{ steps.apk.outputs.path }}
-          # Standard sind 90 Tage. Eine APK dieser App ist nichts, was
-          # monatelang abrufbar herumliegen sollte.
+          # Standard sind 90 Tage. Eine APK dieser App sollte nicht
+          # monatelang abrufbar herumliegen.
           retention-days: 14
           if-no-files-found: error

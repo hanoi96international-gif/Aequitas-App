@@ -1,6 +1,6 @@
-import type { Translations } from '../types';
+import type { PartialTranslations } from '../types';
 
-const zh: Translations = {
+const zh: PartialTranslations = {
   common: {
     appName: 'AEQUITAS',
     copied: '已复制',

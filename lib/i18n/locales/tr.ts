@@ -1,6 +1,6 @@
-import type { Translations } from '../types';
+import type { PartialTranslations } from '../types';
 
-const tr: Translations = {
+const tr: PartialTranslations = {
   common: {
     appName: 'AEQUITAS',
     copied: 'Kopyalandı',

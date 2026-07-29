@@ -5,8 +5,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '@/contexts/WalletContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
-import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
-import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
+import {
+  getDeviceIdentity,
+  checkAlreadyRegistered,
+  proveAndRegister,
+  identityFromBioHash,
+  loadEnrollment,
+  saveEnrollment,
+  type DeviceIdentity,
+} from '@/lib/identity';
+import { HAS_COORDINATOR } from '@/lib/config';
+import BiometricCapture from '@/components/BiometricCapture';
+import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
 type LogType = 'info' | 'success' | 'error';
@@ -43,6 +53,20 @@ function StepItem({ n, title, desc, state }: { n: number; title: string; desc: s
 const CHECK_TIMEOUT_MS = 8_000;
 const PROVING_SLOW_MS = 8_000;
 
+/**
+ * Wie lange eine bestandene Coordinator-Prüfung wiederverwendet werden darf,
+ * ohne die Aufnahme zu wiederholen.
+ *
+ * Der Proof-Server verwirft Attestierungen, die älter als
+ * BIO_ATTESTATION_MAX_AGE_SECONDS sind (Standard 900 s). 600 s liegen bewusst
+ * deutlich darunter: zwischen dem Nachschlagen hier und dem Eintreffen beim
+ * Proof-Server liegen noch der Registrierungscheck und die Wallet-Signatur,
+ * auf die der Nutzer erst reagieren muss. Läge die Grenze bei 900, könnte eine
+ * gerade noch akzeptierte Attestierung während des Signaturdialogs verfallen —
+ * und der Nutzer bekäme nach dem Unterschreiben einen Fehler.
+ */
+const ENROLLMENT_REUSE_SECONDS = 600;
+
 export default function Identity() {
   const { address, signer, balance, refreshBalance } = useWallet();
   const { t } = useLanguage();
@@ -51,6 +75,7 @@ export default function Identity() {
   const [activeStep, setActiveStep] = useState(0);
   const [checkSlow, setCheckSlow] = useState(false);
   const [provingSlow, setProvingSlow] = useState(false);
+  const [captureVisible, setCaptureVisible] = useState(false);
 
   const STEPS = [
     { title: t('identity.step1Title'), desc: t('identity.step1Desc') },
@@ -100,52 +125,113 @@ export default function Identity() {
     refreshBalance();
   }
 
+  /**
+   * Registrierung ab dem Punkt, an dem der `bio` feststeht.
+   *
+   * Herausgelöst, weil es jetzt zwei Wege dorthin gibt: den biometrischen
+   * über den Coordinator (ein Wert pro MENSCH) und den gerätegebundenen
+   * (ein Wert pro INSTALLATION). Ab hier ist der Ablauf identisch, und ihn
+   * zweimal zu schreiben hieße, jede künftige Änderung zweimal zu machen.
+   */
+  const runRegistration = useCallback(
+    async (identity: DeviceIdentity, attestation?: { signature: string; issuedAt: number }) => {
+      if (!signer) return;
+      setStatus('proving');
+      setActiveStep(1);
+      setProvingSlow(false);
+      const slowTimer = setTimeout(() => setProvingSlow(true), PROVING_SLOW_MS);
+      try {
+        addLog(t('identity.logCheckingExisting'), 'info');
+        const check = await checkAlreadyRegistered(identity.bio);
+        if (check.registered && check.is_human) {
+          addLog(t('identity.logAlreadyRegistered'), 'success');
+          setStatus('already_registered');
+          refreshBalance();
+          return;
+        }
+        if (check.biometric_in_use) {
+          addLog(t('identity.logBiometricInUse'), 'error');
+          addLog(t('identity.logOnePersonOneWallet'), 'error');
+          setStatus('error');
+          return;
+        }
+
+        addLog(t('identity.logRequestingProof'), 'info');
+        setActiveStep(2);
+        const result = await proveAndRegister(signer, identity, t('trade.signTimeout'), attestation);
+        if (!result.success) throw new Error(result.message || t('identity.registrationFailed'));
+
+        setActiveStep(4);
+        addLog(t('identity.logConfirmed'), 'success');
+        addLog(t('identity.logCredited'), 'success');
+        setStatus('registered');
+        refreshBalance();
+      } catch (e: any) {
+        addLog(t('identity.logErrorPrefix') + (e?.message ?? t('identity.logUnknownError')), 'error');
+        setStatus('error');
+      } finally {
+        clearTimeout(slowTimer);
+        setProvingSlow(false);
+      }
+    },
+    [signer, addLog, refreshBalance, t]
+  );
+
   async function proveHumanity() {
     if (!signer) return;
-    setStatus('proving');
     setLog([]);
     setActiveStep(0);
-    setProvingSlow(false);
-    const slowTimer = setTimeout(() => setProvingSlow(true), PROVING_SLOW_MS);
-    try {
-      addLog(t('identity.logCheckingBiometric'), 'info');
-      const identity = await getDeviceIdentity();
-      addLog(t('identity.logDeviceReady'), 'success');
-      setActiveStep(1);
 
-      addLog(t('identity.logCheckingExisting'), 'info');
-      const check = await checkAlreadyRegistered(identity.bio);
-      if (check.registered && check.is_human) {
-        addLog(t('identity.logAlreadyRegistered'), 'success');
-        setStatus('already_registered');
-        refreshBalance();
-        return;
-      }
-      if (check.biometric_in_use) {
-        addLog(t('identity.logBiometricInUse'), 'error');
-        addLog(t('identity.logOnePersonOneWallet'), 'error');
+    // Ohne erreichbaren Coordinator bleibt es beim gerätegebundenen Weg.
+    // Der ist ausdrücklich schwächer — er belegt nur, dass ein Gerät
+    // beteiligt war, nicht, dass ein bestimmter Mensch es war — aber eine
+    // Schaltfläche, die zu einer nicht existierenden Gegenstelle führt, wäre
+    // kein besserer Zustand.
+    if (!HAS_COORDINATOR) {
+      setStatus('proving');
+      try {
+        addLog(t('identity.logCheckingBiometric'), 'info');
+        const identity = await getDeviceIdentity();
+        addLog(t('identity.logDeviceReady'), 'success');
+        await runRegistration(identity);
+      } catch (e: any) {
+        addLog(t('identity.logErrorPrefix') + (e?.message ?? t('identity.logUnknownError')), 'error');
         setStatus('error');
-        return;
       }
-
-      addLog(t('identity.logRequestingProof'), 'info');
-      setActiveStep(2);
-      const result = await proveAndRegister(signer, identity, t('trade.signTimeout'));
-      if (!result.success) throw new Error(result.message || t('identity.registrationFailed'));
-
-      setActiveStep(4);
-      addLog(t('identity.logConfirmed'), 'success');
-      addLog(t('identity.logCredited'), 'success');
-      setStatus('registered');
-      refreshBalance();
-    } catch (e: any) {
-      addLog(t('identity.logErrorPrefix') + (e?.message ?? t('identity.logUnknownError')), 'error');
-      setStatus('error');
-    } finally {
-      clearTimeout(slowTimer);
-      setProvingSlow(false);
+      return;
     }
+
+    // Eine noch frische Prüfung nicht wiederholen lassen. Wer die
+    // Wallet-Signatur abgebrochen hat, soll nicht erneut Handfläche und
+    // Gesicht aufnehmen müssen.
+    const cached = await loadEnrollment();
+    const ageOk = cached && Math.floor(Date.now() / 1000) - cached.issuedAt < ENROLLMENT_REUSE_SECONDS;
+    const walletOk = cached && signer.address.toLowerCase() === cached.wallet.toLowerCase();
+    if (cached && ageOk && walletOk) {
+      addLog(t('identity.logReusingEnrollment'), 'info');
+      await runRegistration(identityFromBioHash(cached.bioHash), {
+        signature: cached.signature,
+        issuedAt: cached.issuedAt,
+      });
+      return;
+    }
+
+    setCaptureVisible(true);
   }
+
+  const onCaptureSuccess = useCallback(
+    async (r: { bioHash: string; signature: string; issuedAt: number }) => {
+      setCaptureVisible(false);
+      if (!signer) return;
+      addLog(t('identity.logBiometricPassed'), 'success');
+      await saveEnrollment({ ...r, wallet: signer.address });
+      await runRegistration(identityFromBioHash(r.bioHash), {
+        signature: r.signature,
+        issuedAt: r.issuedAt,
+      });
+    },
+    [signer, addLog, runRegistration, t]
+  );
 
   function stepState(i: number): StepState {
     if (status === 'registered' || status === 'already_registered') return 'done';
@@ -175,6 +261,18 @@ export default function Identity() {
           <Text style={S.privBadgeText}>{t('identity.privBadge')}</Text>
         </View>
 
+        {/* Welcher der beiden Wege gerade aktiv ist, gehört sichtbar auf den
+            Bildschirm. Sie sind nicht gleichwertig: der gerätegebundene Weg
+            belegt nur, dass ein Gerät beteiligt war, und wer zehn Geräte hat,
+            bekommt zehn Identitäten. Das stillschweigend als „Menschlichkeit
+            nachgewiesen" auszugeben, wäre die eine Unehrlichkeit, die dieses
+            Projekt sich nicht leisten kann. */}
+        <View style={HAS_COORDINATOR ? S.modeBadge : S.modeBadgeWeak}>
+          <Text style={HAS_COORDINATOR ? S.modeBadgeText : S.modeBadgeWeakText}>
+            {HAS_COORDINATOR ? t('identity.modeBiometric') : t('identity.modeDeviceOnly')}
+          </Text>
+        </View>
+
         <View style={S.card}>
           {STEPS.map((s, i) => (
             <StepItem key={i} n={i + 1} title={s.title} desc={s.desc} state={stepState(i)} />
@@ -199,9 +297,15 @@ export default function Identity() {
           )}
 
           {status === 'idle' && (
-            <TouchableOpacity onPress={proveHumanity} activeOpacity={0.85}>
-              <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
-                <Text style={S.btnPrimaryText}>{t('identity.proveHumanityBtn')}</Text>
+            <TouchableOpacity onPress={proveHumanity} activeOpacity={0.85} disabled={!signer}>
+              <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={[S.btnPrimary, !signer && S.btnDisabled]}>
+                <Text style={S.btnPrimaryText}>
+                  {!signer
+                    ? t('identity.connectWalletFirst')
+                    : HAS_COORDINATOR
+                      ? t('identity.startBiometricBtn')
+                      : t('identity.proveHumanityBtn')}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           )}
@@ -256,6 +360,18 @@ export default function Identity() {
           </View>
         )}
       </ScrollView>
+
+      {/* Nur gemountet, wenn es einen Coordinator gibt UND eine Wallet
+          feststeht: die Attestierung wird auf genau diese Adresse ausgestellt,
+          eine Aufnahme ohne sie wäre unbrauchbar. */}
+      {HAS_COORDINATOR && signer && (
+        <BiometricCapture
+          visible={captureVisible}
+          wallet={signer.address}
+          onCancel={() => setCaptureVisible(false)}
+          onSuccess={onCaptureSuccess}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -270,8 +386,15 @@ const S = StyleSheet.create({
   heroTitle: { fontSize: 15, fontWeight: '700', color: theme.text, marginBottom: 6 },
   heroSub: { fontSize: 12, color: theme.muted, lineHeight: 18 },
 
-  privBadge: { marginHorizontal: 20, backgroundColor: neonTint, borderWidth: 1, borderColor: neonTintBorder, borderRadius: theme.radiusSm, padding: 11, marginBottom: 16 },
+  privBadge: { marginHorizontal: 20, backgroundColor: neonTint, borderWidth: 1, borderColor: neonTintBorder, borderRadius: theme.radiusSm, padding: 11, marginBottom: 10 },
   privBadgeText: { color: theme.neon, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+
+  modeBadge: { marginHorizontal: 20, backgroundColor: purpleTint, borderWidth: 1, borderColor: purpleTintBorder, borderRadius: theme.radiusSm, padding: 11, marginBottom: 16 },
+  modeBadgeText: { color: theme.purple, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+  modeBadgeWeak: { marginHorizontal: 20, backgroundColor: goldTint, borderWidth: 1, borderColor: goldTintBorder, borderRadius: theme.radiusSm, padding: 11, marginBottom: 16 },
+  modeBadgeWeakText: { color: theme.gold, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+
+  btnDisabled: { opacity: 0.4 },
 
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 22, borderWidth: 1, borderColor: theme.border },
 

@@ -222,6 +222,49 @@ export interface Translations {
     logErrorPrefix: string;
     logUnknownError: string;
     registrationFailed: string;
+    modeBiometric: string;
+    modeDeviceOnly: string;
+    startBiometricBtn: string;
+    connectWalletFirst: string;
+    logReusingEnrollment: string;
+    logBiometricPassed: string;
+  };
+  /** Aufnahmeablauf für den Proof-of-Personhood-Coordinator. */
+  bio: {
+    title: string;
+    consentTitle: string;
+    consentIntro: string;
+    consentPoint1: string;
+    consentPoint2: string;
+    consentPoint3: string;
+    consentPoint4: string;
+    consentCheckbox: string;
+    startBtn: string;
+    preparing: string;
+    stepPalmLabel: string;
+    palmInstruction: string;
+    palmHint: string;
+    captureBtn: string;
+    stepFaceLabel: string;
+    switching: string;
+    taskLabel: string;
+    taskNowLabel: string;
+    countdownHint: string;
+    submitting: string;
+    submittingHint: string;
+    resultOkTitle: string;
+    resultDuplicateTitle: string;
+    resultFailTitle: string;
+    continueBtn: string;
+    continueAnywayBtn: string;
+    retryBtn: string;
+    closeBtn: string;
+    errNoCameraPermission: string;
+    errCoordinatorUnreachable: string;
+    errCaptureFailed: string;
+    errTooFewFrames: string;
+    errSubmitFailed: string;
+    errNoAttestation: string;
   };
   node: {
     title: string;
@@ -268,3 +311,18 @@ export interface Translations {
     reqNo: string;
   };
 }
+
+/**
+ * Übersetzung, die nicht vollständig sein muss.
+ *
+ * Neue Bildschirme entstehen zuerst auf Deutsch und Englisch; die übrigen elf
+ * Sprachen holen erst später auf. Ohne diesen Typ hätte jede neue
+ * Zeichenkette zwölf Dateien gleichzeitig ändern müssen, was in der Praxis
+ * dazu führt, dass entweder die Funktion wartet oder jemand die fehlenden
+ * Sprachen mit deutschem Text auffüllt. Fehlende Schlüssel fallen stattdessen
+ * zur Laufzeit auf Englisch zurück (siehe index.ts) — sichtbar unübersetzt,
+ * aber lesbar, statt eines rohen Schlüsselpfads auf dem Bildschirm.
+ */
+export type PartialTranslations = {
+  [K in keyof Translations]?: Partial<Translations[K]>;
+};

@@ -54,14 +54,113 @@ export interface DeviceIdentity {
   salt: string;
 }
 
+/** Aus einem `bio` den zugehörigen Blinding-Faktor ableiten.
+ *
+ *  Deterministisch und nicht zufällig, weil derselbe Mensch bei einer
+ *  Neuinstallation denselben `bio` vom Coordinator zurückbekommt — käme dann
+ *  ein anderer `salt` heraus, ergäbe sich ein anderes Commitment, und die
+ *  Kette sähe zwei verschiedene Registrierungen für eine Person. Die Formel
+ *  ist unverändert die des 2-Faktor-Prototyps (AequitasAndroid2). */
+function saltFor(bio: bigint): string {
+  return ((bio * 7n + 12345n) % FIELD_SIZE).toString();
+}
+
 export async function getDeviceIdentity(): Promise<DeviceIdentity> {
   const secret = await ensureDeviceSecret();
   const bio = deriveBioHash(secret);
-  // Deterministic per-device blinding factor — same derivation the existing
-  // 2-factor prototype (AequitasAndroid2) used, kept for compatibility with
-  // the proof server's {bio, salt} input contract.
-  const salt = (bio * 7n + 12345n) % FIELD_SIZE;
-  return { bio: bio.toString(), salt: salt.toString() };
+  return { bio: bio.toString(), salt: saltFor(bio) };
+}
+
+/**
+ * Identität aus einem vom Coordinator vergebenen `bio_hash`.
+ *
+ * Der Unterschied zu getDeviceIdentity() ist der ganze Punkt der Übung: dort
+ * entsteht der Wert aus einem Zufallsgeheimnis im Keystore, ist also pro
+ * INSTALLATION eindeutig — wer die App zehnmal installiert, hat zehn
+ * Identitäten. Hier stammt er aus einem Abgleich gegen alle bisherigen
+ * Registrierungen und ist damit pro MENSCH eindeutig, was die Kette überhaupt
+ * erst behaupten kann, was sie behauptet.
+ */
+export function identityFromBioHash(bioHash: string): DeviceIdentity {
+  const bio = BigInt(bioHash) % FIELD_SIZE;
+  return { bio: bio.toString(), salt: saltFor(bio) };
+}
+
+const DEVICE_ID_KEY = 'aequitas_device_id_v1';
+
+/**
+ * Stabile, zufällige Gerätekennung für die Ratenbegrenzung des Coordinators.
+ *
+ * Bewusst NICHT aus einer Hardware-ID (ANDROID_ID, IMEI o. ä.) abgeleitet:
+ * eine solche Kennung wäre über App-Grenzen hinweg wiedererkennbar und würde
+ * die biometrischen Aufnahmen mit dem Gerät verknüpfbar machen. Für den
+ * Zweck — „wie viele Versuche kamen zuletzt von hier?" — genügt ein Zufalls-
+ * wert, den nur diese Installation kennt.
+ *
+ * Ohne requireAuthentication gespeichert, anders als das Identitäts-
+ * geheimnis: er wird zu Beginn der Aufnahme gebraucht, und eine zweite
+ * biometrische Abfrage des Betriebssystems mitten im Ablauf würde die Kamera
+ * unterbrechen.
+ */
+export async function getDeviceId(): Promise<string> {
+  let id = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+  if (!id) {
+    const bytes = await Crypto.getRandomBytesAsync(16);
+    id = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    await SecureStore.setItemAsync(DEVICE_ID_KEY, id, {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
+  }
+  return id;
+}
+
+const BIO_ENROLLMENT_KEY = 'aequitas_bio_enrollment_v1';
+
+export interface StoredEnrollment {
+  bioHash: string;
+  signature: string;
+  issuedAt: number;
+  /**
+   * Wallet, für die die Attestierung ausgestellt wurde.
+   *
+   * Muss mitgespeichert werden, weil sie Teil der signierten Nachricht ist
+   * (`domain|bio|wallet|issued_at`). Eine für Wallet A ausgestellte
+   * Attestierung mit Wallet B einzureichen ergibt eine ungültige Signatur —
+   * ohne dieses Feld ließe sich das nicht bemerken, und der Nutzer bekäme
+   * einen Signaturfehler statt der Aufforderung, die Aufnahme zu wiederholen.
+   */
+  wallet: string;
+}
+
+/**
+ * Zwischenspeicher für eine bestandene Coordinator-Prüfung.
+ *
+ * Nicht als Sicherheitsmerkmal gedacht — der Proof-Server prüft die Signatur
+ * selbst und lässt sie nach einer Frist verfallen. Der Zweck ist bloß, dass
+ * ein abgebrochener Registrierungsversuch (Wallet-Signatur weggewischt, Netz
+ * weg) nicht bedeutet, dass die ganze Aufnahme noch einmal gemacht werden
+ * muss.
+ */
+export async function loadEnrollment(): Promise<StoredEnrollment | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(BIO_ENROLLMENT_KEY);
+    return raw ? (JSON.parse(raw) as StoredEnrollment) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveEnrollment(e: StoredEnrollment): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(BIO_ENROLLMENT_KEY, JSON.stringify(e), {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
+  } catch {
+    // Nicht speichern zu können ist kein Grund, die laufende Registrierung
+    // abzubrechen — sie funktioniert auch ohne den Zwischenspeicher.
+  }
 }
 
 export async function checkAlreadyRegistered(bioHash: string) {
@@ -87,9 +186,26 @@ export async function checkAlreadyRegistered(bioHash: string) {
 export async function proveAndRegister(
   signer: AequitasSigner,
   identity: DeviceIdentity,
-  timeoutMessage: string = 'Timed out — no response from the wallet. Please try again.'
+  timeoutMessage: string = 'Timed out — no response from the wallet. Please try again.',
+  /**
+   * Attestierung des Coordinators über den `bio`-Wert, sofern die
+   * Registrierung über den biometrischen Weg lief.
+   *
+   * Ohne sie akzeptiert der Proof-Server den `bio` nur, solange er auf
+   * BIO_ATTESTATION_MODE=off oder =optional steht. Unter =required lehnt er
+   * ab — und genau das ist der Sinn: ein selbst ausgedachter `bio` bekommt
+   * dann keinen Nullifier mehr, und die biometrische Prüfung lässt sich nicht
+   * länger dadurch umgehen, dass man sie einfach ausläßt.
+   */
+  attestation?: { signature: string; issuedAt: number }
 ) {
-  const proof = await requestProof({ bio: identity.bio, salt: identity.salt, wallet: signer.address });
+  const proof = await requestProof({
+    bio: identity.bio,
+    salt: identity.salt,
+    wallet: signer.address,
+    bioAttestation: attestation?.signature,
+    bioAttestationIssuedAt: attestation?.issuedAt,
+  });
   const { pA, pB, pC, pubSignals, zkNullifier, circuitVersion, bioHashKey } = proof;
   if (!zkNullifier) {
     throw new Error('Proof-Server hat keinen ZK-Nullifier zurückgegeben (Circuit v3 erforderlich) — bitte erneut versuchen');
