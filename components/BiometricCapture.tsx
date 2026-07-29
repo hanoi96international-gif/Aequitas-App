@@ -58,6 +58,13 @@ const CONSENT_VERSION = '1';
  *  beeinflussen kann. */
 const CAMERA_SWITCH_SETTLE_MS = 900;
 
+/** Unter so vielen Bildern lohnt das Hochladen nicht.
+ *
+ *  pulse.py verwirft einen Burst mit weniger als 20 Frames als
+ *  `too_few_frames`. Es dann trotzdem zu senden hieße, Bilder eines Gesichts
+ *  über das Netz zu schicken für eine Prüfung, die sicher scheitert. */
+const MIN_USABLE_FRAMES = 20;
+
 type Step = 'consent' | 'preparing' | 'palm' | 'switch' | 'countdown' | 'burst' | 'submitting' | 'result' | 'failed';
 
 interface Props {
@@ -78,6 +85,7 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
   const [palmUri, setPalmUri] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [burstDone, setBurstDone] = useState(0);
+  const [burst, setBurst] = useState<{ uris: string[]; intervalMs: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CoordinatorResult | null>(null);
 
@@ -99,6 +107,7 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
       setPalmUri(null);
       setCountdown(COUNTDOWN_SECONDS);
       setBurstDone(0);
+      setBurst(null);
       setError(null);
       setResult(null);
       busy.current = false;
@@ -111,6 +120,26 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
   const fail = useCallback((msg: string) => {
     setError(msg);
     setStep('failed');
+  }, []);
+
+  /**
+   * Zurück auf Anfang für einen neuen Versuch.
+   *
+   * Muss die Challenge mit zurücksetzen, nicht nur den Schritt: der
+   * Coordinator entfernt eine Nonce beim ersten Gebrauch aus seiner Liste
+   * (_pending_challenges.pop). Ein zweiter Versuch mit derselben Nonce
+   * bekäme deshalb `challenge_required` zurück — der Nutzer hätte alles
+   * richtig gemacht und sähe trotzdem einen Fehler, und zwar bei jedem
+   * weiteren Versuch wieder.
+   */
+  const restart = useCallback(() => {
+    setChallenge(null);
+    setPalmUri(null);
+    setBurst(null);
+    setBurstDone(0);
+    setResult(null);
+    setError(null);
+    setStep('consent');
   }, []);
 
   /** Einwilligung erteilt: Berechtigung einholen, Challenge holen, Kamera an. */
@@ -138,9 +167,10 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
     if (busy.current || !camera.current) return;
     busy.current = true;
     try {
+      // Kein skipProcessing — siehe die Begründung im Burst-Effekt: das
+      // unrotierte Sensorbild käme beim Validator um 90° gedreht an.
       const photo = await camera.current.takePictureAsync({
         quality: 0.7,
-        skipProcessing: true,
         shutterSound: false,
       });
       if (!photo?.uri) {
@@ -194,6 +224,12 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
    * die rPPG-Pulsschätzung des Validators rechnet die Frequenz aus genau
    * diesem Abstand aus, und ein um den Faktor zwei falscher Abstand ergibt
    * eine um den Faktor zwei falsche Herzfrequenz.
+   *
+   * Dieser Effekt endet mit dem Wechsel nach 'submitting'; das Hochladen
+   * steht bewusst in einem eigenen Effekt darunter. Stünde beides hier, würde
+   * der Schrittwechsel diesen Effekt aufräumen, `cancelled` auf true setzen —
+   * und die Antwort des Coordinators träfe auf eine Prüfung, die sie
+   * verwirft. Der Bildschirm bliebe für immer auf „Abgleich läuft".
    */
   useEffect(() => {
     if (step !== 'burst') return;
@@ -206,9 +242,14 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
         for (let i = 0; i < BURST_FRAME_COUNT; i++) {
           if (cancelled || !alive.current || !camera.current) return;
           const started = Date.now();
+          // Ohne skipProcessing, mit Absicht. Mit skipProcessing liefert
+          // Android das unrotierte Sensorbild und vermerkt die Lage nur im
+          // EXIF-Feld — und die Gegenstelle dekodiert mit cv2.imdecode, das
+          // EXIF ignoriert. Die Gesichtserkennung bekäme das Bild um 90°
+          // gedreht und fände schlicht kein Gesicht. Schneller wäre es, aber
+          // eben auch nutzlos.
           const photo = await camera.current.takePictureAsync({
             quality: 0.6,
-            skipProcessing: true,
             shutterSound: false,
           });
           if (photo?.uri) {
@@ -227,17 +268,33 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
       }
 
       if (cancelled || !alive.current) return;
-      if (uris.length < 20 || !palmUri || !challenge) {
+      if (uris.length < MIN_USABLE_FRAMES || !palmUri || !challenge) {
         fail(t('bio.errTooFewFrames'));
         return;
       }
 
-      const measured =
-        stamps.length > 1
-          ? Math.round((stamps[stamps.length - 1] - stamps[0]) / (stamps.length - 1))
-          : BURST_INTERVAL_MS;
-
+      setBurst({
+        uris,
+        intervalMs:
+          stamps.length > 1
+            ? Math.round((stamps[stamps.length - 1] - stamps[0]) / (stamps.length - 1))
+            : BURST_INTERVAL_MS,
+      });
       setStep('submitting');
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // palmUri/challenge sind zum Zeitpunkt von 'burst' bereits gesetzt und
+    // ändern sich nicht mehr; sie stehen nur der Vollständigkeit halber hier.
+  }, [step, palmUri, challenge, fail, t]);
+
+  useEffect(() => {
+    if (step !== 'submitting' || !burst || !palmUri || !challenge) return;
+    let cancelled = false;
+
+    (async () => {
       try {
         const deviceId = await getDeviceId();
         const r = await submitCapture({
@@ -245,8 +302,8 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
           deviceId,
           challengeNonce: challenge.nonce,
           palmUri,
-          faceUris: uris,
-          burstIntervalMs: measured,
+          faceUris: burst.uris,
+          burstIntervalMs: burst.intervalMs,
           consentVersion: CONSENT_VERSION,
           consentedAt: Math.floor(Date.now() / 1000),
         });
@@ -266,9 +323,7 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
     return () => {
       cancelled = true;
     };
-    // palmUri/challenge sind zum Zeitpunkt von 'burst' bereits gesetzt und
-    // ändern sich nicht mehr; sie stehen nur der Vollständigkeit halber hier.
-  }, [step, palmUri, challenge, wallet, fail, t]);
+  }, [step, burst, palmUri, challenge, wallet, fail, t]);
 
   const prompt = challenge ? CHALLENGE_PROMPTS[challenge.challengeType] : '';
   const showCamera = step === 'palm' || step === 'switch' || step === 'countdown' || step === 'burst';
@@ -489,7 +544,7 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
                   {result.bioHash && !result.attestation && (
                     <Text style={S.noAttestNote}>{t('bio.errNoAttestation')}</Text>
                   )}
-                  <Pressable onPress={() => setStep('consent')}>
+                  <Pressable onPress={() => restart()}>
                     <LinearGradient
                       colors={theme.gradient}
                       start={theme.gradientAngle.start}
@@ -514,7 +569,7 @@ export default function BiometricCapture({ visible, wallet, onCancel, onSuccess 
                 <Text style={S.errTitle}>{t('bio.resultFailTitle')}</Text>
                 <Text style={S.resultText}>{error}</Text>
               </View>
-              <Pressable onPress={() => setStep('consent')}>
+              <Pressable onPress={() => restart()}>
                 <LinearGradient
                   colors={theme.gradient}
                   start={theme.gradientAngle.start}

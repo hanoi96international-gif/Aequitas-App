@@ -21,6 +21,14 @@ on:
         type: choice
         options: [release, debug]
 
+# Ein neuer Push bricht den noch laufenden Build desselben Branches ab. Ohne
+# das laufen zwei Gradle-Builds nebeneinander, von denen der aeltere eine APK
+# erzeugt, die niemand mehr will -- und zwar auf Runner-Zeit, die der neue
+# Build gerade braucht.
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
