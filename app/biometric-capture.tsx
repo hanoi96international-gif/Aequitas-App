@@ -889,6 +889,13 @@ export default function BiometricCapture() {
   const [palmUri, setPalmUri] = useState<string | null>(null);
   const [faceUri, setFaceUri] = useState<string | null>(null);
   const [burstUris, setBurstUris] = useState<string[]>([]);
+  // Die Burst-Aufnahme selbst. Geht ungeschnitten an den Coordinator, der
+  // die Einzelbilder daraus gewinnt -- siehe die Begruendung an setBurstVideoUri
+  // weiter unten. burstUris bleibt bestehen und leer: das Feld existiert
+  // weiterhin in der Upload-Schnittstelle, damit eine aeltere Coordinator-
+  // Fassung, die noch kein Video annimmt, nicht mit einem Formatfehler
+  // antwortet, sondern mit einer inhaltlichen Ablehnung.
+  const [burstVideoUri, setBurstVideoUri] = useState<string | null>(null);
   const [imuSamples, setImuSamples] = useState<ImuSample[]>([]);
   const [fingertipUris, setFingertipUris] = useState<string[]>([]);
   const [earUri, setEarUri] = useState<string | null>(null);
@@ -1108,32 +1115,53 @@ export default function BiometricCapture() {
       );
       const videoUri = 'file://' + videoPath;
 
-      const frames: string[] = [];
-      for (let i = 0; i < BURST_EXTRACT_COUNT; i++) {
-        try {
-          const thumb = await withTimeout(
-            VideoThumbnails.getThumbnailAsync(videoUri, { time: i * BURST_INTERVAL_MS, quality: 0.8 }),
-            FRAME_EXTRACT_TIMEOUT_MS,
-            'timeout'
-          );
-          frames.push(thumb.uri);
-        } catch (e) {
-          // A single stuck/failed frame shouldn't cost the whole burst --
-          // skip it and keep going, same "degrade instead of hang" idea
-          // used throughout this screen (see capturePalm's withTimeout).
-          console.error('[biometric-capture] face frame extraction failed', e);
+      // Die Aufnahme wird NICHT mehr hier zerlegt. Sie geht als Video an den
+      // Coordinator, der sie mit ffmpeg (PyAV) zerlegt -- siehe
+      // coordinator/app/video_frames.py.
+      //
+      // Der Grund ist gemessen, nicht vermutet: auf diesem Geraet nimmt
+      // CameraX in HEVC auf, und getThumbnailAsync (intern Androids
+      // MediaMetadataRetriever) bekam daraus ueber ALLE 30 Zeitpunkte kein
+      // einziges Bild -- einschliesslich t=0, waehrend CameraX die Aufnahme
+      // als fehlerfrei meldete. Der Abbruch unten bei frames.length === 0
+      // hat den Ablauf danach beendet, weshalb die Challenges nie beurteilt
+      // wurden.
+      //
+      // Auf dem Geraet ist das nicht loesbar: CameraX bietet keinen
+      // Codec-Schalter, und setOutputSettings() ist in vision-cameras
+      // Android-Fassung ein leerer Rumpf mit "TODO: CameraX does not support
+      // setting custom settings". Eine Fotoserie statt Video wiederum
+      // zerstoert die rPPG-Messung, die eine gleichmaessige Rate ueber 6 Hz
+      // braucht. Serverseitig zu zerlegen loest es fuer jedes Geraet statt
+      // fuer eines -- und liefert der Pulsmessung den ECHTEN Bildabstand aus
+      // dem Videostrom statt unserer Zielvorgabe BURST_INTERVAL_MS.
+      setBurstVideoUri(videoUri);
+
+      // Das Gesichtsbild kam bisher aus frames[0], also aus derselben
+      // Extraktion. takeSnapshot() liest stattdessen direkt aus dem
+      // Vorschaustrom -- derselbe Weg, den checkFacePosition oben schon
+      // benutzt, und unabhaengig von jedem Video-Codec.
+      let snapshotFaceUri: string | null = null;
+      try {
+        if (cameraRef.current) {
+          const snapshot = await withTimeout(cameraRef.current.takeSnapshot(), PALM_TIMEOUT_MS, 'timeout');
+          snapshotFaceUri = 'file://' + (await snapshot.saveToTemporaryFileAsync('jpg', 90));
         }
+      } catch (e) {
+        console.error('[biometric-capture] face snapshot failed', e);
       }
+
       setImuSamples(await imuPromise);
-      if (frames.length === 0) {
+      if (!snapshotFaceUri) {
         burstChainCancelledRef.current = true;
         clearFlashTimers();
         setSubmitError(t('identity.biometricResultFailed'));
         setStep('result');
         return;
       }
+      const frames: string[] = [];
       setBurstUris(frames);
-      setFaceUri(frames[0]);
+      setFaceUri(snapshotFaceUri);
       // Fingertip pulse is a genuinely separate, optional capture step (see
       // fingertip_pulse.py) -- not submitted automatically here, the user
       // can also skip it (see skipFingertip below).
@@ -1311,6 +1339,10 @@ export default function BiometricCapture() {
           palmUri,
           faceUri: finalFaceUri,
           faceBurstUris: finalBurst,
+          // Der Coordinator zieht die Einzelbilder hieraus und ignoriert
+          // faceBurstUris, sobald das Video da ist. burstIntervalMs
+          // uebersteuert er ebenfalls mit dem echten Wert aus dem Videostrom.
+          faceBurstVideoUri: burstVideoUri ?? undefined,
           burstIntervalMs: BURST_INTERVAL_MS,
           imuSamples,
           fingertipBurstUris: finalFingertip,

@@ -50,6 +50,19 @@ export interface BiometricCapture {
   palmUri: string;
   faceUri: string;
   faceBurstUris: string[];
+  /** Die Burst-Aufnahme selbst, statt der auf dem Geraet extrahierten
+   *  Einzelbilder. Ist sie gesetzt, zerlegt der Coordinator sie mit ffmpeg
+   *  und ignoriert faceBurstUris.
+   *
+   *  Grund: Androids MediaMetadataRetriever -- was expo-video-thumbnails
+   *  benutzt -- liefert auf manchen Geraeten aus dem eigenen HEVC-Video
+   *  keinen einzigen Frame (gemessen: 100 % Ausfall auf einem
+   *  MediaTek-Xiaomi, ueber alle Zeitpunkte). Der Codec laesst sich auf dem
+   *  Geraet nicht waehlen, und eine Fotoserie statt Video zerstoert die
+   *  rPPG-Pulsmessung. Serverseitig zu zerlegen loest es geraeteunabhaengig
+   *  und gibt der Pulsmessung ausserdem den ECHTEN Bildabstand aus dem
+   *  Videostrom statt burstIntervalMs, das nur unsere Zielvorgabe ist. */
+  faceBurstVideoUri?: string;
   /** Milliseconds between face_burst frames -- the coordinator/validator
    * needs this to convert its pulse (rPPG) FFT bins back to real BPM, see
    * matching-service/app/pulse.py's estimate_pulse(). Also used for the
@@ -231,6 +244,7 @@ async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
     capture.palmUri,
     capture.faceUri,
     ...capture.faceBurstUris,
+    capture.faceBurstVideoUri,
     ...(capture.fingertipBurstUris ?? []),
     capture.earUri,
     capture.acousticRecordingUri,
@@ -278,6 +292,12 @@ export async function registerBiometric(
     capture.faceBurstUris.forEach((uri, i) => {
       form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
     });
+    if (capture.faceBurstVideoUri) {
+      form.append(
+        'face_burst_video',
+        toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4')
+      );
+    }
     form.append('burst_interval_ms', String(capture.burstIntervalMs));
     if (capture.imuSamples?.length) {
       form.append('imu_samples', JSON.stringify(capture.imuSamples));
