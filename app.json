@@ -60,7 +60,7 @@
           "android": {
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "-dontwarn javax.lang.model.**\n-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {\n  <fields>;\n}"
+            "extraProguardRules": "-dontwarn javax.lang.model.**\n-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {\n  <fields>;\n}\n# MediaPipe laedt seine Java-Klassen aus nativem Code ueber deren NAMEN\n# (FindClass/GetMethodID). R8 sieht diese Referenzen nicht, benennt die\n# Klassen um, und libmediapipe_tasks_jni.so bekommt beim Start des Graphen\n# java_class == null zurueck -- der JNI-Check bricht daraufhin den ganzen\n# Prozess mit SIGABRT ab. Auf dem Geraet als Absturz beim Handflaechen-\n# Schritt sichtbar geworden, sobald der Release-Build zum ersten Mal\n# ueberhaupt durch R8 kam.\n-keep class com.google.mediapipe.** { *; }\n-dontwarn com.google.mediapipe.**\n\n# MediaPipe reicht Protobuf-Nachrichten ueber dieselbe JNI-Grenze.\n-keep class com.google.protobuf.** { *; }\n\n# Allgemein: jede Klasse, die native Methoden deklariert, muss ihren Namen\n# behalten -- sonst findet der native Gegenpart sie nicht mehr.\n-keepclasseswithmembernames,includedescriptorclasses class * {\n  native <methods>;\n}"
           }
         }
       ],
