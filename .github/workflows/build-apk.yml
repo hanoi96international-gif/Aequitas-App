@@ -170,6 +170,23 @@ jobs:
           fi
           echo "path=$path" >> "$GITHUB_OUTPUT"
 
+      - name: Handmodell in der APK pruefen
+        run: |
+          # Ohne diese Pruefung faellt ein fehlendes Modell erst auf dem Geraet
+          # auf, und dann mit einer Meldung, die woanders hinzeigt: MediaPipe
+          # sucht "hand_landmarker.task" unter den Assets, findet es nicht,
+          # behandelt den Namen als Dateipfad und meldet "doesn't have a slash
+          # in it". Genau das ist passiert -- die Datei lag nur im gitignorten
+          # android/-Ordner eines Entwicklerrechners und war in jeder CI-APK
+          # abwesend, waehrend die Handerkennung lokal funktionierte.
+          if unzip -l "${{ steps.apk.outputs.path }}" | grep -q 'hand_landmarker.task'; then
+            size=$(unzip -l "${{ steps.apk.outputs.path }}" | grep 'hand_landmarker.task' | awk '{print $1}')
+            echo "Handmodell in der APK: ${size} Bytes"
+          else
+            echo "::error title=Handmodell fehlt::hand_landmarker.task ist nicht in der APK. Die Handerkennung wuerde auf dem Geraet mit einer irrefuehrenden Pfad-Meldung scheitern. Der Gradle-Task downloadHandLandmarker in modules/mediapipe-hand-detector/android/build.gradle sollte es beschaffen -- dessen Ausgabe oben pruefen."
+            exit 1
+          fi
+
       # Nachtraeglich signieren statt Gradle umzukonfigurieren.
       #
       # Der Grund: `expo prebuild` erzeugt eine build.gradle, in der

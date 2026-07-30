@@ -31,6 +31,53 @@ if (useManagedAndroidSdkVersions) {
   }
 }
 
+// Das Modell, das MediapipeHandDetectorModule.setModelAssetPath() erwartet.
+// Es lag bisher NIRGENDS im Repository: weder als Datei noch als Bauschritt.
+// Auf einem Entwicklerrechner funktionierte die Handerkennung trotzdem, weil
+// die Datei einmal von Hand im generierten android/-Ordner abgelegt worden war
+// -- und der ist gitignored. Jeder CI-Build erzeugt ihn neu und bekam damit
+// eine APK ohne Modell.
+//
+// Der Fehler, den das erzeugt, zeigt nicht auf die Ursache: MediaPipe findet
+// "hand_landmarker.task" nicht unter den Assets, behandelt den Namen daraufhin
+// als Dateipfad und bricht mit "hand_landmarker.task doesn't have a slash in
+// it" ab -- was wie ein Formatfehler im Pfad aussieht und keiner ist.
+//
+// Geladen wird von Googles eigenem Modellspeicher, dieselbe Quelle und
+// dieselbe float16-Fassung, die aequitas-biometric-beta serverseitig nutzt --
+// beide Seiten muessen dasselbe Modell verwenden, sonst stimmen die
+// Landmarken nicht ueberein. Nach src/main/assets/, damit Gradle es in das
+// AAR packt und der App-Build es in seine Assets uebernimmt.
+def handModel = file("src/main/assets/hand_landmarker.task")
+
+tasks.register("downloadHandLandmarker") {
+  description = "Laedt hand_landmarker.task, falls es fehlt."
+  outputs.file(handModel)
+  onlyIf { !handModel.exists() }
+  doLast {
+    handModel.parentFile.mkdirs()
+    def url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
+    logger.lifecycle("Lade Handmodell: ${url}")
+    new java.net.URL(url).withInputStream { input ->
+      handModel.withOutputStream { it << input }
+    }
+    // Ein abgeschnittener oder als Fehlerseite gespeicherter Download waere
+    // sonst erst zur Laufzeit aufgefallen, wieder mit einer Meldung, die auf
+    // etwas anderes zeigt.
+    if (handModel.length() < 1_000_000) {
+      handModel.delete()
+      throw new GradleException("Handmodell unplausibel klein -- Download fehlgeschlagen.")
+    }
+    logger.lifecycle("Handmodell abgelegt: ${handModel.length()} Bytes")
+  }
+}
+
+tasks.configureEach { t ->
+  if (t.name.startsWith("preBuild") || t.name.startsWith("merge") && t.name.contains("Assets")) {
+    t.dependsOn("downloadHandLandmarker")
+  }
+}
+
 android {
   namespace "expo.modules.mediapipehanddetector"
   defaultConfig {
