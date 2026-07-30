@@ -1,0 +1,30 @@
+{
+  "cli": {
+    "version": ">= 5.9.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "//": "Test-Build: liefert eine installierbare .apk statt eines .aab. Ein aab laesst sich nicht direkt auf ein Geraet ziehen, nur ueber den Play Store — fuer einen Geraetetest also unbrauchbar.",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview-local-api": {
+      "//": "Wie preview, aber gegen eine selbst gehostete API. EXPO_PUBLIC_-Variablen landen im Bundle und sind damit oeffentlich — hier stehen deshalb nur URLs, niemals ein Token.",
+      "extends": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://<dein-chain-host>",
+        "EXPO_PUBLIC_COORDINATOR_BASE": "https://<dein-coordinator-host>"
+      }
+    },
+    "production": {
+      "//": "Play-Store-Build (.aab). ACHTUNG: muss mit demselben Keystore signiert werden wie bisherige Releases, sonst koennen bestehende Nutzer nicht aktualisieren, sondern muessen deinstallieren und neu installieren.",
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

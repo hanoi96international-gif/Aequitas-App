@@ -1,0 +1,232 @@
+name: Android APK bauen
+
+on:
+  # workflow_dispatch allein reicht nicht, solange diese Datei noch nicht auf
+  # dem Standardbranch liegt: GitHub findet einen manuell ausloesbaren
+  # Workflow nur dort und antwortet sonst mit 404. Ein push-Trigger dagegen
+  # wird aus der Fassung des gepushten Commits ausgewertet und laeuft sofort.
+  # Deshalb hier zusaetzlich, eng auf den Build-Branch begrenzt, damit nicht
+  # jeder Commit irgendwo im Projekt einen Android-Build ausloest.
+  push:
+    branches:
+      - claude/eas-build
+      - build-2026-07-30
+    paths-ignore:
+      - "**/*.md"
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "release = minifiziert, braucht die Keystore-Secrets · debug = sofort installierbar, selbstsigniert"
+        required: true
+        default: release
+        type: choice
+        options: [release, debug]
+      allow_unconfigured:
+        description: "Auch ohne WalletConnect-Projekt-ID bauen (die App hat dann keinen Wallet-verbinden-Knopf)"
+        required: false
+        default: false
+        type: boolean
+
+# Ein neuer Push bricht den noch laufenden Build desselben Branches ab. Ohne
+# das laufen zwei Gradle-Builds nebeneinander, von denen der aeltere eine APK
+# erzeugt, die niemand mehr will -- und zwar auf Runner-Zeit, die der neue
+# Build gerade braucht.
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Der Build laedt das halbe Android-Oekosystem; das Standard-Timeout von
+    # 360 Minuten ist unnoetig grosszuegig, 45 reichen und decken einen
+    # haengenden Gradle-Daemon auf, statt eine Stunde Runner-Zeit zu verheizen.
+    timeout-minutes: 45
+
+    env:
+      # Bei einem Push gibt es keine inputs; ohne diesen Fallback waere die
+      # Variable leer, und jede Abfrage darauf liefe ins Leere statt in einen
+      # Fehler -- der Build wuerde still den falschen Typ erzeugen.
+      VARIANT: ${{ inputs.variant || 'release' }}
+
+      # Build-Konfiguration der App.
+      #
+      # Diese Werte landen im JS-Bundle und sind damit oeffentlich -- hier
+      # gehoert nur hinein, was ohnehin jeder sehen darf (URLs, die
+      # WalletConnect-Projekt-ID). Niemals ein Token oder ein privater
+      # Schluessel.
+      #
+      # Warum das ueberhaupt hier stehen muss: lib/config.ts liest sie ueber
+      # process.env.EXPO_PUBLIC_*. Lokal kommen sie aus .env.local, und die
+      # ist gitignored, liegt also nicht im Repo. Ein CI-Build ohne diese
+      # Weitergabe erzeugt eine App, in der WALLETCONNECT_PROJECT_ID leer ist
+      # -- walletconnect.ts gibt dann `null` zurueck, WalletContext meldet
+      # walletConnectAvailable=false, und der Verbinden-Knopf ist einfach
+      # nicht mehr da. Genau das ist im ersten Release passiert.
+      EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID }}
+      EXPO_PUBLIC_COORDINATOR_BASE: ${{ vars.EXPO_PUBLIC_COORDINATOR_BASE }}
+      EXPO_PUBLIC_API_BASE: ${{ vars.EXPO_PUBLIC_API_BASE }}
+      EXPO_PUBLIC_WEBAPP: ${{ vars.EXPO_PUBLIC_WEBAPP }}
+      EXPO_PUBLIC_RPC_URL: ${{ vars.EXPO_PUBLIC_RPC_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Expo 54 / React Native 0.81 setzen JDK 17 voraus. Die Runner haben
+      # mehrere JDKs; ohne explizite Wahl greift Gradle irgendeines.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Das Android SDK ist auf ubuntu-latest vorinstalliert. Diese Action
+      # setzt nur ANDROID_HOME und legt die Build-Tools in den PATH — sie
+      # laedt kein SDK herunter, wenn schon eines da ist.
+      - uses: android-actions/setup-android@v3
+
+      # Vor allem anderen, weil ein hier uebersehener Fehler erst 25 Minuten
+      # spaeter als fehlender Knopf in einer fertigen APK auffaellt -- und
+      # zwar erst auf dem Geraet, nicht im Log.
+      #
+      # allow_unconfigured ist die bewusste Ausnahme fuer einen reinen
+      # Kompiliertest. Sie muss man anfordern; sie passiert nicht von selbst.
+      - name: Build-Konfiguration pruefen
+        run: |
+          if [ -z "$EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID" ]; then
+            if [ "${{ inputs.allow_unconfigured }}" = "true" ]; then
+              echo "::warning title=APK ohne WalletConnect::EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID ist nicht hinterlegt. In dieser APK fehlt der Wallet-verbinden-Knopf vollstaendig -- nur die lokale Wallet (Seed-Phrase) ist nutzbar. Bewusst zugelassen ueber allow_unconfigured."
+            else
+              echo "::error title=Kein WalletConnect-Projekt-ID::Das Repository-Secret EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID fehlt. Ohne sie liefert lib/walletconnect.ts null, WalletContext meldet walletConnectAvailable=false, und der Verbinden-Knopf ist in der fertigen App nicht vorhanden. Secret hinterlegen (Settings -> Secrets and variables -> Actions) oder den Build mit allow_unconfigured=true starten, wenn das gewollt ist."
+              exit 1
+            fi
+          fi
+          {
+            echo "### Build-Konfiguration"
+            echo ""
+            echo "| Variable | Zustand |"
+            echo "|---|---|"
+            echo "| WalletConnect-Projekt-ID | $([ -n "$EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID" ] && echo 'gesetzt' || echo '**fehlt — kein WalletConnect**') |"
+            echo "| Coordinator | ${EXPO_PUBLIC_COORDINATOR_BASE:-_nicht gesetzt — biometrischer Weg wird nicht angeboten_} |"
+            echo "| API | ${EXPO_PUBLIC_API_BASE:-https://aequitas.digital/api (Standard)} |"
+            echo "| RPC | ${EXPO_PUBLIC_RPC_URL:-https://aequitas.digital/rpc (Standard)} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      # Vor dem teuren Android-Build. Ein Tippfehler in einer Uebersetzung
+      # oder ein Typfehler faellt hier nach Sekunden auf statt nach zwanzig
+      # Minuten Gradle — und zwar mit einer Fehlermeldung, die die Ursache
+      # nennt, statt mit einem Metro-Bundlerfehler tief im Gradle-Log.
+      - name: Typen und Tests pruefen
+        run: |
+          npx tsc --noEmit
+          npx jest --ci
+
+      # Managed Expo-Projekt ohne android/-Verzeichnis: das native Projekt
+      # wird aus app.json erzeugt. --clean, damit kein Rest eines frueheren
+      # Laufs stillschweigend mitgebaut wird.
+      - name: Natives Android-Projekt erzeugen
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Bauen
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          if [ "$VARIANT" = "debug" ]; then
+            ./gradlew assembleDebug --no-daemon
+          else
+            ./gradlew assembleRelease --no-daemon
+          fi
+
+      - name: APK finden
+        id: apk
+        run: |
+          # -print -quit statt head: bricht bei der ersten Fundstelle ab und
+          # vermeidet ein SIGPIPE, das den Schritt rot faerben wuerde.
+          path=$(find android/app/build/outputs/apk -name '*.apk' -print -quit)
+          if [ -z "$path" ]; then
+            echo "::error::Kein APK erzeugt — Gradle-Ausgabe oben pruefen."
+            exit 1
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      # Nachtraeglich signieren statt Gradle umzukonfigurieren.
+      #
+      # Der Grund: `expo prebuild` erzeugt eine build.gradle, in der
+      # buildTypes.release ausdruecklich signingConfigs.debug verwendet.
+      # Eigene Eintraege in gradle.properties aendern daran NICHTS -- sie
+      # werden schlicht nie gelesen. Ein Build, der so tut, als haette er den
+      # echten Schluessel benutzt, waere schlimmer als gar keiner. apksigner
+      # ersetzt die vorhandene Signatur und ist unabhaengig davon, was die
+      # generierte build.gradle gerade tut.
+      #
+      # Was hier auf dem Spiel steht: Android verweigert ein Update, dessen
+      # Signatur nicht zur installierten passt. Wer mit fremdem Schluessel
+      # signiert, zwingt bestehende Nutzer zum Deinstallieren -- und das
+      # loescht das geraetegebundene Geheimnis und damit ihre Identitaet.
+      - name: Mit Release-Schluessel signieren
+        id: sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          APK: ${{ steps.apk.outputs.path }}
+        run: |
+          if [ "$VARIANT" != "release" ]; then
+            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Release-Build mit Debug-Schluessel::ANDROID_KEYSTORE_BASE64 ist nicht hinterlegt. Der Build-Typ ist release (minifiziert, ohne Debug-Symbole), signiert wird aber mit dem Debug-Schluessel der Expo-Vorlage. Fuer einen Geraetetest in Ordnung; ein Update bestehender Installationen ist damit NICHT moeglich."
+            exit 0
+          fi
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner nicht gefunden — ohne Build-Tools laesst sich nicht signieren."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          "$apksigner" sign \
+            --ks "$RUNNER_TEMP/release.keystore" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            "$APK"
+          # Ohne diese Pruefung wuerde eine fehlgeschlagene Signatur erst auf
+          # dem Geraet auffallen, mit einer Fehlermeldung des Installers, die
+          # die Ursache nicht nennt.
+          "$apksigner" verify --print-certs "$APK"
+          rm -f "$RUNNER_TEMP/release.keystore"
+          echo "signed=upload-key" >> "$GITHUB_OUTPUT"
+
+      - name: Zusammenfassung
+        env:
+          APK: ${{ steps.apk.outputs.path }}
+        run: |
+          {
+            echo "### APK gebaut"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Datei | \`$(basename "$APK")\` |"
+            echo "| Groesse | $(du -h "$APK" | cut -f1) |"
+            echo "| Build-Typ | $VARIANT |"
+            echo "| Signatur | ${{ steps.sign.outputs.signed }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aequitas-${{ inputs.variant || 'release' }}-apk
+          path: ${{ steps.apk.outputs.path }}
+          # Standard sind 90 Tage. Eine APK dieser App sollte nicht
+          # monatelang abrufbar herumliegen.
+          retention-days: 14
+          if-no-files-found: error
