@@ -1,9 +1,19 @@
 // Overridable via EXPO_PUBLIC_* env vars (e.g. an .env.staging loaded at
 // build time) so a staging backend can be targeted without editing source.
 // Unset in every build today, so production behavior is unchanged.
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'https://aequitas.digital/api';
-export const WEBAPP = process.env.EXPO_PUBLIC_WEBAPP ?? 'https://aequitas.digital';
-export const RPC_URL = process.env.EXPO_PUBLIC_RPC_URL ?? 'https://aequitas.digital/rpc';
+// `??` is deliberately NOT used here. It falls back only on null/undefined,
+// and the value that actually arrives is neither: the APK workflow maps every
+// EXPO_PUBLIC_* secret into the job env, so a secret nobody has set arrives as
+// an empty string. babel-preset-expo then inlines that empty string into this
+// module at transform time, `??` sees a defined value, and the app ships with
+// API_BASE === '' -- every request going to a relative empty base. An empty
+// URL is never a meaningful override, so treat it as absent.
+const orDefault = (value: string | undefined, fallback: string) =>
+  value && value.trim() !== '' ? value : fallback;
+
+export const API_BASE = orDefault(process.env.EXPO_PUBLIC_API_BASE, 'https://aequitas.digital/api');
+export const WEBAPP = orDefault(process.env.EXPO_PUBLIC_WEBAPP, 'https://aequitas.digital');
+export const RPC_URL = orDefault(process.env.EXPO_PUBLIC_RPC_URL, 'https://aequitas.digital/rpc');
 
 export const CHAIN_ID_HEX = '0x786';
 export const CHAIN_ID_DEC = 1926;
