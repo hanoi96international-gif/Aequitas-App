@@ -83,7 +83,8 @@
     "valtio": "2.1.8",
     "@walletconnect/universal-provider": "2.21.10",
     "@walletconnect/sign-client": "2.21.10",
-    "@walletconnect/core": "2.21.10"
+    "@walletconnect/core": "2.21.10",
+    "expo-asset": "12.0.13"
   },
   "private": true,
   "expo": {

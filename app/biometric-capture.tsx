@@ -922,7 +922,7 @@ export default function BiometricCapture() {
     setVouchError('');
     setVouchResult(null);
     try {
-      const res = await voucherFor('test', result.bio_hash, vouchInput.trim());
+      const res = await voucherFor(result.bio_hash, vouchInput.trim());
       setVouchResult(res);
     } catch (e: any) {
       console.error('[biometric-capture] vouch failed', e);
@@ -1318,7 +1318,12 @@ export default function BiometricCapture() {
           earUri: finalEarUri ?? undefined,
           acousticRecordingUri: finalAcousticUri ?? undefined,
         },
-        { mode: 'test', deviceId, walletAddress: address, consent }
+        // `mode: 'test'` used to be hardcoded here, which meant this screen
+        // deduplicated every capture against the coordinator's synthetic test
+        // table rather than the real one -- the uniqueness guarantee was not
+        // being exercised at all. The coordinator now decides that from its
+        // own SERVICE_MODE, so the choice is no longer the app's to get wrong.
+        { deviceId, walletAddress: address, consent }
       );
       setResult(res);
 

@@ -250,7 +250,6 @@ async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
 export async function registerBiometric(
   capture: BiometricCapture,
   opts: {
-    mode: 'test' | 'real';
     deviceId: string;
     walletAddress?: string;
     consent?: ConsentDecision;
@@ -262,7 +261,12 @@ export async function registerBiometric(
 
   try {
     const form = new FormData();
-    form.append('mode', opts.mode);
+    // No `mode` field. It used to be sent here and it selected which
+    // enrollment table the coordinator deduplicated against -- so a caller
+    // could pick the empty test table, fail no check, and still walk away
+    // with a usable bio_hash. The coordinator now takes its mode from its own
+    // SERVICE_MODE and ignores the field entirely; keeping it on the wire
+    // would imply this app still has a say in that, which it must not.
     form.append('device_id', opts.deviceId);
     if (opts.walletAddress) form.append('wallet_address', opts.walletAddress);
     if (opts.consent?.biometricConsent) {
@@ -340,7 +344,6 @@ export interface VouchResult {
  * validator directly -- same "never bypass the quorum" rule
  * registerBiometric() above already follows. */
 export async function voucherFor(
-  mode: 'test' | 'real',
   voucherBioHash: string,
   voucheeBioHash: string
 ): Promise<VouchResult> {
@@ -350,7 +353,9 @@ export async function voucherFor(
   const resp = await fetch(`${COORDINATOR_BASE}/vouch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode, voucher_bio_hash: voucherBioHash, vouchee_bio_hash: voucheeBioHash }),
+    // No `mode` -- same reason as registerBiometric above: which table a
+    // vouch is recorded against is the coordinator's business, not ours.
+    body: JSON.stringify({ voucher_bio_hash: voucherBioHash, vouchee_bio_hash: voucheeBioHash }),
   });
   if (!resp.ok) {
     throw new Error(`Coordinator vouch request failed (HTTP ${resp.status})`);
