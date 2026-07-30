@@ -173,10 +173,30 @@ export interface ProveResponse {
   bioHashKey?: string;
 }
 
-export async function requestProof(params: { bio: string; salt: string; wallet: string }): Promise<ProveResponse> {
+export async function requestProof(params: {
+  bio: string;
+  salt: string;
+  wallet: string;
+  // Passed straight through from the coordinator's /register response. The
+  // proof server rebuilds `domain|bio|wallet|issuedAt` and checks the
+  // signature against COORDINATOR_PUBLIC_KEYS, so both values must arrive
+  // exactly as issued -- re-deriving issuedAt here would invalidate every
+  // signature.
+  //
+  // Omitted for the device-secret identity flow, which has no coordinator
+  // and therefore no attestation. That path keeps working as long as the
+  // proof server runs in BIO_ATTESTATION_MODE=off or optional; switching it
+  // to required retires the device-secret flow, which is a product decision,
+  // not a deployment detail.
+  bioAttestation?: string | null;
+  bioAttestationIssuedAt?: number | null;
+}): Promise<ProveResponse> {
   // Goes through the chain server's authenticated proxy (/api/prove), never
   // directly to the proof server — the proof server's own /prove requires a
   // CHAIN_SERVICE_TOKEN the app must not hold (see api.go's handleProveProxy).
+  // The proxy forwards the body verbatim (it only peeks at `wallet` for its
+  // own per-wallet throttle), so these two fields reach the proof server
+  // without any chain-side change.
   const r = await fetch(API_BASE + '/prove', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -101,9 +101,19 @@ export function identityFromBioHash(bioHash: string): DeviceIdentity {
 export async function proveAndRegister(
   signer: AequitasSigner,
   identity: DeviceIdentity,
-  timeoutMessage: string = 'Timed out — no response from the wallet. Please try again.'
+  timeoutMessage: string = 'Timed out — no response from the wallet. Please try again.',
+  // Forwarded verbatim to the proof server when the identity came from the
+  // biometric coordinator. Absent for the device-secret flow, which has no
+  // coordinator to attest for it.
+  attestation?: { signature: string | null; issuedAt: number | null }
 ) {
-  const proof = await requestProof({ bio: identity.bio, salt: identity.salt, wallet: signer.address });
+  const proof = await requestProof({
+    bio: identity.bio,
+    salt: identity.salt,
+    wallet: signer.address,
+    bioAttestation: attestation?.signature ?? undefined,
+    bioAttestationIssuedAt: attestation?.issuedAt ?? undefined,
+  });
   const { pA, pB, pC, pubSignals, zkNullifier, circuitVersion, bioHashKey } = proof;
   if (!zkNullifier) {
     throw new Error('Proof-Server hat keinen ZK-Nullifier zurückgegeben (Circuit v3 erforderlich) — bitte erneut versuchen');

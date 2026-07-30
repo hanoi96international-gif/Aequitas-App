@@ -1335,7 +1335,18 @@ export default function BiometricCapture() {
           setStep('result');
           return;
         }
-        const proveResult = await proveAndRegister(signer, identity, t('trade.signTimeout'));
+        // The coordinator signed `domain|bio_hash|wallet|issued_at`. What
+        // reaches /prove as `bio` is identityFromBioHash's output, which is
+        // byte-identical to res.bio_hash only because new_scalar() already
+        // returns a canonical decimal below FIELD_SIZE, so the reduction is a
+        // no-op. lib/__tests__/attestation.test.ts pins that -- if the
+        // coordinator ever emits hex or a padded value instead, every
+        // signature stops verifying, and the symptom would look like a
+        // crypto bug rather than a formatting change.
+        const proveResult = await proveAndRegister(signer, identity, t('trade.signTimeout'), {
+          signature: res.bio_attestation ?? null,
+          issuedAt: res.bio_attestation_issued_at ?? null,
+        });
         if (!proveResult.success) {
           setSubmitError(proveResult.message || t('identity.registrationFailed'));
         }

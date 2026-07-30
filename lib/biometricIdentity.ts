@@ -196,6 +196,21 @@ export interface BiometricRegisterResult {
   // null if no challenge was requested/consumed (see coordinator/app/
   // main.py's /register).
   challenge_type?: string | null;
+  // Ed25519 signature over (bio_hash, wallet, issued_at), issued by the
+  // coordinator alongside the bio_hash. Must be forwarded verbatim to
+  // /api/prove: without it the proof server cannot distinguish a bio_hash
+  // that came out of the palm/face quorum from one the caller made up, and
+  // every check in aequitas-biometric-beta is bypassed rather than defeated.
+  //
+  // Optional on this type because a coordinator without
+  // COORDINATOR_SIGNING_KEY returns neither -- it reports why in
+  // bio_attestation_error instead of failing the registration, so an
+  // unconfigured coordinator stays usable while the proof server is still in
+  // BIO_ATTESTATION_MODE=off or optional.
+  bio_attestation?: string | null;
+  bio_attestation_issued_at?: number | null;
+  attestation_key?: string | null;
+  bio_attestation_error?: string | null;
 }
 
 function toUploadFile(uri: string, name: string, type = 'image/jpeg') {
