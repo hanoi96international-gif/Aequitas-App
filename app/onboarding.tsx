@@ -134,6 +134,22 @@ export default function Onboarding() {
               onPress={async () => {
                 await Clipboard.setStringAsync(mnemonic);
                 Alert.alert(t('common.copied'), t('onboarding.seedCopiedMsg'));
+                // SECURITY FIX (P1): the seed phrase used to sit on the
+                // clipboard indefinitely, readable by any other app with
+                // clipboard access. Auto-clear it after 45s, but only if the
+                // clipboard still holds exactly what we put there — the user
+                // may have copied something else in the meantime and we
+                // shouldn't clobber that.
+                setTimeout(async () => {
+                  try {
+                    const current = await Clipboard.getStringAsync();
+                    if (current === mnemonic) {
+                      await Clipboard.setStringAsync('');
+                    }
+                  } catch {
+                    // best-effort only
+                  }
+                }, 45000);
               }}
               activeOpacity={0.8}>
               <Text style={S.btnSecondaryText}>{t('onboarding.copyToClipboard')}</Text>

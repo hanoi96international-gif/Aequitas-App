@@ -1,4 +1,5 @@
 import { AppState } from 'react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { ethers } from 'ethers';
 import { RPC_URL } from './config';
@@ -29,8 +30,55 @@ export async function getStoredAddress(): Promise<string | null> {
   return SecureStore.getItemAsync(WALLET_ADDRESS_KEY);
 }
 
+// SECURITY FIX (P1): expo-secure-store's own `requireAuthentication` gate
+// (used below) is biometric-ONLY, not "biometric or device passcode" --
+// verified against the installed expo-secure-store@15.0.8 native source:
+// iOS locks the Keychain item with the `.biometryCurrentSet` SecAccessControl
+// flag (biometry, no passcode fallback -- see
+// node_modules/expo-secure-store/ios/SecureStoreModule.swift), and Android's
+// AuthenticationHelper.assertBiometricsSupport() throws outright if no
+// biometric is enrolled (see .../android/.../AuthenticationHelper.kt), it
+// never falls back to the lock-screen PIN/pattern/password. So on a
+// passcode-only device (no biometric hardware/enrollment),
+// canUseBiometricAuthentication() is false and `requireAuthentication` here
+// was set to false too -- meaning the private key was handed back with NO
+// prompt of any kind. Simply forcing `requireAuthentication: true`
+// unconditionally is NOT the fix: on those same passcode-only devices it
+// would make SecureStore itself throw (key generation/read requires
+// biometrics to exist at all), breaking wallet creation/unlock entirely.
+// Instead, close the gap with expo-local-authentication (already a project
+// dependency, already configured via the `expo-local-authentication` app.json
+// plugin + USE_BIOMETRIC/USE_FINGERPRINT permissions), whose
+// `authenticateAsync({ disableDeviceFallback: false })` genuinely does
+// "biometric OR device passcode" on both platforms -- confirmed via native
+// source: iOS uses LAPolicyDeviceOwnerAuthentication (falls back to passcode
+// when biometry unavailable/unenrolled) and Android's allowedAuthenticators
+// includes BiometricManager.Authenticators.DEVICE_CREDENTIAL (see
+// node_modules/expo-local-authentication/android/.../LocalAuthenticationModule.kt).
+// Used only as a supplementary gate when SecureStore's own biometric prompt
+// isn't available -- the existing biometric path is untouched.
+async function ensureDeviceAuthentication(promptMessage: string): Promise<void> {
+  const enrolledLevel = await LocalAuthentication.getEnrolledLevelAsync();
+  if (enrolledLevel === LocalAuthentication.SecurityLevel.NONE) {
+    // Device has no lock screen configured at all (no PIN/pattern/password,
+    // no biometric) -- there is nothing to authenticate against, same as
+    // the OS itself would allow. Not a gap we can close from the app.
+    return;
+  }
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage,
+    disableDeviceFallback: false,
+  });
+  if (!result.success) {
+    throw new Error('Authentifizierung erforderlich, um auf die Wallet zuzugreifen');
+  }
+}
+
 async function persistWallet(privateKey: string, address: string) {
   const canBiometric = SecureStore.canUseBiometricAuthentication();
+  if (!canBiometric) {
+    await ensureDeviceAuthentication('Sichere deine Aequitas Wallet');
+  }
   await SecureStore.setItemAsync(WALLET_SECRET_KEY, privateKey, {
     requireAuthentication: canBiometric,
     authenticationPrompt: 'Sichere deine Aequitas Wallet',
@@ -73,6 +121,13 @@ export async function importWallet(secret: string): Promise<WalletInfo> {
 export async function unlockWallet(): Promise<LocalSigner> {
   if (cachedSigner) return cachedSigner;
   const canBiometric = SecureStore.canUseBiometricAuthentication();
+  if (!canBiometric) {
+    // See ensureDeviceAuthentication()'s comment above persistWallet: this
+    // is the highest-severity fix in this file -- without it, a device with
+    // no biometric hardware/enrollment returned the private key with zero
+    // authentication of any kind.
+    await ensureDeviceAuthentication('Entsperre deine Aequitas Wallet');
+  }
   const privateKey = await SecureStore.getItemAsync(WALLET_SECRET_KEY, {
     requireAuthentication: canBiometric,
     authenticationPrompt: 'Entsperre deine Aequitas Wallet',

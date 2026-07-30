@@ -58,11 +58,12 @@
           "android": {
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "-dontwarn javax.lang.model.**"
+            "extraProguardRules": "-dontwarn javax.lang.model.**\n-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {\n  <fields>;\n}"
           }
         }
       ],
-      "./plugins/withRawPropsJsiValueFix.js"
+      "./plugins/withRawPropsJsiValueFix.js",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

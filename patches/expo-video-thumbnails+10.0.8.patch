@@ -1,0 +1,2220 @@
+diff --git a/node_modules/expo-video-thumbnails/android/build/generated/source/buildConfig/release/expo/modules/videothumbnails/BuildConfig.java b/node_modules/expo-video-thumbnails/android/build/generated/source/buildConfig/release/expo/modules/videothumbnails/BuildConfig.java
+new file mode 100644
+index 0000000..152f4e9
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/generated/source/buildConfig/release/expo/modules/videothumbnails/BuildConfig.java
+@@ -0,0 +1,10 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package expo.modules.videothumbnails;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = false;
++  public static final String LIBRARY_PACKAGE_NAME = "expo.modules.videothumbnails";
++  public static final String BUILD_TYPE = "release";
++}
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..6fce7c6
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="expo.modules.videothumbnails" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json b/node_modules/expo-video-thumbnails/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..f1de5c3
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "expo.modules.videothumbnails",
++  "variantName": "release",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar b/node_modules/expo-video-thumbnails/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar
+new file mode 100644
+index 0000000..c725731
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties b/node_modules/expo-video-thumbnails/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..1211b1e
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties
+@@ -0,0 +1,6 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=1
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json b/node_modules/expo-video-thumbnails/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/annotations_typedef_file/release/extractReleaseAnnotations/typedefs.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/annotations_typedef_file/release/extractReleaseAnnotations/typedefs.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar b/node_modules/expo-video-thumbnails/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar
+new file mode 100644
+index 0000000..f469768
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar b/node_modules/expo-video-thumbnails/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar
+new file mode 100644
+index 0000000..15fa2aa
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-8.11.0 b/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-8.11.0
+new file mode 100644
+index 0000000..5a3e3a5
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-8.11.0
+@@ -0,0 +1,89 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimizations: If you don't want to optimize, use the proguard-android.txt configuration file
++# instead of this one, which turns off the optimization flags.
++-allowaccessmodification
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-android.txt-8.11.0 b/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-android.txt-8.11.0
+new file mode 100644
+index 0000000..6f7e4ef
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-android.txt-8.11.0
+@@ -0,0 +1,95 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimization is turned off by default. Dex does not like code run
++# through the ProGuard optimize steps (and performs some
++# of these optimizations on its own).
++# Note that if you want to enable optimization, you cannot just
++# include optimization flags in your own project configuration file;
++# instead you will need to point to the
++# "proguard-android-optimize.txt" file instead of this one from your
++# project.properties file.
++-dontoptimize
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-defaults.txt-8.11.0 b/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-defaults.txt-8.11.0
+new file mode 100644
+index 0000000..7bbb228
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/default_proguard_files/global/proguard-defaults.txt-8.11.0
+@@ -0,0 +1,89 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimizations can be turned on and off in the 'postProcessing' DSL block.
++# The configuration below is applied if optimizations are enabled.
++-allowaccessmodification
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar b/node_modules/expo-video-thumbnails/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar
+new file mode 100644
+index 0000000..2d56945
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/module.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/module.xml
+new file mode 100644
+index 0000000..39331d2
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/module.xml
+@@ -0,0 +1,18 @@
++<lint-module
++    format="1"
++    dir="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android"
++    name=":expo-video-thumbnails"
++    type="LIBRARY"
++    maven="host.exp.exponent:expo-video-thumbnails:10.0.8"
++    agpVersion="8.11.0"
++    buildFolder="build"
++    bootClassPath="C:\Users\Benutzer7\AppData\Local\Android\Sdk\platforms\android-36\android.jar;C:\Users\Benutzer7\AppData\Local\Android\Sdk\build-tools\35.0.0\core-lambda-stubs.jar"
++    javaSourceLevel="17"
++    compileTarget="android-36"
++    neverShrinking="true">
++  <lintOptions
++      absolutePaths="true"
++      checkReleaseBuilds="true"
++      explainIssues="true"/>
++  <variant name="release"/>
++</lint-module>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release-artifact-dependencies.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release-artifact-dependencies.xml
+new file mode 100644
+index 0000000..ad1305c
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release-artifact-dependencies.xml
+@@ -0,0 +1,68 @@
++<dependencies>
++  <compile
++      roots=":@@:expo-modules-core::release,androidx.core:core-ktx:1.13.1@aar,androidx.core:core:1.13.1@aar,androidx.lifecycle:lifecycle-common:2.6.2@jar,androidx.lifecycle:lifecycle-runtime:2.6.2@aar,androidx.versionedparcelable:versionedparcelable:1.1.1@aar,androidx.arch.core:core-common:2.2.0@jar,androidx.collection:collection:1.0.0@jar,androidx.annotation:annotation:1.0.0@jar,org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar,org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar,androidx.annotation:annotation-experimental:1.4.0@aar,org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar,org.jetbrains:annotations:13.0@jar">
++    <dependency
++        name=":@@:expo-modules-core::release"
++        simpleName="host.exp.exponent:expo-modules-core"/>
++    <dependency
++        name="androidx.core:core-ktx:1.13.1@aar"
++        simpleName="androidx.core:core-ktx"/>
++    <dependency
++        name="androidx.core:core:1.13.1@aar"
++        simpleName="androidx.core:core"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-common:2.6.2@jar"
++        simpleName="androidx.lifecycle:lifecycle-common"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime:2.6.2@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime"/>
++    <dependency
++        name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++        simpleName="androidx.versionedparcelable:versionedparcelable"/>
++    <dependency
++        name="androidx.arch.core:core-common:2.2.0@jar"
++        simpleName="androidx.arch.core:core-common"/>
++    <dependency
++        name="androidx.collection:collection:1.0.0@jar"
++        simpleName="androidx.collection:collection"/>
++    <dependency
++        name="androidx.annotation:annotation:1.0.0@jar"
++        simpleName="androidx.annotation:annotation"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-android"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk8"/>
++    <dependency
++        name="androidx.annotation:annotation-experimental:1.4.0@aar"
++        simpleName="androidx.annotation:annotation-experimental"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="org.jetbrains:annotations:13.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </compile>
++  <package
++      roots="androidx.annotation:annotation:1.0.0@jar,org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar,org.jetbrains:annotations:13.0@jar">
++    <dependency
++        name="androidx.annotation:annotation:1.0.0@jar"
++        simpleName="androidx.annotation:annotation"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="org.jetbrains:annotations:13.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </package>
++</dependencies>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release-artifact-libraries.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release-artifact-libraries.xml
+new file mode 100644
+index 0000000..97c4673
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release-artifact-libraries.xml
+@@ -0,0 +1,132 @@
++<libraries>
++  <library
++      name=":@@:expo-modules-core::release"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\42137e76ded2770d074c2e34dd156075\transformed\out\jars\classes.jar;C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\42137e76ded2770d074c2e34dd156075\transformed\out\jars\libs\R.jar"
++      resolved="host.exp.exponent:expo-modules-core:3.0.30"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\42137e76ded2770d074c2e34dd156075\transformed\out"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core-ktx:1.13.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e7ff672a34eef902276c14a79b6b6511\transformed\core-ktx-1.13.1\jars\classes.jar"
++      resolved="androidx.core:core-ktx:1.13.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e7ff672a34eef902276c14a79b6b6511\transformed\core-ktx-1.13.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core:1.13.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\936579c3029b54563f9582c4efedaea8\transformed\core-1.13.1\jars\classes.jar"
++      resolved="androidx.core:core:1.13.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\936579c3029b54563f9582c4efedaea8\transformed\core-1.13.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-common:2.6.2@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.lifecycle\lifecycle-common\2.6.2\10f354fdb64868baecd67128560c5a0d6312c495\lifecycle-common-2.6.2.jar"
++      resolved="androidx.lifecycle:lifecycle-common:2.6.2"
++      provided="true"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime:2.6.2@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\d4702cbd50563e16f67bae5760e6bd0f\transformed\lifecycle-runtime-2.6.2\jars\classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime:2.6.2"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\d4702cbd50563e16f67bae5760e6bd0f\transformed\lifecycle-runtime-2.6.2"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\a04e1cca8ff0ce4d8c526ff7f31cbc64\transformed\versionedparcelable-1.1.1\jars\classes.jar"
++      resolved="androidx.versionedparcelable:versionedparcelable:1.1.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\a04e1cca8ff0ce4d8c526ff7f31cbc64\transformed\versionedparcelable-1.1.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.arch.core:core-common:2.2.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.arch.core\core-common\2.2.0\5e1b8b81dfd5f52c56a8d53b18ca759c19a301f3\core-common-2.2.0.jar"
++      resolved="androidx.arch.core:core-common:2.2.0"
++      provided="true"/>
++  <library
++      name="androidx.collection:collection:1.0.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.collection\collection\1.0.0\42858b26cafdaa69b6149f45dfc2894007bc2c7a\collection-1.0.0.jar"
++      resolved="androidx.collection:collection:1.0.0"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation:1.0.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.annotation\annotation\1.0.0\45599f2cd5965ac05a1488fa2a5c0cdd7c499ead\annotation-1.0.0.jar"
++      resolved="androidx.annotation:annotation:1.0.0"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlinx\kotlinx-coroutines-core-jvm\1.7.3\2b09627576f0989a436a00a4a54b55fa5026fb86\kotlinx-coroutines-core-jvm-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlinx\kotlinx-coroutines-android\1.7.3\38d9cad3a0b03a10453b56577984bdeb48edeed5\kotlinx-coroutines-android-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib-jdk8\1.8.20\73576ddf378c5b4f1f6b449fe6b119b8183fc078\kotlin-stdlib-jdk8-1.8.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation-experimental:1.4.0@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\ee1b7bba2970abb36fbf449fbc19b658\transformed\annotation-experimental-1.4.0\jars\classes.jar"
++      resolved="androidx.annotation:annotation-experimental:1.4.0"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\ee1b7bba2970abb36fbf449fbc19b658\transformed\annotation-experimental-1.4.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib\2.1.20\aa8ca79cd50578314f6d1180c47cbe14c0fee567\kotlin-stdlib-2.1.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib:2.1.20"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib-jdk7\2.1.20\72672df5e83231744c00550955b10acb71ed49d6\kotlin-stdlib-jdk7-2.1.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20"/>
++  <library
++      name="org.jetbrains:annotations:13.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains\annotations\13.0\919f0dfe192fb4e063e7dacadee7f8bb9a2672a9\annotations-13.0.jar"
++      resolved="org.jetbrains:annotations:13.0"/>
++</libraries>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release.xml
+new file mode 100644
+index 0000000..dac8201
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/lintVitalAnalyzeRelease/release.xml
+@@ -0,0 +1,31 @@
++<variant
++    name="release"
++    package="expo.modules.videothumbnails"
++    minSdkVersion="24"
++    targetSdkVersion="36.0"
++    mergedManifest="build\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml"
++    proguardFiles="build\intermediates\default_proguard_files\global\proguard-android.txt-8.11.0"
++    partialResultsDir="build\intermediates\lint_vital_partial_results\release\lintVitalAnalyzeRelease\out"
++    desugaredMethodsFiles="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e95c373bd39b19e9f17e1e1b74501ca6\transformed\D8BackportedDesugaredMethods.txt">
++  <buildFeatures
++      namespacing="REQUIRED"/>
++  <sourceProviders>
++    <sourceProvider
++        manifests="src\main\AndroidManifest.xml"
++        javaDirectories="src\main\java;src\release\java;src\main\kotlin;src\release\kotlin"
++        resDirectories="src\main\res;src\release\res"
++        assetsDirectories="src\main\assets;src\release\assets"/>
++  </sourceProviders>
++  <testSourceProviders>
++  </testSourceProviders>
++  <testFixturesSourceProviders>
++  </testFixturesSourceProviders>
++  <artifact
++      classOutputs="build\intermediates\javac\release\compileReleaseJavaWithJavac\classes;build\tmp\kotlin-classes\release;build\intermediates\compile_r_class_jar\release\generateReleaseRFile\R.jar"
++      type="MAIN"
++      applicationId="expo.modules.videothumbnails"
++      generatedSourceFolders="build\generated\ap_generated_sources\release\out;build\generated\source\buildConfig\release"
++      generatedResourceFolders="build\generated\res\resValues\release"
++      desugaredMethodsFiles="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e95c373bd39b19e9f17e1e1b74501ca6\transformed\D8BackportedDesugaredMethods.txt">
++  </artifact>
++</variant>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml
+new file mode 100644
+index 0000000..57eb6bc
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\assets"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\assets"/></dataSet><dataSet config="generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\intermediates\shader_assets\release\compileReleaseShaders\out"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+new file mode 100644
+index 0000000..3212d97
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\jniLibs"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\jniLibs"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseShaders/merger.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseShaders/merger.xml
+new file mode 100644
+index 0000000..a17caa0
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/mergeReleaseShaders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\shaders"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\shaders"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release-mergeJavaRes/merge-state b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release-mergeJavaRes/merge-state
+new file mode 100644
+index 0000000..9904283
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release-mergeJavaRes/merge-state differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/mergeReleaseResources/compile-file-map.properties b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/mergeReleaseResources/compile-file-map.properties
+new file mode 100644
+index 0000000..a43be5e
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/mergeReleaseResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Wed Jul 15 21:38:50 CEST 2026
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/mergeReleaseResources/merger.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/mergeReleaseResources/merger.xml
+new file mode 100644
+index 0000000..97643a8
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/mergeReleaseResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release" generated-set="release$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\generated\res\resValues\release"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\generated\res\resValues\release"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+new file mode 100644
+index 0000000..432d874
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Wed Jul 15 21:38:26 CEST 2026
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+new file mode 100644
+index 0000000..97643a8
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release" generated-set="release$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\generated\res\resValues\release"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\generated\res\resValues\release"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/java_res/release/processReleaseJavaRes/out/META-INF/expo-video-thumbnails_release.kotlin_module b/node_modules/expo-video-thumbnails/android/build/intermediates/java_res/release/processReleaseJavaRes/out/META-INF/expo-video-thumbnails_release.kotlin_module
+new file mode 100644
+index 0000000..9dbc290
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/java_res/release/processReleaseJavaRes/out/META-INF/expo-video-thumbnails_release.kotlin_module differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes/expo/modules/videothumbnails/BuildConfig.class b/node_modules/expo-video-thumbnails/android/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes/expo/modules/videothumbnails/BuildConfig.class
+new file mode 100644
+index 0000000..67555d4
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes/expo/modules/videothumbnails/BuildConfig.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/lint-cache-version.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/lint-cache-version.txt
+new file mode 100644
+index 0000000..f34882b
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/lint-cache-version.txt
+@@ -0,0 +1 @@
++Cache for Android Lint31.11.0
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/maven.google/androidx/annotation/group-index.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/maven.google/androidx/annotation/group-index.xml
+new file mode 100644
+index 0000000..0ec61ef
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/maven.google/androidx/annotation/group-index.xml
+@@ -0,0 +1,29 @@
++<?xml version='1.0' encoding='UTF-8'?>
++<androidx.annotation>
++  <annotation versions="1.0.0-alpha1,1.0.0-alpha3,1.0.0-beta01,1.0.0-rc01,1.0.0-rc02,1.0.0,1.0.1,1.0.2,1.1.0-alpha01,1.1.0-alpha02,1.1.0-beta01,1.1.0-rc01,1.1.0,1.2.0-alpha01,1.2.0-beta01,1.2.0-rc01,1.2.0,1.3.0-alpha01,1.3.0-beta01,1.3.0-rc01,1.3.0,1.4.0-alpha01,1.4.0-alpha02,1.4.0-beta01,1.4.0-rc01,1.4.0,1.5.0-alpha01,1.5.0-alpha02,1.5.0-beta01,1.5.0-rc01,1.5.0,1.6.0-dev01,1.6.0-alpha01,1.6.0-beta01,1.6.0-rc01,1.6.0,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-androidnativearm32 versions="1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-androidnativearm64 versions="1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-androidnativex64 versions="1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-androidnativex86 versions="1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-experimental versions="1.0.0-alpha01,1.0.0-beta01,1.0.0-rc01,1.0.0,1.1.0-alpha01,1.1.0-beta01,1.1.0-rc01,1.1.0-rc02,1.1.0,1.2.0-alpha01,1.2.0-beta01,1.2.0-rc01,1.2.0,1.3.0-alpha01,1.3.0-beta01,1.3.0-rc01,1.3.0,1.3.1,1.4.0-dev01,1.4.0-alpha01,1.4.0-beta01,1.4.0-rc01,1.4.0,1.4.1,1.5.0-alpha01,1.5.0-beta01,1.5.0-rc01,1.5.0,1.5.1,1.6.0-alpha01,1.6.0-rc01,1.6.0"/>
++  <annotation-experimental-lint versions="1.0.0-alpha01,1.0.0-beta01,1.0.0-rc01,1.0.0"/>
++  <annotation-iosarm64 versions="1.6.0-dev01,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-iossimulatorarm64 versions="1.6.0-dev01,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-iosx64 versions="1.6.0-dev01,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1"/>
++  <annotation-js versions="1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-jvm versions="1.6.0-dev01,1.6.0-alpha01,1.6.0-beta01,1.6.0-rc01,1.6.0,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-linuxarm64 versions="1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-linuxx64 versions="1.6.0-dev01,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-macosarm64 versions="1.6.0-dev01,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-macosx64 versions="1.6.0-dev01,1.7.0-alpha01,1.7.0-alpha02,1.7.0-alpha03,1.7.0-beta01,1.7.0-rc01,1.7.0,1.7.1,1.8.0-alpha01,1.8.0-alpha02,1.8.0-beta01,1.8.0-beta02,1.8.0-rc01,1.8.0,1.8.1,1.8.2,1.9.0-alpha01,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1"/>
++  <annotation-mingwx64 versions="1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-tvosarm64 versions="1.8.1,1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-tvossimulatorarm64 versions="1.8.1,1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-tvosx64 versions="1.8.1,1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1"/>
++  <annotation-wasm-js versions="1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-watchosarm32 versions="1.8.1,1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-watchosarm64 versions="1.8.1,1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-watchosdevicearm64 versions="1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-watchossimulatorarm64 versions="1.8.1,1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1,1.10.0-alpha01,1.10.0-rc01,1.10.0,1.11.0-alpha01"/>
++  <annotation-watchosx64 versions="1.8.1,1.8.2,1.9.0-alpha02,1.9.0-alpha03,1.9.0-beta01,1.9.0-rc01,1.9.0,1.9.1"/>
++</androidx.annotation>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/maven.google/master-index.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/maven.google/master-index.xml
+new file mode 100644
+index 0000000..397e98e
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/maven.google/master-index.xml
+@@ -0,0 +1,329 @@
++<?xml version='1.0' encoding='UTF-8'?>
++<metadata>
++  <android.arch.core/>
++  <android.arch.lifecycle/>
++  <android.arch.navigation/>
++  <android.arch.paging/>
++  <android.arch.persistence/>
++  <android.arch.persistence.room/>
++  <android.arch.work/>
++  <androidx.activity/>
++  <androidx.ads/>
++  <androidx.annotation/>
++  <androidx.appcompat/>
++  <androidx.appfunctions/>
++  <androidx.appsearch/>
++  <androidx.arch.core/>
++  <androidx.asynclayoutinflater/>
++  <androidx.autofill/>
++  <androidx.baselineprofile/>
++  <androidx.baselineprofile.apptarget/>
++  <androidx.baselineprofile.consumer/>
++  <androidx.baselineprofile.producer/>
++  <androidx.benchmark/>
++  <androidx.biometric/>
++  <androidx.bluetooth/>
++  <androidx.browser/>
++  <androidx.camera/>
++  <androidx.camera.featurecombinationquery/>
++  <androidx.camera.media3/>
++  <androidx.camera.viewfinder/>
++  <androidx.car/>
++  <androidx.car.app/>
++  <androidx.cardview/>
++  <androidx.collection/>
++  <androidx.compose/>
++  <androidx.compose.animation/>
++  <androidx.compose.compiler/>
++  <androidx.compose.foundation/>
++  <androidx.compose.material/>
++  <androidx.compose.material3/>
++  <androidx.compose.material3.adaptive/>
++  <androidx.compose.remote/>
++  <androidx.compose.runtime/>
++  <androidx.compose.ui/>
++  <androidx.concurrent/>
++  <androidx.constraintlayout/>
++  <androidx.contentpager/>
++  <androidx.coordinatorlayout/>
++  <androidx.core/>
++  <androidx.core.locationbutton/>
++  <androidx.core.uwb/>
++  <androidx.credentials/>
++  <androidx.credentials.providerevents/>
++  <androidx.credentials.registry/>
++  <androidx.cursoradapter/>
++  <androidx.customview/>
++  <androidx.databinding/>
++  <androidx.datastore/>
++  <androidx.documentfile/>
++  <androidx.draganddrop/>
++  <androidx.drawerlayout/>
++  <androidx.dynamicanimation/>
++  <androidx.emoji/>
++  <androidx.emoji2/>
++  <androidx.enterprise/>
++  <androidx.exifinterface/>
++  <androidx.fragment/>
++  <androidx.games/>
++  <androidx.gaming/>
++  <androidx.glance/>
++  <androidx.glance.wear/>
++  <androidx.gradle/>
++  <androidx.graphics/>
++  <androidx.gridlayout/>
++  <androidx.health/>
++  <androidx.health.connect/>
++  <androidx.heifwriter/>
++  <androidx.hilt/>
++  <androidx.ink/>
++  <androidx.input/>
++  <androidx.interpolator/>
++  <androidx.javascriptengine/>
++  <androidx.leanback/>
++  <androidx.legacy/>
++  <androidx.lifecycle/>
++  <androidx.lint/>
++  <androidx.loader/>
++  <androidx.localbroadcastmanager/>
++  <androidx.media/>
++  <androidx.media2/>
++  <androidx.media3/>
++  <androidx.mediarouter/>
++  <androidx.metrics/>
++  <androidx.multidex/>
++  <androidx.navigation/>
++  <androidx.navigation.safeargs/>
++  <androidx.navigation.safeargs.kotlin/>
++  <androidx.navigation3/>
++  <androidx.navigationevent/>
++  <androidx.paging/>
++  <androidx.palette/>
++  <androidx.pdf/>
++  <androidx.percentlayout/>
++  <androidx.performance/>
++  <androidx.photopicker/>
++  <androidx.preference/>
++  <androidx.print/>
++  <androidx.privacysandbox.activity/>
++  <androidx.privacysandbox.ads/>
++  <androidx.privacysandbox.library/>
++  <androidx.privacysandbox.plugins/>
++  <androidx.privacysandbox.sdkruntime/>
++  <androidx.privacysandbox.tools/>
++  <androidx.privacysandbox.ui/>
++  <androidx.profileinstaller/>
++  <androidx.recommendation/>
++  <androidx.recyclerview/>
++  <androidx.remotecallback/>
++  <androidx.resourceinspection/>
++  <androidx.room/>
++  <androidx.room3/>
++  <androidx.savedstate/>
++  <androidx.security/>
++  <androidx.sharetarget/>
++  <androidx.slice/>
++  <androidx.slidingpanelayout/>
++  <androidx.sqlite/>
++  <androidx.startup/>
++  <androidx.swiperefreshlayout/>
++  <androidx.test/>
++  <androidx.test.espresso/>
++  <androidx.test.espresso.idling/>
++  <androidx.test.ext/>
++  <androidx.test.janktesthelper/>
++  <androidx.test.services/>
++  <androidx.test.uiautomator/>
++  <androidx.text/>
++  <androidx.textclassifier/>
++  <androidx.tracing/>
++  <androidx.transition/>
++  <androidx.tv/>
++  <androidx.tvprovider/>
++  <androidx.ui/>
++  <androidx.vectordrawable/>
++  <androidx.versionedparcelable/>
++  <androidx.viewpager/>
++  <androidx.viewpager2/>
++  <androidx.wear/>
++  <androidx.wear.compose/>
++  <androidx.wear.compose.remote/>
++  <androidx.wear.protolayout/>
++  <androidx.wear.tiles/>
++  <androidx.wear.watchface/>
++  <androidx.wear.watchfacepush/>
++  <androidx.webgpu/>
++  <androidx.webkit/>
++  <androidx.window/>
++  <androidx.window.extensions.core/>
++  <androidx.work/>
++  <androidx.xr.arcore/>
++  <androidx.xr.compose/>
++  <androidx.xr.compose.material3/>
++  <androidx.xr.glimmer/>
++  <androidx.xr.projected/>
++  <androidx.xr.runtime/>
++  <androidx.xr.scenecore/>
++  <com.android/>
++  <com.android.ai-pack/>
++  <com.android.application/>
++  <com.android.art/>
++  <com.android.asset-pack/>
++  <com.android.asset-pack-bundle/>
++  <com.android.billingclient/>
++  <com.android.built-in-kotlin/>
++  <com.android.car.setupwizardlib/>
++  <com.android.car.ui/>
++  <com.android.compose.screenshot/>
++  <com.android.databinding/>
++  <com.android.designcompose/>
++  <com.android.dynamic-feature/>
++  <com.android.experimental.built-in-kotlin/>
++  <com.android.extensions.xr/>
++  <com.android.fused-library/>
++  <com.android.identity/>
++  <com.android.installreferrer/>
++  <com.android.internal.settings/>
++  <com.android.java.tools.build/>
++  <com.android.kotlin.multiplatform.library/>
++  <com.android.legacy-kapt/>
++  <com.android.library/>
++  <com.android.lint/>
++  <com.android.ndk.thirdparty/>
++  <com.android.privacy-sandbox-sdk/>
++  <com.android.reporting/>
++  <com.android.security.autorepro/>
++  <com.android.security.autorepro.apptest/>
++  <com.android.security.autorepro.javahosttest/>
++  <com.android.security.autorepro.ndktest/>
++  <com.android.security.autorepro.submission/>
++  <com.android.security.lint/>
++  <com.android.settings/>
++  <com.android.support/>
++  <com.android.support.constraint/>
++  <com.android.support.test/>
++  <com.android.support.test.espresso/>
++  <com.android.support.test.espresso.idling/>
++  <com.android.support.test.janktesthelper/>
++  <com.android.support.test.services/>
++  <com.android.support.test.uiautomator/>
++  <com.android.test/>
++  <com.android.tools/>
++  <com.android.tools.adblib/>
++  <com.android.tools.analytics-library/>
++  <com.android.tools.androidtest/>
++  <com.android.tools.apkdeployer/>
++  <com.android.tools.apkparser/>
++  <com.android.tools.build/>
++  <com.android.tools.build.jetifier/>
++  <com.android.tools.chunkio/>
++  <com.android.tools.compose/>
++  <com.android.tools.ddms/>
++  <com.android.tools.emulator/>
++  <com.android.tools.external.com-intellij/>
++  <com.android.tools.external.org-jetbrains/>
++  <com.android.tools.fakeadbserver/>
++  <com.android.tools.internal.build.test/>
++  <com.android.tools.journeys/>
++  <com.android.tools.layoutlib/>
++  <com.android.tools.lint/>
++  <com.android.tools.metalava/>
++  <com.android.tools.pixelprobe/>
++  <com.android.tools.screenshot/>
++  <com.android.tools.smali/>
++  <com.android.tools.studio.leakcanary/>
++  <com.android.tools.utp/>
++  <com.android.volley/>
++  <com.crashlytics.sdk.android/>
++  <com.google.ads.afsn/>
++  <com.google.ads.interactivemedia.v3/>
++  <com.google.ads.mediation/>
++  <com.google.ai.client.generativeai/>
++  <com.google.ai.edge.aicore/>
++  <com.google.ai.edge.litert/>
++  <com.google.ai.edge.litertlm/>
++  <com.google.ai.edge.localagents/>
++  <com.google.ambient.crossdevice/>
++  <com.google.android.ads/>
++  <com.google.android.ads.consent/>
++  <com.google.android.appcrawler/>
++  <com.google.android.apps.common.testing.accessibility.framework/>
++  <com.google.android.car.connectionservice/>
++  <com.google.android.datatransport/>
++  <com.google.android.engage/>
++  <com.google.android.enterprise.connectedapps/>
++  <com.google.android.exoplayer/>
++  <com.google.android.fhir/>
++  <com.google.android.flexbox/>
++  <com.google.android.games/>
++  <com.google.android.gms/>
++  <com.google.android.gms.oss-licenses-plugin/>
++  <com.google.android.gms.strict-version-matcher-plugin/>
++  <com.google.android.instantapps/>
++  <com.google.android.instantapps.thirdpartycompat/>
++  <com.google.android.libraries.ads.mobile.sdk/>
++  <com.google.android.libraries.car/>
++  <com.google.android.libraries.cloud.telco.subgraph/>
++  <com.google.android.libraries.enterprise.amapi/>
++  <com.google.android.libraries.healthdata/>
++  <com.google.android.libraries.identity.googleid/>
++  <com.google.android.libraries.maps/>
++  <com.google.android.libraries.mapsplatform.secrets-gradle-plugin/>
++  <com.google.android.libraries.mapsplatform.transportation/>
++  <com.google.android.libraries.navigation/>
++  <com.google.android.libraries.places/>
++  <com.google.android.libraries.play.games/>
++  <com.google.android.libraries.sdkcoroutines/>
++  <com.google.android.libraries.searchinapps/>
++  <com.google.android.libraries.verifier/>
++  <com.google.android.livesharing/>
++  <com.google.android.material/>
++  <com.google.android.mdoc/>
++  <com.google.android.mediahome/>
++  <com.google.android.meet/>
++  <com.google.android.odml/>
++  <com.google.android.play/>
++  <com.google.android.recaptcha/>
++  <com.google.android.support/>
++  <com.google.android.things/>
++  <com.google.android.tv/>
++  <com.google.android.tv.tvpanelframework/>
++  <com.google.android.ump/>
++  <com.google.android.wearable/>
++  <com.google.android.wearable.watchface.validator/>
++  <com.google.androidbrowserhelper/>
++  <com.google.ar/>
++  <com.google.ar.sceneform/>
++  <com.google.ar.sceneform.ux/>
++  <com.google.assistant.appactions/>
++  <com.google.assistant.suggestion/>
++  <com.google.camerax.effects/>
++  <com.google.chromeos/>
++  <com.google.cose/>
++  <com.google.d2c/>
++  <com.google.devtools.ksp/>
++  <com.google.fhir/>
++  <com.google.firebase/>
++  <com.google.firebase.appdistribution/>
++  <com.google.firebase.crashlytics/>
++  <com.google.firebase.firebase-perf/>
++  <com.google.firebase.testlab/>
++  <com.google.gms/>
++  <com.google.gms.google-services/>
++  <com.google.jacquard/>
++  <com.google.mediapipe/>
++  <com.google.mlkit/>
++  <com.google.net.cronet/>
++  <com.google.oboe/>
++  <com.google.play.policy.insights/>
++  <com.google.prefab/>
++  <com.google.relay/>
++  <com.google.test.platform/>
++  <com.google.testing.platform/>
++  <io.fabric.sdk.android/>
++  <org.chromium.net/>
++  <org.jetbrains.kotlin/>
++  <org.multipaz/>
++  <tools.base.build-system.debug/>
++  <zipflinger/>
++</metadata>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/sdk_index/snapshot.gz b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/sdk_index/snapshot.gz
+new file mode 100644
+index 0000000..acfbe6f
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/lint-cache/lintVitalAnalyzeRelease/sdk_index/snapshot.gz differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/module.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/module.xml
+new file mode 100644
+index 0000000..39331d2
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/module.xml
+@@ -0,0 +1,18 @@
++<lint-module
++    format="1"
++    dir="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android"
++    name=":expo-video-thumbnails"
++    type="LIBRARY"
++    maven="host.exp.exponent:expo-video-thumbnails:10.0.8"
++    agpVersion="8.11.0"
++    buildFolder="build"
++    bootClassPath="C:\Users\Benutzer7\AppData\Local\Android\Sdk\platforms\android-36\android.jar;C:\Users\Benutzer7\AppData\Local\Android\Sdk\build-tools\35.0.0\core-lambda-stubs.jar"
++    javaSourceLevel="17"
++    compileTarget="android-36"
++    neverShrinking="true">
++  <lintOptions
++      absolutePaths="true"
++      checkReleaseBuilds="true"
++      explainIssues="true"/>
++  <variant name="release"/>
++</lint-module>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-dependencies.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-dependencies.xml
+new file mode 100644
+index 0000000..86de56a
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-dependencies.xml
+@@ -0,0 +1,68 @@
++<dependencies>
++  <compile
++      roots=":@@:expo-modules-core::release,androidx.core:core-ktx:1.13.1@aar,androidx.core:core:1.13.1@aar,androidx.lifecycle:lifecycle-common:2.6.2@jar,androidx.lifecycle:lifecycle-runtime:2.6.2@aar,androidx.versionedparcelable:versionedparcelable:1.1.1@aar,androidx.arch.core:core-common:2.2.0@jar,androidx.collection:collection:1.0.0@jar,androidx.annotation:annotation:1.0.0@jar,org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar,org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar,androidx.annotation:annotation-experimental:1.4.0@aar,org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar,org.jetbrains:annotations:13.0@jar">
++    <dependency
++        name=":@@:expo-modules-core::release"
++        simpleName="artifacts::expo-modules-core"/>
++    <dependency
++        name="androidx.core:core-ktx:1.13.1@aar"
++        simpleName="androidx.core:core-ktx"/>
++    <dependency
++        name="androidx.core:core:1.13.1@aar"
++        simpleName="androidx.core:core"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-common:2.6.2@jar"
++        simpleName="androidx.lifecycle:lifecycle-common"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime:2.6.2@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime"/>
++    <dependency
++        name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++        simpleName="androidx.versionedparcelable:versionedparcelable"/>
++    <dependency
++        name="androidx.arch.core:core-common:2.2.0@jar"
++        simpleName="androidx.arch.core:core-common"/>
++    <dependency
++        name="androidx.collection:collection:1.0.0@jar"
++        simpleName="androidx.collection:collection"/>
++    <dependency
++        name="androidx.annotation:annotation:1.0.0@jar"
++        simpleName="androidx.annotation:annotation"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-android"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk8"/>
++    <dependency
++        name="androidx.annotation:annotation-experimental:1.4.0@aar"
++        simpleName="androidx.annotation:annotation-experimental"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="org.jetbrains:annotations:13.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </compile>
++  <package
++      roots="androidx.annotation:annotation:1.0.0@jar,org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar,org.jetbrains:annotations:13.0@jar">
++    <dependency
++        name="androidx.annotation:annotation:1.0.0@jar"
++        simpleName="androidx.annotation:annotation"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="org.jetbrains:annotations:13.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </package>
++</dependencies>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-libraries.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-libraries.xml
+new file mode 100644
+index 0000000..f128408
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-libraries.xml
+@@ -0,0 +1,122 @@
++<libraries>
++  <library
++      name=":@@:expo-modules-core::release"
++      project=":expo-modules-core"
++      provided="true"/>
++  <library
++      name="androidx.core:core-ktx:1.13.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e7ff672a34eef902276c14a79b6b6511\transformed\core-ktx-1.13.1\jars\classes.jar"
++      resolved="androidx.core:core-ktx:1.13.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e7ff672a34eef902276c14a79b6b6511\transformed\core-ktx-1.13.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core:1.13.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\936579c3029b54563f9582c4efedaea8\transformed\core-1.13.1\jars\classes.jar"
++      resolved="androidx.core:core:1.13.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\936579c3029b54563f9582c4efedaea8\transformed\core-1.13.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-common:2.6.2@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.lifecycle\lifecycle-common\2.6.2\10f354fdb64868baecd67128560c5a0d6312c495\lifecycle-common-2.6.2.jar"
++      resolved="androidx.lifecycle:lifecycle-common:2.6.2"
++      provided="true"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime:2.6.2@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\d4702cbd50563e16f67bae5760e6bd0f\transformed\lifecycle-runtime-2.6.2\jars\classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime:2.6.2"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\d4702cbd50563e16f67bae5760e6bd0f\transformed\lifecycle-runtime-2.6.2"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\a04e1cca8ff0ce4d8c526ff7f31cbc64\transformed\versionedparcelable-1.1.1\jars\classes.jar"
++      resolved="androidx.versionedparcelable:versionedparcelable:1.1.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\a04e1cca8ff0ce4d8c526ff7f31cbc64\transformed\versionedparcelable-1.1.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.arch.core:core-common:2.2.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.arch.core\core-common\2.2.0\5e1b8b81dfd5f52c56a8d53b18ca759c19a301f3\core-common-2.2.0.jar"
++      resolved="androidx.arch.core:core-common:2.2.0"
++      provided="true"/>
++  <library
++      name="androidx.collection:collection:1.0.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.collection\collection\1.0.0\42858b26cafdaa69b6149f45dfc2894007bc2c7a\collection-1.0.0.jar"
++      resolved="androidx.collection:collection:1.0.0"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation:1.0.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.annotation\annotation\1.0.0\45599f2cd5965ac05a1488fa2a5c0cdd7c499ead\annotation-1.0.0.jar"
++      resolved="androidx.annotation:annotation:1.0.0"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlinx\kotlinx-coroutines-core-jvm\1.7.3\2b09627576f0989a436a00a4a54b55fa5026fb86\kotlinx-coroutines-core-jvm-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlinx\kotlinx-coroutines-android\1.7.3\38d9cad3a0b03a10453b56577984bdeb48edeed5\kotlinx-coroutines-android-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib-jdk8\1.8.20\73576ddf378c5b4f1f6b449fe6b119b8183fc078\kotlin-stdlib-jdk8-1.8.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation-experimental:1.4.0@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\ee1b7bba2970abb36fbf449fbc19b658\transformed\annotation-experimental-1.4.0\jars\classes.jar"
++      resolved="androidx.annotation:annotation-experimental:1.4.0"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\ee1b7bba2970abb36fbf449fbc19b658\transformed\annotation-experimental-1.4.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib\2.1.20\aa8ca79cd50578314f6d1180c47cbe14c0fee567\kotlin-stdlib-2.1.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib:2.1.20"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib-jdk7\2.1.20\72672df5e83231744c00550955b10acb71ed49d6\kotlin-stdlib-jdk7-2.1.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20"/>
++  <library
++      name="org.jetbrains:annotations:13.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains\annotations\13.0\919f0dfe192fb4e063e7dacadee7f8bb9a2672a9\annotations-13.0.jar"
++      resolved="org.jetbrains:annotations:13.0"/>
++</libraries>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release.xml
+new file mode 100644
+index 0000000..ab3ddd1
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model/release/generateReleaseLintModel/release.xml
+@@ -0,0 +1,31 @@
++<variant
++    name="release"
++    package="expo.modules.videothumbnails"
++    minSdkVersion="24"
++    targetSdkVersion="36.0"
++    mergedManifest="build\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml"
++    manifestMergeReport="build\outputs\logs\manifest-merger-release-report.txt"
++    proguardFiles="build\intermediates\default_proguard_files\global\proguard-android.txt-8.11.0"
++    partialResultsDir="build\intermediates\lint_partial_results\release\lintAnalyzeRelease\out">
++  <buildFeatures
++      namespacing="REQUIRED"/>
++  <sourceProviders>
++    <sourceProvider
++        manifests="src\main\AndroidManifest.xml"
++        javaDirectories="src\main\java;src\release\java;src\main\kotlin;src\release\kotlin"
++        resDirectories="src\main\res;src\release\res"
++        assetsDirectories="src\main\assets;src\release\assets"/>
++  </sourceProviders>
++  <testSourceProviders>
++  </testSourceProviders>
++  <testFixturesSourceProviders>
++  </testFixturesSourceProviders>
++  <artifact
++      classOutputs="build\intermediates\javac\release\compileReleaseJavaWithJavac\classes;build\tmp\kotlin-classes\release;build\intermediates\compile_r_class_jar\release\generateReleaseRFile\R.jar"
++      type="MAIN"
++      applicationId="expo.modules.videothumbnails"
++      generatedSourceFolders="build\generated\ap_generated_sources\release\out;build\generated\source\buildConfig\release"
++      generatedResourceFolders="build\generated\res\resValues\release"
++      desugaredMethodsFiles="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e95c373bd39b19e9f17e1e1b74501ca6\transformed\D8BackportedDesugaredMethods.txt">
++  </artifact>
++</variant>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model_metadata/release/writeReleaseLintModelMetadata/lint-model-metadata.properties b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model_metadata/release/writeReleaseLintModelMetadata/lint-model-metadata.properties
+new file mode 100644
+index 0000000..305af4a
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_model_metadata/release/writeReleaseLintModelMetadata/lint-model-metadata.properties
+@@ -0,0 +1,3 @@
++mavenArtifactId=expo-video-thumbnails
++mavenGroupId=host.exp.exponent
++mavenVersion=10.0.8
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/module.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/module.xml
+new file mode 100644
+index 0000000..39331d2
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/module.xml
+@@ -0,0 +1,18 @@
++<lint-module
++    format="1"
++    dir="C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android"
++    name=":expo-video-thumbnails"
++    type="LIBRARY"
++    maven="host.exp.exponent:expo-video-thumbnails:10.0.8"
++    agpVersion="8.11.0"
++    buildFolder="build"
++    bootClassPath="C:\Users\Benutzer7\AppData\Local\Android\Sdk\platforms\android-36\android.jar;C:\Users\Benutzer7\AppData\Local\Android\Sdk\build-tools\35.0.0\core-lambda-stubs.jar"
++    javaSourceLevel="17"
++    compileTarget="android-36"
++    neverShrinking="true">
++  <lintOptions
++      absolutePaths="true"
++      checkReleaseBuilds="true"
++      explainIssues="true"/>
++  <variant name="release"/>
++</lint-module>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-dependencies.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-dependencies.xml
+new file mode 100644
+index 0000000..86de56a
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-dependencies.xml
+@@ -0,0 +1,68 @@
++<dependencies>
++  <compile
++      roots=":@@:expo-modules-core::release,androidx.core:core-ktx:1.13.1@aar,androidx.core:core:1.13.1@aar,androidx.lifecycle:lifecycle-common:2.6.2@jar,androidx.lifecycle:lifecycle-runtime:2.6.2@aar,androidx.versionedparcelable:versionedparcelable:1.1.1@aar,androidx.arch.core:core-common:2.2.0@jar,androidx.collection:collection:1.0.0@jar,androidx.annotation:annotation:1.0.0@jar,org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar,org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar,androidx.annotation:annotation-experimental:1.4.0@aar,org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar,org.jetbrains:annotations:13.0@jar">
++    <dependency
++        name=":@@:expo-modules-core::release"
++        simpleName="artifacts::expo-modules-core"/>
++    <dependency
++        name="androidx.core:core-ktx:1.13.1@aar"
++        simpleName="androidx.core:core-ktx"/>
++    <dependency
++        name="androidx.core:core:1.13.1@aar"
++        simpleName="androidx.core:core"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-common:2.6.2@jar"
++        simpleName="androidx.lifecycle:lifecycle-common"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime:2.6.2@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime"/>
++    <dependency
++        name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++        simpleName="androidx.versionedparcelable:versionedparcelable"/>
++    <dependency
++        name="androidx.arch.core:core-common:2.2.0@jar"
++        simpleName="androidx.arch.core:core-common"/>
++    <dependency
++        name="androidx.collection:collection:1.0.0@jar"
++        simpleName="androidx.collection:collection"/>
++    <dependency
++        name="androidx.annotation:annotation:1.0.0@jar"
++        simpleName="androidx.annotation:annotation"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-android"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk8"/>
++    <dependency
++        name="androidx.annotation:annotation-experimental:1.4.0@aar"
++        simpleName="androidx.annotation:annotation-experimental"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="org.jetbrains:annotations:13.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </compile>
++  <package
++      roots="androidx.annotation:annotation:1.0.0@jar,org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar,org.jetbrains:annotations:13.0@jar">
++    <dependency
++        name="androidx.annotation:annotation:1.0.0@jar"
++        simpleName="androidx.annotation:annotation"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="org.jetbrains:annotations:13.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </package>
++</dependencies>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-libraries.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-libraries.xml
+new file mode 100644
+index 0000000..f128408
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-libraries.xml
+@@ -0,0 +1,122 @@
++<libraries>
++  <library
++      name=":@@:expo-modules-core::release"
++      project=":expo-modules-core"
++      provided="true"/>
++  <library
++      name="androidx.core:core-ktx:1.13.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e7ff672a34eef902276c14a79b6b6511\transformed\core-ktx-1.13.1\jars\classes.jar"
++      resolved="androidx.core:core-ktx:1.13.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e7ff672a34eef902276c14a79b6b6511\transformed\core-ktx-1.13.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core:1.13.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\936579c3029b54563f9582c4efedaea8\transformed\core-1.13.1\jars\classes.jar"
++      resolved="androidx.core:core:1.13.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\936579c3029b54563f9582c4efedaea8\transformed\core-1.13.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-common:2.6.2@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.lifecycle\lifecycle-common\2.6.2\10f354fdb64868baecd67128560c5a0d6312c495\lifecycle-common-2.6.2.jar"
++      resolved="androidx.lifecycle:lifecycle-common:2.6.2"
++      provided="true"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime:2.6.2@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\d4702cbd50563e16f67bae5760e6bd0f\transformed\lifecycle-runtime-2.6.2\jars\classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime:2.6.2"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\d4702cbd50563e16f67bae5760e6bd0f\transformed\lifecycle-runtime-2.6.2"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\a04e1cca8ff0ce4d8c526ff7f31cbc64\transformed\versionedparcelable-1.1.1\jars\classes.jar"
++      resolved="androidx.versionedparcelable:versionedparcelable:1.1.1"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\a04e1cca8ff0ce4d8c526ff7f31cbc64\transformed\versionedparcelable-1.1.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.arch.core:core-common:2.2.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.arch.core\core-common\2.2.0\5e1b8b81dfd5f52c56a8d53b18ca759c19a301f3\core-common-2.2.0.jar"
++      resolved="androidx.arch.core:core-common:2.2.0"
++      provided="true"/>
++  <library
++      name="androidx.collection:collection:1.0.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.collection\collection\1.0.0\42858b26cafdaa69b6149f45dfc2894007bc2c7a\collection-1.0.0.jar"
++      resolved="androidx.collection:collection:1.0.0"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation:1.0.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\androidx.annotation\annotation\1.0.0\45599f2cd5965ac05a1488fa2a5c0cdd7c499ead\annotation-1.0.0.jar"
++      resolved="androidx.annotation:annotation:1.0.0"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlinx\kotlinx-coroutines-core-jvm\1.7.3\2b09627576f0989a436a00a4a54b55fa5026fb86\kotlinx-coroutines-core-jvm-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlinx\kotlinx-coroutines-android\1.7.3\38d9cad3a0b03a10453b56577984bdeb48edeed5\kotlinx-coroutines-android-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib-jdk8\1.8.20\73576ddf378c5b4f1f6b449fe6b119b8183fc078\kotlin-stdlib-jdk8-1.8.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation-experimental:1.4.0@aar"
++      jars="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\ee1b7bba2970abb36fbf449fbc19b658\transformed\annotation-experimental-1.4.0\jars\classes.jar"
++      resolved="androidx.annotation:annotation-experimental:1.4.0"
++      provided="true"
++      folder="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\ee1b7bba2970abb36fbf449fbc19b658\transformed\annotation-experimental-1.4.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib:2.1.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib\2.1.20\aa8ca79cd50578314f6d1180c47cbe14c0fee567\kotlin-stdlib-2.1.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib:2.1.20"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains.kotlin\kotlin-stdlib-jdk7\2.1.20\72672df5e83231744c00550955b10acb71ed49d6\kotlin-stdlib-jdk7-2.1.20.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20"/>
++  <library
++      name="org.jetbrains:annotations:13.0@jar"
++      jars="C:\Users\Benutzer7\.gradle\caches\modules-2\files-2.1\org.jetbrains\annotations\13.0\919f0dfe192fb4e063e7dacadee7f8bb9a2672a9\annotations-13.0.jar"
++      resolved="org.jetbrains:annotations:13.0"/>
++</libraries>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release.xml
+new file mode 100644
+index 0000000..befcbf6
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release.xml
+@@ -0,0 +1,31 @@
++<variant
++    name="release"
++    package="expo.modules.videothumbnails"
++    minSdkVersion="24"
++    targetSdkVersion="36.0"
++    mergedManifest="build\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml"
++    manifestMergeReport="build\outputs\logs\manifest-merger-release-report.txt"
++    proguardFiles="build\intermediates\default_proguard_files\global\proguard-android.txt-8.11.0"
++    partialResultsDir="build\intermediates\lint_vital_partial_results\release\lintVitalAnalyzeRelease\out">
++  <buildFeatures
++      namespacing="REQUIRED"/>
++  <sourceProviders>
++    <sourceProvider
++        manifests="src\main\AndroidManifest.xml"
++        javaDirectories="src\main\java;src\release\java;src\main\kotlin;src\release\kotlin"
++        resDirectories="src\main\res;src\release\res"
++        assetsDirectories="src\main\assets;src\release\assets"/>
++  </sourceProviders>
++  <testSourceProviders>
++  </testSourceProviders>
++  <testFixturesSourceProviders>
++  </testFixturesSourceProviders>
++  <artifact
++      classOutputs="build\intermediates\javac\release\compileReleaseJavaWithJavac\classes;build\tmp\kotlin-classes\release;build\intermediates\compile_r_class_jar\release\generateReleaseRFile\R.jar"
++      type="MAIN"
++      applicationId="expo.modules.videothumbnails"
++      generatedSourceFolders="build\generated\ap_generated_sources\release\out;build\generated\source\buildConfig\release"
++      generatedResourceFolders="build\generated\res\resValues\release"
++      desugaredMethodsFiles="C:\Users\Benutzer7\.gradle\caches\8.14.3\transforms\e95c373bd39b19e9f17e1e1b74501ca6\transformed\D8BackportedDesugaredMethods.txt">
++  </artifact>
++</variant>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_partial_results/release/lintVitalAnalyzeRelease/out/lint-resources.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/lint_vital_partial_results/release/lintVitalAnalyzeRelease/out/lint-resources.xml
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/local_aar_for_lint/release/out.aar b/node_modules/expo-video-thumbnails/android/build/intermediates/local_aar_for_lint/release/out.aar
+new file mode 100644
+index 0000000..e6fe7d9
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/local_aar_for_lint/release/out.aar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt
+new file mode 100644
+index 0000000..569c84a
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt
+@@ -0,0 +1,7 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="expo.modules.videothumbnails" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++6
++7</manifest>
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/merged_java_res/release/mergeReleaseJavaResource/feature-expo-video-thumbnails.jar b/node_modules/expo-video-thumbnails/android/build/intermediates/merged_java_res/release/mergeReleaseJavaResource/feature-expo-video-thumbnails.jar
+new file mode 100644
+index 0000000..cd31313
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/merged_java_res/release/mergeReleaseJavaResource/feature-expo-video-thumbnails.jar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml b/node_modules/expo-video-thumbnails/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..6fce7c6
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="expo.modules.videothumbnails" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json b/node_modules/expo-video-thumbnails/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar b/node_modules/expo-video-thumbnails/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar
+new file mode 100644
+index 0000000..6cfb8aa
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/source_set_path_map/release/mapReleaseSourceSetPaths/file-map.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/source_set_path_map/release/mapReleaseSourceSetPaths/file-map.txt
+new file mode 100644
+index 0000000..6dc38e9
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/source_set_path_map/release/mapReleaseSourceSetPaths/file-map.txt
+@@ -0,0 +1,7 @@
++expo.modules.videothumbnails.expo-video-thumbnails-pngs-0 C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\generated\res\pngs\release
++expo.modules.videothumbnails.expo-video-thumbnails-resValues-1 C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\generated\res\resValues\release
++expo.modules.videothumbnails.expo-video-thumbnails-mergeReleaseResources-2 C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\intermediates\incremental\release\mergeReleaseResources\merged.dir
++expo.modules.videothumbnails.expo-video-thumbnails-mergeReleaseResources-3 C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\intermediates\incremental\release\mergeReleaseResources\stripped.dir
++expo.modules.videothumbnails.expo-video-thumbnails-release-4 C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\build\intermediates\merged_res\release\mergeReleaseResources
++expo.modules.videothumbnails.expo-video-thumbnails-main-5 C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\res
++expo.modules.videothumbnails.expo-video-thumbnails-release-6 C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\release\res
+diff --git a/node_modules/expo-video-thumbnails/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt b/node_modules/expo-video-thumbnails/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..99fadb0
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++expo.modules.videothumbnails
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab
+new file mode 100644
+index 0000000..e277ee7
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream
+new file mode 100644
+index 0000000..fb55b74
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len
+new file mode 100644
+index 0000000..d0c248c
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len
+new file mode 100644
+index 0000000..a9f80ae
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at
+new file mode 100644
+index 0000000..f078992
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i
+new file mode 100644
+index 0000000..7d3e53a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/inputs/source-to-output.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab
+new file mode 100644
+index 0000000..c9bcf71
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream
+new file mode 100644
+index 0000000..1b5a8b8
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len
+new file mode 100644
+index 0000000..eae90aa
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len
+new file mode 100644
+index 0000000..eb0b8a0
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at
+new file mode 100644
+index 0000000..56876a5
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i
+new file mode 100644
+index 0000000..4bc3fd6
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-attributes.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab
+new file mode 100644
+index 0000000..c75b22a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream
+new file mode 100644
+index 0000000..1b5a8b8
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len
+new file mode 100644
+index 0000000..eae90aa
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len
+new file mode 100644
+index 0000000..eb0b8a0
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at
+new file mode 100644
+index 0000000..086e522
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i
+new file mode 100644
+index 0000000..4bc3fd6
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/class-fq-name-to-source.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab
+new file mode 100644
+index 0000000..159f16c
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream
+new file mode 100644
+index 0000000..d890850
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len
+new file mode 100644
+index 0000000..15963a0
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len
+new file mode 100644
+index 0000000..cf8a30a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at
+new file mode 100644
+index 0000000..2fd7ab3
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i
+new file mode 100644
+index 0000000..1bcc0a4
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/internal-name-to-source.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab
+new file mode 100644
+index 0000000..f50a749
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream
+new file mode 100644
+index 0000000..94243bd
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len
+new file mode 100644
+index 0000000..df694a3
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len
+new file mode 100644
+index 0000000..fd5292d
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at
+new file mode 100644
+index 0000000..511657a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i
+new file mode 100644
+index 0000000..4765f57
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/proto.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab
+new file mode 100644
+index 0000000..7fb1c4c
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream
+new file mode 100644
+index 0000000..fb55b74
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len
+new file mode 100644
+index 0000000..d0c248c
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len
+new file mode 100644
+index 0000000..a9f80ae
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at
+new file mode 100644
+index 0000000..fcae302
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i
+new file mode 100644
+index 0000000..7d3e53a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/source-to-classes.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab
+new file mode 100644
+index 0000000..48c02f5
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream
+new file mode 100644
+index 0000000..08a66d5
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream.len
+new file mode 100644
+index 0000000..bdf0f19
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.len
+new file mode 100644
+index 0000000..a9f80ae
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.values.at
+new file mode 100644
+index 0000000..cbcd0a6
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i
+new file mode 100644
+index 0000000..aba502d
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/subtypes.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab
+new file mode 100644
+index 0000000..1409d9a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream
+new file mode 100644
+index 0000000..a204953
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream.len
+new file mode 100644
+index 0000000..c6a0715
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.len
+new file mode 100644
+index 0000000..817b326
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.values.at
+new file mode 100644
+index 0000000..5bf71f3
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i
+new file mode 100644
+index 0000000..aa6222e
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/jvm/kotlin/supertypes.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/counters.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/counters.tab
+new file mode 100644
+index 0000000..c393a51
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/counters.tab
+@@ -0,0 +1,2 @@
++3
++0
+\ No newline at end of file
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab
+new file mode 100644
+index 0000000..0bc1e0b
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream
+new file mode 100644
+index 0000000..fb55b74
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len
+new file mode 100644
+index 0000000..d0c248c
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len
+new file mode 100644
+index 0000000..a9f80ae
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at
+new file mode 100644
+index 0000000..9f383b5
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i
+new file mode 100644
+index 0000000..7d3e53a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/file-to-id.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab
+new file mode 100644
+index 0000000..d047c94
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream
+new file mode 100644
+index 0000000..636f34a
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len
+new file mode 100644
+index 0000000..29ce11c
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len
+new file mode 100644
+index 0000000..a9f80ae
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at
+new file mode 100644
+index 0000000..3ded0ff
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i
+new file mode 100644
+index 0000000..e9905b3
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/id-to-file.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab
+new file mode 100644
+index 0000000..0ce10b2
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream
+new file mode 100644
+index 0000000..ba26ed5
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len
+new file mode 100644
+index 0000000..288f2b1
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.keystream.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.len
+new file mode 100644
+index 0000000..df00cd8
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at
+new file mode 100644
+index 0000000..db8fc98
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab.values.at differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i
+new file mode 100644
+index 0000000..780fb49
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len
+new file mode 100644
+index 0000000..131e265
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/caches-jvm/lookups/lookups.tab_i.len differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/last-build.bin b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/last-build.bin
+new file mode 100644
+index 0000000..8e0e75b
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/cacheable/last-build.bin differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin
+new file mode 100644
+index 0000000..4ae5adb
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/classpath-snapshot/shrunk-classpath-snapshot.bin differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/local-state/build-history.bin b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/local-state/build-history.bin
+new file mode 100644
+index 0000000..056d0a4
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/kotlin/compileReleaseKotlin/local-state/build-history.bin differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/outputs/aar/expo-video-thumbnails-release.aar b/node_modules/expo-video-thumbnails/android/build/outputs/aar/expo-video-thumbnails-release.aar
+new file mode 100644
+index 0000000..edfaf62
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/outputs/aar/expo-video-thumbnails-release.aar differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/outputs/logs/manifest-merger-release-report.txt b/node_modules/expo-video-thumbnails/android/build/outputs/logs/manifest-merger-release-report.txt
+new file mode 100644
+index 0000000..aab5c9f
+--- /dev/null
++++ b/node_modules/expo-video-thumbnails/android/build/outputs/logs/manifest-merger-release-report.txt
+@@ -0,0 +1,14 @@
++-- Merging decision tree log ---
++manifest
++ADDED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml:1:1-2:12
++INJECTED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml:1:1-2:12
++	package
++		INJECTED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml
++uses-sdk
++INJECTED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml
++INJECTED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from C:\Users\aequitas-app\node_modules\expo-video-thumbnails\android\src\main\AndroidManifest.xml
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/compileReleaseJavaWithJavac/previous-compilation-data.bin b/node_modules/expo-video-thumbnails/android/build/tmp/compileReleaseJavaWithJavac/previous-compilation-data.bin
+new file mode 100644
+index 0000000..bb44fa4
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/compileReleaseJavaWithJavac/previous-compilation-data.bin differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/META-INF/expo-video-thumbnails_release.kotlin_module b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/META-INF/expo-video-thumbnails_release.kotlin_module
+new file mode 100644
+index 0000000..9dbc290
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/META-INF/expo-video-thumbnails_release.kotlin_module differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/FilePermissionsModuleNotFound.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/FilePermissionsModuleNotFound.class
+new file mode 100644
+index 0000000..6fbfb65
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/FilePermissionsModuleNotFound.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/GenerateThumbnailException.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/GenerateThumbnailException.class
+new file mode 100644
+index 0000000..0a372d4
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/GenerateThumbnailException.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/InvalidSourceFilenameException.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/InvalidSourceFilenameException.class
+new file mode 100644
+index 0000000..5143429
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/InvalidSourceFilenameException.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/ThumbnailFileException.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/ThumbnailFileException.class
+new file mode 100644
+index 0000000..a59e0cd
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/ThumbnailFileException.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailOptions.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailOptions.class
+new file mode 100644
+index 0000000..c1b6008
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailOptions.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailResult.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailResult.class
+new file mode 100644
+index 0000000..1937458
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailResult.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$Companion.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$Companion.class
+new file mode 100644
+index 0000000..f6da076
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$Companion.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$GetThumbnail.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$GetThumbnail.class
+new file mode 100644
+index 0000000..5f84178
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$GetThumbnail.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$1.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$1.class
+new file mode 100644
+index 0000000..7ad506c
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$1.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$2.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$2.class
+new file mode 100644
+index 0000000..fa36e98
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$2.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$3.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$3.class
+new file mode 100644
+index 0000000..f37aeb6
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$AsyncFunctionWithPromise$3.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$OnDestroy$1.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$OnDestroy$1.class
+new file mode 100644
+index 0000000..d5e9766
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$$inlined$OnDestroy$1.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$lambda$2$$inlined$withModuleScope$1.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$lambda$2$$inlined$withModuleScope$1.class
+new file mode 100644
+index 0000000..eb68e41
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$definition$lambda$4$lambda$2$$inlined$withModuleScope$1.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$withModuleScope$1.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$withModuleScope$1.class
+new file mode 100644
+index 0000000..c91c7fb
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule$withModuleScope$1.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule.class b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule.class
+new file mode 100644
+index 0000000..2d3d547
+Binary files /dev/null and b/node_modules/expo-video-thumbnails/android/build/tmp/kotlin-classes/release/expo/modules/videothumbnails/VideoThumbnailsModule.class differ
+diff --git a/node_modules/expo-video-thumbnails/android/src/main/java/expo/modules/videothumbnails/VideoThumbnailsModule.kt b/node_modules/expo-video-thumbnails/android/src/main/java/expo/modules/videothumbnails/VideoThumbnailsModule.kt
+index b5e6e5e..c3a49dc 100644
+--- a/node_modules/expo-video-thumbnails/android/src/main/java/expo/modules/videothumbnails/VideoThumbnailsModule.kt
++++ b/node_modules/expo-video-thumbnails/android/src/main/java/expo/modules/videothumbnails/VideoThumbnailsModule.kt
+@@ -78,28 +78,40 @@ class VideoThumbnailsModule : Module() {
+   ) {
+     fun execute(): Bitmap? = MediaMetadataRetriever()
+       .use { retriever ->
+-        try {
+-          if (URLUtil.isFileUrl(sourceFilename)) {
+-            retriever.setDataSource(Uri.decode(sourceFilename).replace("file://", ""))
+-          } else if (URLUtil.isContentUrl(sourceFilename)) {
+-            val fileUri = Uri.parse(sourceFilename)
+-            context.contentResolver.openFileDescriptor(fileUri, "r")?.use { parcelFileDescriptor ->
+-              FileInputStream(parcelFileDescriptor.fileDescriptor).use { inputStream ->
+-                retriever.setDataSource(inputStream.fd)
+-              }
++        // DIAGNOSTIC (temporary, 2026-07-15): this used to swallow the real
++        // exception here (catch-and-return-null), which made every failure
++        // surface to JS as the same generic "Could not generate thumbnail"
++        // with no way to tell setDataSource failure apart from
++        // getFrameAtTime failure, or see the actual Android exception
++        // message/class. Letting it propagate to getThumbnail()'s own
++        // catch (IOException/RuntimeException) blocks below preserves the
++        // real ex.message in the JS-visible error instead.
++        if (URLUtil.isFileUrl(sourceFilename)) {
++          val resolvedPath = Uri.decode(sourceFilename).replace("file://", "")
++          val f = File(resolvedPath)
++          try {
++            retriever.setDataSource(resolvedPath)
++          } catch (e: Exception) {
++            throw RuntimeException(
++              "path=$resolvedPath exists=${f.exists()} length=${f.length()} canRead=${f.canRead()} cause=${e}",
++              e
++            )
++          }
++        } else if (URLUtil.isContentUrl(sourceFilename)) {
++          val fileUri = Uri.parse(sourceFilename)
++          context.contentResolver.openFileDescriptor(fileUri, "r")?.use { parcelFileDescriptor ->
++            FileInputStream(parcelFileDescriptor.fileDescriptor).use { inputStream ->
++              retriever.setDataSource(inputStream.fd)
+             }
+-          } else {
+-            retriever.setDataSource(sourceFilename, videoOptions.headers)
+           }
+-
+-          return retriever.getFrameAtTime(
+-            videoOptions.time.toLong() * 1000,
+-            MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+-          )
+-        } catch (e: Exception) {
+-          Log.e(ERROR_TAG, "Unable to retrieve source file")
+-          return null
++        } else {
++          retriever.setDataSource(sourceFilename, videoOptions.headers)
+         }
++
++        return retriever.getFrameAtTime(
++          videoOptions.time.toLong() * 1000,
++          MediaMetadataRetriever.OPTION_CLOSEST_SYNC
++        )
+       }
+   }
+ 

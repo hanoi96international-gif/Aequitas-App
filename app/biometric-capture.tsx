@@ -1,8 +1,9 @@
 // Phase 0 biometric proof-of-personhood capture screen (palm+face+consent,
 // see aequitas-biometric-beta). Pushed from the Identity tab ONLY when
 // BIOMETRIC_ENABLED is set (see lib/config.ts) -- unreachable otherwise.
-import React, { useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -11,6 +12,8 @@ import { useImageFaceDetector, type Face } from 'react-native-vision-camera-face
 import { detectHand, type HandBounds } from 'mediapipe-hand-detector';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Gyroscope } from 'expo-sensors';
+import * as Speech from 'expo-speech';
+import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioPlayer, useAudioRecorder } from 'expo-audio';
 import Svg, { Path } from 'react-native-svg';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
@@ -19,11 +22,14 @@ import {
   registerBiometric,
   requestChallenge,
   getOrCreateDeviceId,
+  voucherFor,
   type BiometricRegisterResult,
   type ChallengeType,
   type ConsentDecision,
+  type FlashColor,
   type ImuSample,
   type IssuedChallenge,
+  type VouchResult,
 } from '@/lib/biometricIdentity';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
@@ -54,6 +60,8 @@ type Step =
   | 'face_burst'
   | 'fingertip_intro'
   | 'fingertip_burst'
+  | 'ear_intro'
+  | 'acoustic_intro'
   | 'submitting'
   | 'result';
 
@@ -262,10 +270,15 @@ function PalmSilhouette({ ok }: { ok: boolean }) {
 // Matches the app's one established primary-button look (see e.g.
 // identity.tsx's proveHumanityBtn/retryBtn) instead of a flat fill, so this
 // screen doesn't read as a visually separate, less-finished part of the app.
-function GradientButton({ label, onPress }: { label: string; onPress: () => void }) {
+function GradientButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
-      <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} disabled={disabled}>
+      <LinearGradient
+        colors={theme.gradient}
+        start={theme.gradientAngle.start}
+        end={theme.gradientAngle.end}
+        style={[S.btnPrimary, disabled && S.btnPrimaryDisabled]}
+      >
         <Text style={S.btnPrimaryText}>{label}</Text>
       </LinearGradient>
     </TouchableOpacity>
@@ -330,13 +343,15 @@ function PalmGuide({
   const ok = status === 'ok';
   return (
     <View style={[S.guideWrap, { bottom: overlayHeight }]} pointerEvents="box-none">
-      <View pointerEvents="none">
+      <View style={S.guideOvalCenterer} pointerEvents="none">
         <PalmSilhouette ok={ok && checked} />
       </View>
-      <Text style={[S.guideHint, ok && checked && S.guideHintOk]} pointerEvents="none">{hint}</Text>
-      <TouchableOpacity style={S.retryPill} onPress={onCheck} activeOpacity={0.8} disabled={checking}>
-        <Text style={S.retryPillText}>{checking ? t('identity.biometricPalmChecking') : t('identity.biometricPalmCheckBtn')}</Text>
-      </TouchableOpacity>
+      <View style={S.guideBottomGroup} pointerEvents="box-none">
+        <Text style={[S.guideHint, ok && checked && S.guideHintOk]} pointerEvents="none">{hint}</Text>
+        <TouchableOpacity style={S.retryPill} onPress={onCheck} activeOpacity={0.8} disabled={checking}>
+          <Text style={S.retryPillText}>{checking ? t('identity.biometricPalmChecking') : t('identity.biometricPalmCheckBtn')}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -394,24 +409,186 @@ function FaceGuide({
   const ovalHeight = ovalWidth * (FACE_OVAL_BASE_HEIGHT / FACE_OVAL_BASE_WIDTH);
   return (
     <View style={[S.guideWrap, { bottom: overlayHeight }]} pointerEvents="box-none">
-      <View
-        style={[
-          S.faceOval,
-          ok && checked && S.faceOvalOk,
-          { width: ovalWidth, height: ovalHeight, borderRadius: ovalHeight / 2 },
-        ]}
-        pointerEvents="none"
-      />
-      <Text style={[S.guideHint, ok && checked && S.guideHintOk]} pointerEvents="none">{hint}</Text>
-      <TouchableOpacity style={S.retryPill} onPress={onCheck} activeOpacity={0.8} disabled={checking}>
-        <Text style={S.retryPillText}>{checking ? t('identity.biometricPalmChecking') : t('identity.biometricPalmCheckBtn')}</Text>
-      </TouchableOpacity>
+      <View style={S.guideOvalCenterer} pointerEvents="none">
+        <View
+          style={[
+            S.faceOval,
+            ok && checked && S.faceOvalOk,
+            { width: ovalWidth, height: ovalHeight, borderRadius: ovalHeight / 2 },
+          ]}
+        />
+      </View>
+      <View style={S.guideBottomGroup} pointerEvents="box-none">
+        <Text style={[S.guideHint, ok && checked && S.guideHintOk]} pointerEvents="none">{hint}</Text>
+        <TouchableOpacity style={S.retryPill} onPress={onCheck} activeOpacity={0.8} disabled={checking}>
+          <Text style={S.retryPillText}>{checking ? t('identity.biometricPalmChecking') : t('identity.biometricPalmCheckBtn')}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
+// Real-user feedback ("groSSe Anleitungen auf dem Bildschirm, nicht klein
+// als Text unten... praktikabel fuer Menschen die es ohne Brille machen"):
+// the on-screen instruction that tells someone what to physically do RIGHT
+// NOW (blink, look left, hold your fingertip still) used to be the
+// SMALLEST text on the whole screen (overlayHintSecondary, 11px) -- exactly
+// backwards from how critical it actually is. Fixed in two ways together:
+// the instruction text itself is now the single largest, boldest element
+// on screen (see S.actionInstruction below), and it's also spoken aloud via
+// expo-speech the moment it becomes the active instruction, so someone who
+// can't read it clearly at all still knows what to do. Speech language
+// follows the app's own selected locale, not the device's OS language --
+// same locale useLanguage()'s t() already reads from, so voice and text
+// never disagree about which language they're in.
+const SPEECH_LOCALE: Record<string, string> = {
+  en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', pt: 'pt-PT', ru: 'ru-RU',
+  zh: 'zh-CN', ar: 'ar-SA', hi: 'hi-IN', id: 'id-ID', it: 'it-IT', tr: 'tr-TR',
+};
+
+// Active-flash liveness (see flash_liveness.py) -- near-saturated colours,
+// not pastel, so the reflected light actually differs enough between slots
+// for the server's channel-deviation check to pick up cleanly; 0.7 alpha
+// still lets the guide oval/text (rendered on top) read through it.
+const FLASH_COLOR_RGBA: Record<FlashColor, string> = {
+  red: 'rgba(255,40,40,0.7)',
+  green: 'rgba(40,220,90,0.7)',
+  blue: 'rgba(50,110,255,0.7)',
+};
+
+// Real-device finding (2026-07-18): a generic "does the identifier/name
+// contain the word 'female'" heuristic (tried first) never matches on this
+// device -- its installed German voices use bare 3-letter codenames
+// ("de-de-x-deg-local" etc.) with no gender marker at all, confirmed via a
+// live device log. There's no public mapping from these codenames to
+// gender, so this was resolved by actually listening: the app spoke
+// "Stimme 1..9" through every installed German voice live on-device, and
+// the user picked #4. Hardcoded per-language rather than guessed, since
+// only German has been confirmed by a real listener so far -- other
+// languages fall back to the device's plain default voice (same as before
+// this fix) until someone does the same on-device pass for them.
+const CONFIRMED_FEMALE_VOICE: Partial<Record<string, string>> = {
+  de: 'de-de-x-deg-local',
+};
+
 export default function BiometricCapture() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+
+  // Real-device report ("die Stimme ist grauenhaft, eine sympathische
+  // weibliche Stimme bitte"): an earlier attempt picked a specific
+  // installed voice by identifier and went completely silent on real
+  // hardware -- a known Android TTS quirk, a `voice` identifier the engine
+  // can't cleanly resolve fails SILENTLY (no error callback, no sound)
+  // rather than throwing. See CONFIRMED_FEMALE_VOICE's own comment for how
+  // the actual identifier below was found (by listening, not guessed).
+  // Still verified against THIS device's own getAvailableVoicesAsync()
+  // result before use (an OS/TTS update could remove/rename it), and still
+  // guarded by an onStart-vs-timeout probe (see speak() below) that
+  // detects a silent failure on the first utterance and permanently falls
+  // back to plain pitch/rate for the rest of the session -- so even a
+  // repeat of the old failure mode costs at most one lost instruction
+  // instead of silencing the whole screen.
+  const [femaleVoiceId, setFemaleVoiceId] = useState<string | null>(null);
+  const voiceStatusRef = useRef<'untested' | 'ok' | 'broken'>('untested');
+  const voiceProbeScheduledRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFemaleVoiceId(null);
+    voiceStatusRef.current = 'untested';
+    voiceProbeScheduledRef.current = false;
+    const confirmed = CONFIRMED_FEMALE_VOICE[lang];
+    if (!confirmed) return;
+    Speech.getAvailableVoicesAsync()
+      .then((voices) => {
+        if (!cancelled) setFemaleVoiceId(voices.some((v) => v.identifier === confirmed) ? confirmed : null);
+      })
+      .catch(() => setFemaleVoiceId(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [lang]);
+
+  // Real-device report ("der Text beim Palm Print wird doppelt
+  // vorgelesen"): the step-instruction effect below can fire twice for the
+  // same step value (React re-render double-invoke) -- without this guard
+  // the second call's Speech.stop() cuts the first call's audio a few ms
+  // in and restarts it from the top, audible as "read twice"/stuttering,
+  // not a real duplicate-instruction bug in the app's own step logic.
+  const lastSpokenRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
+
+  // User feedback ("klingt jetzt gerade so abgehackt, das soll flüssiger
+  // sein"): the face_burst sequence (hold -> blink -> direction) used to
+  // hard-cut speech at fixed timer boundaries via speak()'s own
+  // Speech.stop() -- see the fixed HOLD/BLINK windows this replaced, below.
+  // Cutting mid-utterance (or right at its last syllable) between three
+  // back-to-back sentences is exactly what reads as choppy. speakRaw is
+  // the un-interrupting half: no stop() first, and it reports back via
+  // onDone/onStopped so a CALLER can chain the next sentence only once
+  // this one has actually finished speaking, instead of on an arbitrary
+  // clock. speak() (below) is unchanged in spirit -- still the "cut
+  // whatever's playing and say something new right now" entry point used
+  // for step-level instructions -- just rebuilt on top of speakRaw so the
+  // voice-selection/probe logic lives in one place.
+  const speakRaw = useCallback(
+    (text: string, onDone?: () => void) => {
+      if (!text) {
+        onDone?.();
+        return;
+      }
+      const baseOpts = { language: SPEECH_LOCALE[lang] ?? 'en-US', rate: 0.92, pitch: 0.9 };
+      const doneOnce = onDone ? { called: false } : null;
+      const fireDone = () => {
+        if (doneOnce && !doneOnce.called) {
+          doneOnce.called = true;
+          onDone?.();
+        }
+      };
+      if (femaleVoiceId && voiceStatusRef.current !== 'broken') {
+        Speech.speak(text, {
+          ...baseOpts,
+          voice: femaleVoiceId,
+          onStart: () => {
+            voiceStatusRef.current = 'ok';
+          },
+          onDone: fireDone,
+          onStopped: fireDone,
+        });
+        // Only the very first attempt needs to probe -- once any attempt
+        // has actually started (or been declared broken), every later
+        // speak() call already knows which path to take.
+        if (!voiceProbeScheduledRef.current) {
+          voiceProbeScheduledRef.current = true;
+          setTimeout(() => {
+            if (voiceStatusRef.current === 'untested') {
+              voiceStatusRef.current = 'broken';
+              Speech.stop();
+            }
+          }, 1200);
+        }
+      } else {
+        Speech.speak(text, { ...baseOpts, onDone: fireDone, onStopped: fireDone });
+      }
+    },
+    [lang, femaleVoiceId]
+  );
+
+  const speak = useCallback(
+    (text: string) => {
+      if (!text) return;
+      const now = Date.now();
+      if (lastSpokenRef.current.text === text && now - lastSpokenRef.current.at < 800) return;
+      lastSpokenRef.current = { text, at: now };
+
+      // interrupt: a new instruction replacing an old one should be heard
+      // immediately, not queued behind speech for a step the user already
+      // moved past.
+      Speech.stop();
+      speakRaw(text);
+    },
+    [speakRaw]
+  );
+
   const { address, signer } = useWallet();
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
@@ -428,9 +605,148 @@ export default function BiometricCapture() {
   // comment.
   const [challenge, setChallenge] = useState<IssuedChallenge | null>(null);
 
+  // User feedback ("genaue Angaben beim face proof, gestückelt... nicht
+  // alles auf einmal"): the face_burst recording used to show ONE static
+  // instruction for the whole ~5.5s (either the generic "capturing" line,
+  // or that plus a single coordinator-issued direction) -- too much to act
+  // on at once, and too little guidance when no challenge was issued at
+  // all (network hiccup, see requestChallenge()'s own "informational only"
+  // comment). Broken into a sequence instead: always hold-in-oval then
+  // blink first (the two things the server's face-match and pulse checks
+  // actually need regardless of any challenge), followed by whatever
+  // direction the coordinator specifically asked for -- or, if none was
+  // issued, a left-then-right fallback so there's still staged, concrete
+  // guidance rather than nothing. challenge_passed is informational-only
+  // server-side (see biometricIdentity.ts's RegisterVote comment), so this
+  // fallback can't conflict with a real requested direction that was never
+  // issued.
+  //
+  // User feedback ("wie lange muss man schauen? das muss präziser sein"):
+  // the direction stage's text states its own exact hold duration instead
+  // of leaving "look left" open-ended.
+  //
+  // User feedback ("klingt jetzt gerade so abgehackt, das soll flüssiger
+  // sein"): a first version divided BURST_DURATION_S into fixed
+  // (hold=1.5s, blink=1s, direction=rest) windows and hard-cut speech at
+  // each boundary via setTimeout -- choppy because a short fixed window
+  // often didn't leave enough time for e.g. "Jetzt blinzeln" to finish
+  // speaking before being cut off for the next stage. Rebuilt as an
+  // onDone-chained sequence instead (see speakRaw above): each stage's
+  // speech is allowed to actually finish before the next one starts, so
+  // the pacing follows real speech duration, not a guessed budget. Only
+  // the FINAL (direction) stage's stated duration still needs to be
+  // trustworthy -- computed live from actual elapsed time at the moment it
+  // starts (see startFaceCapture), not a fixed constant, so it stays
+  // accurate regardless of how long the first two stages actually took to
+  // say in whatever language/voice is active. burstChainCancelledRef stops
+  // a stage from firing after the user has already left face_burst (e.g.
+  // the recording failed) -- onDone/onStopped both resolve the chain, so
+  // an interrupting Speech.stop() elsewhere would otherwise still let it
+  // continue to the next stage.
+  const [burstStageText, setBurstStageText] = useState('');
+  const burstChainCancelledRef = useRef(true);
+  useEffect(() => () => {
+    burstChainCancelledRef.current = true;
+  }, []);
+
+  // Active-flash liveness (see matching-service/app/flash_liveness.py) --
+  // 2026-07-18 research finding: passive liveness (blink/pulse/parallax,
+  // everything else on this screen) is losing the arms race against
+  // real-time deepfake injection, which re-renders those in real time. This
+  // is the countermeasure -- the screen flashes a server-picked, unknowable-
+  // in-advance colour sequence during the recording, and the server checks
+  // whether the face's reflected colour actually tracked it. flashColor
+  // drives a full-screen tint OVER the camera preview (still under the
+  // guide/instruction text, see the face_burst render below) so the light
+  // actually reaches the face; null means no tint (outside face_burst, or
+  // no sequence was issued -- see requestChallenge()'s own graceful-
+  // degrade posture, same here). Timers tracked separately from
+  // burstChainCancelledRef's speech chain since this is paced by the
+  // RECORDING's own timeline (see startFaceCapture), not by how long
+  // speech happens to take.
+  const [flashColor, setFlashColor] = useState<FlashColor | null>(null);
+  const flashTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearFlashTimers = useCallback(() => {
+    flashTimersRef.current.forEach(clearTimeout);
+    flashTimersRef.current = [];
+    setFlashColor(null);
+  }, []);
+  useEffect(() => clearFlashTimers, [clearFlashTimers]);
+
+  // Speaks the current step's primary instruction once, whenever the step
+  // actually changes -- deliberately NOT called inline from JSX, which
+  // re-runs on every render and would restart/overlap the same sentence
+  // repeatedly.
+  //
+  // Real-device report ("wenn man den letzten Test überspringt, wird
+  // trotzdem weiter vorgelesen"): steps with no instruction of their own
+  // (consent/submitting/result) fall through the switch below with no
+  // matching case -- previously that meant whatever was already playing
+  // (e.g. the long fingertip hint) just kept going uninterrupted, since
+  // only speak() itself called Speech.stop(), and speak() was never
+  // reached on those steps. The default case below stops it explicitly.
+  useEffect(() => {
+    switch (step) {
+      case 'palm':
+        speak(t('identity.biometricPalmHint'));
+        break;
+      case 'face_intro':
+        speak(t('identity.biometricFaceHint'));
+        break;
+      case 'face_burst':
+        // Owned entirely by startFaceCapture()'s own onDone-chained
+        // sequence (see burstStageText's own comment) -- calling
+        // Speech.stop() here would race with, and could cut off, that
+        // chain's own first utterance.
+        break;
+      case 'fingertip_intro':
+        speak(t('identity.biometricFingertipHint'));
+        break;
+      case 'fingertip_burst':
+        speak(t('identity.biometricFingertipCapturing'));
+        break;
+      case 'ear_intro':
+        speak(t('identity.biometricEarHint'));
+        break;
+      default:
+        Speech.stop();
+        break;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // Leaving this screen mid-sentence (back button, app backgrounded)
+  // shouldn't leave the voice talking over whatever comes next.
+  useEffect(() => {
+    return () => {
+      Speech.stop();
+    };
+  }, []);
+
   const { hasPermission, requestPermission } = useCameraPermission();
   const backDevice = useCameraDevice('back');
   const frontDevice = useCameraDevice('front');
+
+  // Acoustic sonar liveness (see matching-service/app/acoustic_liveness.py)
+  // -- 2026-07-18 research finding: a camera-independent liveness channel,
+  // immune to video injection by construction (a substituted virtual-camera
+  // feed never touches the microphone/speaker path at all). The chirp
+  // (assets/audio/liveness_chirp.wav, 15-19kHz sweep -- see that Python
+  // module's own frequency-choice comment) plays through the phone's main
+  // speaker while the mic records the echo; the server measures how spread
+  // the reflection is (a flat surface reflects at one distance, a real 3D
+  // face's features at several). Deliberately adapted from the literal
+  // EchoFace research setup (phone pressed to the ear like a call) to this
+  // screen's existing "hold the phone up in front of your face" posture,
+  // matching every other capture step here -- not independently validated
+  // that this holding distance/angle works as well as the ear-pressed
+  // original, an honest open question same as everything else new this
+  // session. useAudioPlayer/useAudioRecorder are hooks (can't be called
+  // inside an async function), so -- same pattern as usePhotoOutput/
+  // useVideoOutput above -- declared here at the top level and used
+  // imperatively inside captureAcoustic() below.
+  const chirpPlayer = useAudioPlayer(require('@/assets/audio/liveness_chirp.wav'));
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   // Real-device report: whole app felt sluggish on this screen. Root cause:
   // usePhotoOutput() with no targetResolution defaults to
   // CommonResolutions.UHD_4_3 (3024x4032, ~12MP) -- every single capture
@@ -474,7 +790,19 @@ export default function BiometricCapture() {
   // the forced-shutter-sound problem palm/face capture both had to work
   // around, see BURST_DURATION_S's own comment).
   const fingertipVideoOutput = useVideoOutput({ targetResolution: CommonResolutions.FHD_4_3 });
-  const [overlayHeight, setOverlayHeight] = useState(200);
+  // FIX (2026-07-18): a single overlayHeight shared across palm/face/
+  // fingertip meant whichever of the three ever measured tallest (even a
+  // totally different step, visited earlier in the same session) became
+  // the permanent floor for ALL of them -- "die Schablone ist zu hoch"
+  // real-device report, the guide sitting noticeably higher than its own
+  // step's panel actually needs. Split per step instead: monotonic-max
+  // still holds within face_intro<->face_burst (that's the pairing that
+  // actually needs it, see their shared overlayBox's own comment), but
+  // palm's guide no longer inherits face's taller panel height or vice
+  // versa. Fingertip has no live guide reading a height at all, so it
+  // doesn't need a tracked value of its own.
+  const [palmOverlayHeight, setPalmOverlayHeight] = useState(200);
+  const [faceOverlayHeight, setFaceOverlayHeight] = useState(200);
 
   const [faceGuideStatus, setFaceGuideStatus] = useState<FaceGuideStatus>('none');
   // Real-device finding, 2026-07-15: this used to be a LIVE
@@ -563,9 +891,46 @@ export default function BiometricCapture() {
   const [burstUris, setBurstUris] = useState<string[]>([]);
   const [imuSamples, setImuSamples] = useState<ImuSample[]>([]);
   const [fingertipUris, setFingertipUris] = useState<string[]>([]);
+  const [earUri, setEarUri] = useState<string | null>(null);
+  const [acousticUri, setAcousticUri] = useState<string | null>(null);
 
   const [result, setResult] = useState<BiometricRegisterResult | null>(null);
   const [submitError, setSubmitError] = useState('');
+
+  // Web-of-trust vouching (see aequitas-biometric-beta/matching-service/
+  // app/trust.py) -- lets this device's now-enrolled identity vouch for
+  // someone else's, by pasting their bio_hash. copiedOwnId is just local
+  // button-label feedback ("Copy" -> t('common.copied') briefly), not a
+  // real toast component -- consistent with this screen's existing
+  // minimal-dependency style.
+  const [vouchInput, setVouchInput] = useState('');
+  const [vouchResult, setVouchResult] = useState<VouchResult | null>(null);
+  const [vouchError, setVouchError] = useState('');
+  const [vouching, setVouching] = useState(false);
+  const [copiedOwnId, setCopiedOwnId] = useState(false);
+
+  async function handleCopyOwnId() {
+    if (!result?.bio_hash) return;
+    await Clipboard.setStringAsync(result.bio_hash);
+    setCopiedOwnId(true);
+    setTimeout(() => setCopiedOwnId(false), 2000);
+  }
+
+  async function handleVouch() {
+    if (!result?.bio_hash || !vouchInput.trim()) return;
+    setVouching(true);
+    setVouchError('');
+    setVouchResult(null);
+    try {
+      const res = await voucherFor('test', result.bio_hash, vouchInput.trim());
+      setVouchResult(res);
+    } catch (e: any) {
+      console.error('[biometric-capture] vouch failed', e);
+      setVouchError(e?.message ?? t('identity.biometricVouchResultFailed'));
+    } finally {
+      setVouching(false);
+    }
+  }
 
   // See imu_motion.py's own docstring -- optional signal, absent on a
   // device/OS build without a gyroscope. Never throws: a failed/missing
@@ -657,6 +1022,48 @@ export default function BiometricCapture() {
   async function startFaceCapture() {
     if (!(await ensurePermission())) return;
     setStep('face_burst');
+
+    // See burstStageText's own comment for why this is an onDone-chained
+    // sequence rather than fixed setTimeout windows. burstChainCancelledRef
+    // is checked before every stage transition so a chain started by an
+    // earlier call (or one still catching up after Speech.stop() resolved
+    // its onStopped) can't keep talking once the user has left face_burst.
+    burstChainCancelledRef.current = false;
+    const burstStartedAt = Date.now();
+    const withSeconds = (direction: string, ms: number) =>
+      `${direction} · ${t('identity.biometricBurstHoldSeconds', { seconds: String(Math.round(ms / 1000)) })}`;
+    const sayStage = (text: string, onDone?: () => void) => {
+      if (burstChainCancelledRef.current) return;
+      setBurstStageText(text);
+      speakRaw(text, () => {
+        if (!burstChainCancelledRef.current) onDone?.();
+      });
+    };
+    const startDirectionStage = () => {
+      // Computed live from actual elapsed time, not a guessed budget --
+      // however long hold+blink genuinely took to say in this language/
+      // voice, whatever's left of BURST_DURATION_S is what's stated here,
+      // so the number is always true. Floored so a slow first two stages
+      // still leave a meaningful window to actually perform the direction.
+      const remainingMs = Math.max(2000, BURST_DURATION_S * 1000 - (Date.now() - burstStartedAt));
+      if (challenge) {
+        sayStage(withSeconds(challengeInstruction(challenge.challengeType, t), remainingMs));
+      } else {
+        const halfMs = remainingMs / 2;
+        sayStage(withSeconds(t('identity.biometricChallengeLookLeft'), halfMs), () => {
+          sayStage(withSeconds(t('identity.biometricChallengeLookRight'), halfMs));
+        });
+      }
+    };
+    // Cuts off face_intro's leftover speech once, right here -- the
+    // step-instruction effect deliberately skips Speech.stop() for the
+    // 'face_burst' case to avoid racing with this chain's own first
+    // utterance (see that effect's own comment).
+    Speech.stop();
+    sayStage(t('identity.biometricBurstHoldOval'), () => {
+      sayStage(t('identity.biometricBurstBlinkNow'), startDirectionStage);
+    });
+
     try {
       // Started alongside the recording, not awaited until after -- see
       // imu_motion.py's own docstring: this needs to cover the SAME window
@@ -676,6 +1083,25 @@ export default function BiometricCapture() {
             (filePath) => resolve(filePath),
             (error) => reject(error)
           );
+          // Started the instant recording actually begins, not alongside
+          // the speech chain above (which paces separately and can finish
+          // its "hold/blink" stages faster or slower depending on
+          // language/voice) -- flash_liveness.py's server-side check
+          // assumes equal-length contiguous slots across the WHOLE
+          // recording, so this has to be synced to the recording's own
+          // clock, not the guidance text's.
+          const sequence = challenge?.flashSequence ?? [];
+          if (sequence.length > 0) {
+            clearFlashTimers();
+            const slotMs = (BURST_DURATION_S * 1000) / sequence.length;
+            setFlashColor(sequence[0]);
+            flashTimersRef.current = sequence.slice(1).map((color, i) =>
+              setTimeout(() => setFlashColor(color), Math.round(slotMs * (i + 1)))
+            );
+            flashTimersRef.current.push(
+              setTimeout(() => setFlashColor(null), Math.round(BURST_DURATION_S * 1000))
+            );
+          }
         }),
         VIDEO_RECORDING_TIMEOUT_MS,
         'timeout'
@@ -700,6 +1126,8 @@ export default function BiometricCapture() {
       }
       setImuSamples(await imuPromise);
       if (frames.length === 0) {
+        burstChainCancelledRef.current = true;
+        clearFlashTimers();
         setSubmitError(t('identity.biometricResultFailed'));
         setStep('result');
         return;
@@ -709,9 +1137,19 @@ export default function BiometricCapture() {
       // Fingertip pulse is a genuinely separate, optional capture step (see
       // fingertip_pulse.py) -- not submitted automatically here, the user
       // can also skip it (see skipFingertip below).
+      // Stop the burst chain before leaving -- otherwise a still-pending
+      // stage (its onDone hasn't fired yet) would speak over whatever
+      // fingertip_intro/burst says next (see burstChainCancelledRef's own
+      // comment). Flash timers stopped the same way -- the recording has
+      // finished by now regardless, but a late setFlashColor would still
+      // needlessly tint the next step's screen for a moment.
+      burstChainCancelledRef.current = true;
+      clearFlashTimers();
       setStep('fingertip_intro');
     } catch (e) {
       console.error('[biometric-capture] face video capture failed', e);
+      burstChainCancelledRef.current = true;
+      clearFlashTimers();
       setSubmitError(t('identity.biometricResultFailed'));
       setStep('result');
     }
@@ -750,22 +1188,118 @@ export default function BiometricCapture() {
       // Unlike the face burst, an empty/failed fingertip capture is NOT a
       // reason to fail the whole registration -- this channel is entirely
       // optional (see fingertip_pulse.py's own "informational only"
-      // reasoning). Submit with whatever was captured, even nothing.
-      await submit(undefined, undefined, frames);
+      // reasoning). Move on to the (also optional) ear step with whatever
+      // was captured, even nothing.
+      setFingertipUris(frames);
+      setStep('ear_intro');
     } catch (e) {
       console.error('[biometric-capture] fingertip video capture failed', e);
-      await submit(undefined, undefined, []);
+      setFingertipUris([]);
+      setStep('ear_intro');
     }
   }
 
   async function skipFingertip() {
-    await submit(undefined, undefined, []);
+    // Cut immediately on tap rather than waiting for the step-change
+    // effect's own Speech.stop() to run on the next render -- see that
+    // effect's own comment on the "still reads after skipping" report.
+    Speech.stop();
+    setFingertipUris([]);
+    setStep('ear_intro');
   }
 
-  async function submit(firstFrame?: string, frames?: string[], fingertipFrames?: string[]) {
+  // Ear shape (see ear.py) is a single still photo, not a burst -- no
+  // liveness/pulse signal to extract, just static geometry, same capture
+  // shape as the palm step. Uses the BACK device + the same photoOutput
+  // the palm step already has (no reason for a second still-photo output).
+  // Genuinely awkward to self-capture (you can't easily see your own ear
+  // without a mirror or help) -- see this screen's biometricEarHint copy --
+  // so, like fingertip, it's optional and skippable, never blocking
+  // registration.
+  async function captureEar() {
+    if (!(await ensurePermission())) return;
+    const waitDeadline = Date.now() + 2_000;
+    while (cameraBusyRef.current && Date.now() < waitDeadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    cameraBusyRef.current = true;
+    try {
+      const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), PALM_TIMEOUT_MS, 'timeout');
+      const uri = 'file://' + file.filePath;
+      setEarUri(uri);
+      setStep('acoustic_intro');
+    } catch (e) {
+      console.error('[biometric-capture] ear capture failed', e);
+      setEarUri(null);
+      setStep('acoustic_intro');
+    } finally {
+      cameraBusyRef.current = false;
+    }
+  }
+
+  async function skipEar() {
+    Speech.stop();
+    setStep('acoustic_intro');
+  }
+
+  // Acoustic sonar liveness (see chirpPlayer/audioRecorder's own comment
+  // above, and matching-service/app/acoustic_liveness.py) -- the last
+  // optional step before submit. setAudioModeAsync's allowsRecording is
+  // what actually lets playback and recording run at once on this device;
+  // without it the recorder and player would fight over the audio session
+  // (see expo-audio's own docs on this).
+  async function captureAcoustic() {
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        await submit(undefined, undefined, undefined, undefined, null);
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      chirpPlayer.seekTo(0);
+      chirpPlayer.play();
+      // Recording window generously covers the ~400ms chirp plus room for
+      // the echo's own travel time and playback-start latency -- not tied
+      // to the chirp's exact duration since a bit of extra silence on
+      // either side doesn't hurt the server's own correlation search
+      // (see acoustic_liveness.py's own MAX_LAG_MS -- it searches for the
+      // chirp within the recording, not assumes it starts at sample 0).
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      setAcousticUri(uri ?? null);
+      await submit(undefined, undefined, undefined, undefined, uri ?? null);
+    } catch (e) {
+      console.error('[biometric-capture] acoustic capture failed', e);
+      setAcousticUri(null);
+      await submit(undefined, undefined, undefined, undefined, null);
+    }
+  }
+
+  async function skipAcoustic() {
+    Speech.stop();
+    await submit(undefined, undefined, undefined, undefined, null);
+  }
+
+  async function submit(
+    firstFrame?: string,
+    frames?: string[],
+    fingertipFrames?: string[],
+    earUriParam?: string | null,
+    acousticUriParam?: string | null
+  ) {
     const finalFaceUri = firstFrame ?? faceUri;
     const finalBurst = frames ?? burstUris;
     const finalFingertip = fingertipFrames ?? fingertipUris;
+    // undefined means "not passed, read state" (mirrors firstFrame/frames/
+    // fingertipFrames above); null/a string is treated as authoritative --
+    // relying on the earUri state alone here would race the setEarUri()
+    // call in captureEar() (same stale-closure risk as the other capture
+    // fields, see submit()'s existing params for the established pattern).
+    const finalEarUri = earUriParam === undefined ? earUri : earUriParam;
+    const finalAcousticUri = acousticUriParam === undefined ? acousticUri : acousticUriParam;
     if (!palmUri || !finalFaceUri || !consent || !address || !signer) return;
     setFingertipUris(finalFingertip);
     setStep('submitting');
@@ -781,6 +1315,8 @@ export default function BiometricCapture() {
           imuSamples,
           fingertipBurstUris: finalFingertip,
           challengeNonce: challenge?.nonce,
+          earUri: finalEarUri ?? undefined,
+          acousticRecordingUri: finalAcousticUri ?? undefined,
         },
         { mode: 'test', deviceId, walletAddress: address, consent }
       );
@@ -858,7 +1394,7 @@ export default function BiometricCapture() {
                 checked={palmChecked}
                 checking={palmChecking}
                 onCheck={checkPalmPosition}
-                overlayHeight={overlayHeight}
+                overlayHeight={palmOverlayHeight}
               />
             </>
           ) : (
@@ -866,7 +1402,16 @@ export default function BiometricCapture() {
               <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
             </View>
           )}
-          <View style={S.overlayBox} onLayout={(e) => setOverlayHeight(e.nativeEvent.layout.height)}>
+          <View
+            style={S.overlayBox}
+            onLayout={(e) => {
+              // Read the plain number out synchronously here rather than
+              // inside the functional updater below -- see faceOverlayHeight
+              // site's own comment on why (React's synthetic-event pooling).
+              const height = e.nativeEvent.layout.height;
+              setPalmOverlayHeight((prev) => Math.max(prev, height));
+            }}
+          >
             <StepDots current={1} />
             <Text style={S.overlayTitle}>{t('identity.biometricPalmTitle')}</Text>
             <Text style={S.overlayHint}>{t('identity.biometricPalmHint')}</Text>
@@ -921,12 +1466,21 @@ export default function BiometricCapture() {
                 // same reasoning as the palm guide's own manual check.
                 outputs={[faceVideoOutput]}
               />
+              {/* Active-flash liveness (see flash_liveness.py / flashColor's
+                  own comment) -- a colour tint over the whole preview so the
+                  screen's light actually reaches the face, sitting BELOW the
+                  guide oval/instruction text (rendered after this) so those
+                  stay legible through it. pointerEvents="none" so it never
+                  blocks the position-check button underneath. */}
+              {flashColor && (
+                <View style={[S.flashOverlay, { backgroundColor: FLASH_COLOR_RGBA[flashColor] }]} pointerEvents="none" />
+              )}
               <FaceGuide
                 status={faceGuideStatus}
                 checked={faceChecked}
                 checking={faceChecking}
                 onCheck={checkFacePosition}
-                overlayHeight={overlayHeight}
+                overlayHeight={faceOverlayHeight}
               />
             </>
           ) : (
@@ -934,25 +1488,52 @@ export default function BiometricCapture() {
               <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
             </View>
           )}
-          <View style={S.overlayBox} onLayout={(e) => setOverlayHeight(e.nativeEvent.layout.height)}>
+          <View
+            style={S.overlayBox}
+            // Real-user report: the face oval visibly jumped down the
+            // instant recording started. Root cause: this panel's content
+            // is shorter during face_burst (spinner+hint) than face_intro
+            // (title+hint+glasses reminder+button), so onLayout re-fires
+            // with a smaller height on that exact transition, and the
+            // guide above it (positioned at `bottom: faceOverlayHeight`,
+            // see guideWrap) follows the panel down to match -- right as
+            // the user's face was already correctly framed. Math.max makes
+            // this monotonic: once face_intro's taller content has been
+            // measured, face_burst's shorter content can't shrink the
+            // reserved space back down, so the guide holds still across
+            // that specific transition. Scoped to face's own state only
+            // (not shared with palm/fingertip, see its declaration) so it
+            // can't inherit a taller floor from an unrelated step.
+            onLayout={(e) => {
+              // FIX (2026-07-18): reading e.nativeEvent inside the
+              // setFaceOverlayHeight functional-updater callback (rather
+              // than synchronously here) trips React's synthetic-event
+              // pooling warning -- the event object can already be
+              // released/nulled out by the time that updater actually
+              // runs, since it's not guaranteed to execute synchronously
+              // within this handler. Read the plain number out NOW, while
+              // the event is still valid, and only close over that -- not
+              // the event itself.
+              const height = e.nativeEvent.layout.height;
+              setFaceOverlayHeight((prev) => Math.max(prev, height));
+            }}
+          >
             <StepDots current={2} />
             {step === 'face_intro' ? (
               <>
                 <Text style={S.overlayTitle}>{t('identity.biometricFaceTitle')}</Text>
                 <Text style={S.overlayHint}>{t('identity.biometricFaceHint')}</Text>
                 <Text style={S.overlayHintSecondary}>👓 {t('identity.biometricFaceGlassesHint')}</Text>
-                {challenge && (
-                  <Text style={S.overlayHintSecondary}>🎯 {challengeInstruction(challenge.challengeType, t)}</Text>
-                )}
                 <GradientButton label={t('identity.biometricCaptureBtn')} onPress={startFaceCapture} />
               </>
             ) : (
               <>
                 <ActivityIndicator color={theme.purple} size="large" style={S.spinnerGap} />
                 <Text style={S.overlayHint}>{t('identity.biometricLivenessCapturing')}</Text>
-                {challenge && (
-                  <Text style={S.overlayHintSecondary}>🎯 {challengeInstruction(challenge.challengeType, t)}</Text>
-                )}
+                {/* Staged sequence (hold oval -> blink -> direction), one
+                    instruction at a time, advancing as each one finishes
+                    speaking -- see burstStageText's own comment. */}
+                <Text style={S.actionInstruction}>🎯 {burstStageText}</Text>
               </>
             )}
           </View>
@@ -981,7 +1562,7 @@ export default function BiometricCapture() {
               <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
             </View>
           )}
-          <View style={S.overlayBox} onLayout={(e) => setOverlayHeight(e.nativeEvent.layout.height)}>
+          <View style={S.overlayBox}>
             {step === 'fingertip_intro' ? (
               <>
                 <Text style={S.overlayTitle}>{t('identity.biometricFingertipTitle')}</Text>
@@ -997,6 +1578,50 @@ export default function BiometricCapture() {
                 <Text style={S.overlayHint}>{t('identity.biometricFingertipCapturing')}</Text>
               </>
             )}
+          </View>
+        </View>
+      )}
+
+      {step === 'ear_intro' && (
+        // Optional step, deliberately not part of StepDots' numbered
+        // sequence -- same "informational only, never blocks" posture as
+        // the fingertip step above. A single still photo (see ear.py),
+        // reusing the palm step's own BACK-camera photoOutput rather than
+        // standing up a second still-photo output -- no burst, no live
+        // guide (no ear landmark model exists to drive one, see ear.py's
+        // own docstring), just a plain framing hint and a capture button.
+        <View style={S.cameraWrap}>
+          {hasPermission && backDevice ? (
+            <Camera style={S.camera} device={backDevice} isActive outputs={[photoOutput]} />
+          ) : (
+            <View style={S.content}>
+              <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
+            </View>
+          )}
+          <View style={S.overlayBox}>
+            <Text style={S.overlayTitle}>{t('identity.biometricEarTitle')}</Text>
+            <Text style={S.overlayHint}>{t('identity.biometricEarHint')}</Text>
+            <GradientButton label={t('identity.biometricCaptureBtn')} onPress={captureEar} />
+            <TouchableOpacity style={S.btnGhost} onPress={skipEar} activeOpacity={0.8}>
+              <Text style={S.btnGhostText}>{t('identity.biometricEarSkipBtn')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {step === 'acoustic_intro' && (
+        // Optional, last step before submit -- same "informational only,
+        // never blocks" posture as fingertip/ear above. No camera needed
+        // (audio-only, see captureAcoustic's own comment), so this is a
+        // plain card like the consent step rather than a camera view.
+        <View style={S.content}>
+          <View style={S.card}>
+            <Text style={S.title}>{t('identity.biometricAcousticTitle')}</Text>
+            <Text style={S.body}>{t('identity.biometricAcousticHint')}</Text>
+            <GradientButton label={t('identity.biometricAcousticStartBtn')} onPress={captureAcoustic} />
+            <TouchableOpacity style={S.btnGhost} onPress={skipAcoustic} activeOpacity={0.8}>
+              <Text style={S.btnGhostText}>{t('identity.biometricAcousticSkipBtn')}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -1050,10 +1675,87 @@ export default function BiometricCapture() {
                 {result?.votes?.[0]?.error ? (
                   <Text style={S.resultDebugText}>{result.votes[0].error}</Text>
                 ) : null}
+                {/* User question ("funktioniert das mit dem nach rechts
+                    gucken auch richtig?"): challenge_passed/measured_delta
+                    are real, server-computed values (see challenge.py's
+                    actual MediaPipe yaw/pitch check) but the app never
+                    surfaced them anywhere -- there was no way to confirm a
+                    given attempt's direction was actually detected without
+                    reading validator logs directly. Same raw-debug posture
+                    as the error line above: not translated, Phase 0 only. */}
+                {result?.votes?.[0]?.challenge_checked ? (
+                  <Text style={S.resultDebugText}>
+                    challenge={result.votes[0].challenge_type} passed={String(result.votes[0].challenge_passed)}
+                    {' '}delta={result.votes[0].challenge_measured_delta?.toFixed(1)}°
+                  </Text>
+                ) : null}
               </>
             )}
             <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
           </View>
+
+          {/* Only reachable once this device has a bio_hash to vouch
+              with -- absent on capture_failed/liveness_failed/etc, same
+              gating as the rest of this result screen. */}
+          {result?.bio_hash ? (
+            <View style={[S.card, S.vouchCard]}>
+              <Text style={S.title}>{t('identity.biometricVouchTitle')}</Text>
+
+              <Text style={S.vouchLabel}>{t('identity.biometricYourIdLabel')}</Text>
+              <View style={S.vouchIdRow}>
+                <Text style={S.vouchIdText} numberOfLines={1} ellipsizeMode="middle">
+                  {result.bio_hash}
+                </Text>
+                <TouchableOpacity style={S.copyBtn} onPress={handleCopyOwnId}>
+                  <Text style={S.copyBtnText}>
+                    {copiedOwnId ? t('common.copied') : t('identity.biometricCopyIdBtn')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={S.vouchInput}
+                value={vouchInput}
+                onChangeText={setVouchInput}
+                placeholder={t('identity.biometricVouchInputPlaceholder')}
+                placeholderTextColor={theme.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <GradientButton
+                label={t('identity.biometricVouchBtn')}
+                onPress={handleVouch}
+                disabled={vouching || !vouchInput.trim()}
+              />
+              {vouching ? <ActivityIndicator style={S.spinnerGap} color={theme.purple} /> : null}
+              {vouchResult ? (
+                <>
+                  <Text style={S.body}>
+                    {(() => {
+                      switch (vouchResult.status) {
+                        case 'recorded': return t('identity.biometricVouchResultRecorded');
+                        case 'unknown_vouchee':
+                        case 'unknown_voucher': return t('identity.biometricVouchResultUnknown');
+                        case 'invalid_self_vouch': return t('identity.biometricVouchResultSelf');
+                        default: return t('identity.biometricVouchResultFailed');
+                      }
+                    })()}
+                  </Text>
+                  {/* Raw diagnostic detail, same "not translated, Phase 0
+                      test-harness debugging" posture as result.votes[0].error
+                      above -- trust.py's own reasons strings are plain
+                      English explanations of a heuristic, not user copy. */}
+                  {vouchResult.status === 'recorded' ? (
+                    <Text style={S.resultDebugText}>
+                      trust_score={vouchResult.trust_score.toFixed(2)}
+                      {vouchResult.trust_reasons.length ? ` | ${vouchResult.trust_reasons.join('; ')}` : ''}
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
+              {vouchError ? <Text style={S.errorText}>{vouchError}</Text> : null}
+            </View>
+          ) : null}
         </View>
       )}
     </SafeAreaView>
@@ -1086,6 +1788,26 @@ const S = StyleSheet.create({
     marginTop: -8, marginBottom: 12,
   },
 
+  vouchCard: { marginTop: 16 },
+  vouchLabel: { fontSize: 11, color: theme.muted, marginBottom: 6 },
+  vouchIdRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  vouchIdText: {
+    flex: 1, fontFamily: theme.fontMono, fontSize: 11, color: theme.text,
+    backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.border,
+    paddingHorizontal: 10, paddingVertical: 8,
+  },
+  copyBtn: {
+    borderRadius: 8, borderWidth: 1, borderColor: theme.borderStrong,
+    paddingHorizontal: 12, paddingVertical: 9,
+  },
+  copyBtnText: { color: theme.text, fontSize: 11, fontWeight: '700' },
+  vouchInput: {
+    fontFamily: theme.fontMono, fontSize: 12, color: theme.text,
+    backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.border,
+    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12,
+  },
+  btnPrimaryDisabled: { opacity: 0.45 },
+
   btnPrimary: { borderRadius: theme.radiusSm, padding: 16, alignItems: 'center', marginTop: 12 },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1 },
   btnGhost: { padding: 12, alignItems: 'center', marginTop: 8 },
@@ -1093,28 +1815,62 @@ const S = StyleSheet.create({
 
   cameraWrap: { flex: 1 },
   camera: { flex: 1 },
+  flashOverlay: { ...StyleSheet.absoluteFillObject },
   overlayBox: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(12,14,22,0.92)', padding: 20, alignItems: 'center',
+    backgroundColor: 'rgba(12,14,22,0.92)', padding: 16, alignItems: 'center',
   },
-  overlayTitle: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 6 },
-  overlayHint: { color: theme.muted, fontSize: 12, textAlign: 'center', lineHeight: 18 },
-  overlayHintSecondary: { color: theme.muted, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 8, opacity: 0.8 },
+  // Real-user feedback round 1 ("groSSe Anleitungen, nicht klein als Text
+  // unten"): the instruction telling someone what to do right now used to
+  // be the smallest text on screen. Round 2 ("der Text ist jetzt so groSS
+  // dass man Position pruefen nicht mehr sehen kann"): the fix overshot --
+  // overlayHint/overlayHintSecondary at 24-26px, STACKED with the title and
+  // (on face_intro) the glasses reminder AND the challenge line, made this
+  // panel tall enough to push PalmGuide/FaceGuide's own position-check
+  // button (positioned in the remaining space above this panel, see
+  // guideWrap's `bottom: overlayHeight`) off the visible screen. Fixed by
+  // splitting one broad "big text" style into two purposeful ones instead
+  // of shrinking blindly: overlayHintSecondary goes back to being a modest
+  // secondary reminder (the glasses hint), while the one piece of text that
+  // actually needed to be huge -- the challenge direction someone must
+  // follow in the next second -- gets its own dedicated actionInstruction
+  // style below, sized to stay legible without becoming the whole screen.
+  overlayTitle: { color: theme.text, fontSize: 18, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
+  overlayHint: { color: theme.text, fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 23 },
+  overlayHintSecondary: { color: theme.muted, fontSize: 12, textAlign: 'center', lineHeight: 16, marginTop: 6, opacity: 0.85 },
+  actionInstruction: {
+    color: theme.neon, fontSize: 21, fontWeight: '800', textAlign: 'center', lineHeight: 26,
+    marginTop: 8,
+  },
 
   // `bottom` is set per-instance (dynamic, measured overlay panel height --
   // see overlayHeight/onLayout above) instead of baked in here, so the
   // guide centers itself in the actually-visible area above the bottom
   // instruction panel rather than the full (partly-occluded) camera view.
-  guideWrap: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
+  guideWrap: { position: 'absolute', top: 0, left: 0, right: 0 },
+  // Real-device report ("die Schablone ist zu weit oben"): guideWrap used
+  // to center the oval AND the hint text AND the retry button together as
+  // one flex column -- the hint+button's own height below the oval pulled
+  // that group's midpoint (and so the oval itself) well above the true
+  // center of the available space, confirmed via a live screenshot (the
+  // oval's top edge nearly touched the status bar while empty space sat
+  // below the chin). Split instead: guideOvalCenterer fills the WHOLE
+  // available region and centers only the oval/silhouette within it, so
+  // its center matches the region's actual center; guideBottomGroup
+  // anchors the hint+button near the region's bottom edge independently,
+  // same visual spot they already occupied, just no longer coupled to the
+  // oval's own centering math.
+  guideOvalCenterer: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  guideBottomGroup: { position: 'absolute', left: 0, right: 0, bottom: 20, alignItems: 'center' },
   // width/height/borderRadius are computed per-instance in FaceGuide (see
   // its own comment) so the oval scales with screen width instead of this
   // fixed base size.
   faceOval: { borderWidth: 3, borderStyle: 'dashed', borderColor: theme.borderStrong },
   faceOvalOk: { borderColor: theme.neon, borderStyle: 'solid' },
   guideHint: {
-    marginTop: 14, color: theme.text, fontSize: 12.5, fontWeight: '700', letterSpacing: 0.5,
-    backgroundColor: 'rgba(12,14,22,0.7)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radiusSm,
-    maxWidth: '85%', textAlign: 'center',
+    color: theme.text, fontSize: 15, fontWeight: '800', letterSpacing: 0.3,
+    backgroundColor: 'rgba(12,14,22,0.75)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radiusSm,
+    maxWidth: '90%', textAlign: 'center', lineHeight: 19,
   },
   guideHintOk: { color: theme.neon },
   retryPill: {

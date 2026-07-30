@@ -9,6 +9,10 @@
 // on current behavior until deliberately turned on, and not before Phase 0
 // accuracy validation + Phase 2 legal review are actually done.
 import * as Crypto from 'expo-crypto';
+// Legacy (function-based) API -- deleteAsync/idempotent isn't exposed by the
+// new File/Directory class API this SDK version defaults `expo-file-system`
+// to, see the cleanupCaptureFiles() comment below.
+import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { getAttestationPayload } from './attestation';
 import { COORDINATOR_BASE } from './config';
@@ -63,6 +67,15 @@ export interface BiometricCapture {
    * fingertip_pulse.py's own docstring) -- absent here just means that
    * channel wasn't checked, not a failure. */
   fingertipBurstUris?: string[];
+  /** Optional: the user can skip the ear-shape step entirely (see ear.py's
+   * own docstring on why it's a backup signal, not a requirement) --
+   * absent here just means that channel wasn't checked, not a failure. */
+  earUri?: string;
+  /** Optional: microphone recording of the chirp+echo (see
+   * matching-service/app/acoustic_liveness.py) -- absent means the user
+   * skipped it, or recording/permission failed, same graceful-degrade
+   * posture as every other optional channel here. */
+  acousticRecordingUri?: string;
   /** One-time nonce from requestChallenge() below, echoed back so every
    * validator can independently verify the face_burst actually performed
    * the randomly-issued challenge (see matching-service/app/challenge.py's
@@ -75,9 +88,22 @@ export interface BiometricCapture {
 
 export type ChallengeType = 'look_left' | 'look_right' | 'look_up' | 'look_down' | 'smile';
 
+/** Colour names the coordinator's flash sequence draws from -- see
+ * matching-service/app/flash_liveness.py's PALETTE (duplicated here for the
+ * same "separate services, no cross-repo coupling" reason the Python side
+ * itself duplicates constants between validators and the coordinator). */
+export type FlashColor = 'red' | 'green' | 'blue';
+
 export interface IssuedChallenge {
   nonce: string;
   challengeType: ChallengeType;
+  /** Active-flash-liveness colour sequence (see
+   * matching-service/app/flash_liveness.py) -- the screen shows each colour
+   * in order for an equal slice of the face_burst recording, and the server
+   * verifies the face's reflected colour actually tracked it. Empty if the
+   * coordinator response predates this feature -- same graceful-degrade
+   * posture as challengeType's own null-on-failure path. */
+  flashSequence: FlashColor[];
 }
 
 /** Call this BEFORE starting face capture, per coordinator/app/main.py's
@@ -95,7 +121,10 @@ export async function requestChallenge(): Promise<IssuedChallenge | null> {
     if (!resp.ok) return null;
     const body = await resp.json();
     if (!body?.nonce || !body?.challenge_type) return null;
-    return { nonce: body.nonce, challengeType: body.challenge_type };
+    const flashSequence: FlashColor[] = typeof body.flash_sequence === 'string' && body.flash_sequence
+      ? body.flash_sequence.split(',').filter(Boolean)
+      : [];
+    return { nonce: body.nonce, challengeType: body.challenge_type, flashSequence };
   } catch {
     return null;
   }
@@ -114,6 +143,9 @@ export interface RegisterVote {
   best_palm_score?: number;
   best_face_score?: number;
   best_periocular_score?: number;
+  best_sclera_score?: number;
+  best_fingertip_vein_score?: number;
+  best_ear_score?: number;
   pulse_detected?: boolean | null;
   pulse_bpm?: number | null;
   pulse_confidence?: number;
@@ -153,9 +185,10 @@ export interface BiometricRegisterResult {
   votes: RegisterVote[];
   commit_results?: unknown[] | null;
   proof_server_check?: unknown;
-  // Always "not_configured" until real Play Integrity / App Attest
-  // verification is implemented server-side (see attestation.py) --
-  // informational only, never affects `decision`.
+  // not_configured | invalid | valid | unavailable -- see attestation.py.
+  // Android is real Play Integrity verification once the coordinator has a
+  // service account key deployed; iOS App Attest isn't implemented yet.
+  // Informational only, never affects `decision`.
   attestation_status?: string;
   attestation_reason?: string | null;
   // Echoes back what requestChallenge() actually issued, once the
@@ -165,10 +198,38 @@ export interface BiometricRegisterResult {
   challenge_type?: string | null;
 }
 
-function toUploadFile(uri: string, name: string) {
+function toUploadFile(uri: string, name: string, type = 'image/jpeg') {
   // React Native's fetch/FormData accepts this shape directly for file
   // uploads -- not a real Blob, but the RN runtime knows how to read it.
-  return { uri, name, type: 'image/jpeg' } as unknown as Blob;
+  return { uri, name, type } as unknown as Blob;
+}
+
+/** Deletes every raw capture temp file registerBiometric() below just read
+ * into the upload FormData -- palm/face/face_burst/fingertip_burst/ear/
+ * acoustic. These are exactly (and only) the temp/cache URIs used for
+ * upload; nothing else in the app is touched. `idempotent: true` means a
+ * URI that's already gone (e.g. cleaned up once already) doesn't throw.
+ * Best-effort: a delete failure is logged, not surfaced, so cache-cleanup
+ * problems never mask the real registration result/error to the caller. */
+async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
+  const uris = [
+    capture.palmUri,
+    capture.faceUri,
+    ...capture.faceBurstUris,
+    ...(capture.fingertipBurstUris ?? []),
+    capture.earUri,
+    capture.acousticRecordingUri,
+  ].filter((uri): uri is string => !!uri);
+
+  await Promise.all(
+    uris.map(async (uri) => {
+      try {
+        await FileSystem.deleteAsync(uri, { idempotent: true });
+      } catch (e) {
+        console.warn('[biometricIdentity] failed to delete capture temp file', uri, e);
+      }
+    })
+  );
 }
 
 export async function registerBiometric(
@@ -184,45 +245,100 @@ export async function registerBiometric(
     throw new Error('Biometric coordinator not configured (EXPO_PUBLIC_COORDINATOR_BASE unset)');
   }
 
-  const form = new FormData();
-  form.append('mode', opts.mode);
-  form.append('device_id', opts.deviceId);
-  if (opts.walletAddress) form.append('wallet_address', opts.walletAddress);
-  if (opts.consent?.biometricConsent) {
-    form.append('consent_version', CONSENT_VERSION);
-    form.append('consented_at', String(opts.consent.consentedAt));
-  }
-  form.append('palm_image', toUploadFile(capture.palmUri, 'palm.jpg'));
-  form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
-  capture.faceBurstUris.forEach((uri, i) => {
-    form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
-  });
-  form.append('burst_interval_ms', String(capture.burstIntervalMs));
-  if (capture.imuSamples?.length) {
-    form.append('imu_samples', JSON.stringify(capture.imuSamples));
-  }
-  capture.fingertipBurstUris?.forEach((uri, i) => {
-    form.append('fingertip_burst', toUploadFile(uri, `fingertip_${i}.jpg`));
-  });
-  if (capture.challengeNonce) {
-    form.append('challenge_nonce', capture.challengeNonce);
-  }
-  // See lib/attestation.ts's own top comment for why this is
-  // @pagopa/io-react-native-integrity now, not @expo/app-integrity (which
-  // crashed the whole app on this project's Expo SDK). Still gracefully
-  // sends nothing when unconfigured/unavailable -- the coordinator's
-  // attestation_status/attestation_reason fields keep reading
-  // "not_configured" either way until real server-side verification is
-  // provisioned (see attestation.py).
-  const attestation = await getAttestationPayload();
-  if (attestation) {
-    form.append('attestation_platform', attestation.platform);
-    form.append('attestation_token', attestation.token);
-  }
+  try {
+    const form = new FormData();
+    form.append('mode', opts.mode);
+    form.append('device_id', opts.deviceId);
+    if (opts.walletAddress) form.append('wallet_address', opts.walletAddress);
+    if (opts.consent?.biometricConsent) {
+      form.append('consent_version', CONSENT_VERSION);
+      form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    form.append('palm_image', toUploadFile(capture.palmUri, 'palm.jpg'));
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    capture.fingertipBurstUris?.forEach((uri, i) => {
+      form.append('fingertip_burst', toUploadFile(uri, `fingertip_${i}.jpg`));
+    });
+    if (capture.earUri) {
+      form.append('ear_image', toUploadFile(capture.earUri, 'ear.jpg'));
+    }
+    if (capture.acousticRecordingUri) {
+      // expo-audio's RecordingPresets.HIGH_QUALITY produces .m4a (AAC) --
+      // see matching-service/app/acoustic_liveness.py's own decode_audio_
+      // to_samples, which handles this container via PyAV.
+      form.append('acoustic_recording', toUploadFile(capture.acousticRecordingUri, 'chirp.m4a', 'audio/mp4'));
+    }
+    if (capture.challengeNonce) {
+      form.append('challenge_nonce', capture.challengeNonce);
+    }
+    // See lib/attestation.ts's own top comment for why this is
+    // @pagopa/io-react-native-integrity now, not @expo/app-integrity (which
+    // crashed the whole app on this project's Expo SDK). Still gracefully
+    // sends nothing when unconfigured/unavailable -- e.g. no
+    // EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER set, which also makes the
+    // coordinator's own attestation_status read "not_configured" (see
+    // attestation.py).
+    const attestation = await getAttestationPayload();
+    if (attestation) {
+      form.append('attestation_platform', attestation.platform);
+      form.append('attestation_token', attestation.token);
+    }
 
-  const resp = await fetch(`${COORDINATOR_BASE}/register`, { method: 'POST', body: form });
+    const resp = await fetch(`${COORDINATOR_BASE}/register`, { method: 'POST', body: form });
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    return await resp.json();
+  } finally {
+    // SECURITY FIX (P1): raw palm/face/fingertip/ear photos and the
+    // acoustic recording sat in app cache indefinitely after upload --
+    // nothing ever deleted them, contradicting the app's own "images are
+    // discarded" privacy copy. Clean up on both success and failure:
+    // biometric-capture.tsx's submit() has no "retry with the same files"
+    // path (a failed attempt sends the user back to re-capture from
+    // scratch with brand-new URIs), so it's safe to always delete here
+    // rather than conditioning on the outcome.
+    await cleanupCaptureFiles(capture);
+  }
+}
+
+export interface VouchResult {
+  status: string; // recorded | invalid_mode | invalid_self_vouch | unknown_voucher | unknown_vouchee | quorum_failed
+  trust_score: number;
+  trust_reasons: string[];
+}
+
+/** Records a social vouch (see aequitas-biometric-beta/matching-service/
+ * app/trust.py's own docstring) -- purely informational, same posture as
+ * every other beta signal here: the returned trust_score/status is shown
+ * to the user, but nothing in this app or the coordinator gates a
+ * registration decision on it yet (see trust.py: no equivalent of
+ * risk_block_threshold exists for trust scores). Goes through the
+ * COORDINATOR's /vouch (fanned out to every validator), never a single
+ * validator directly -- same "never bypass the quorum" rule
+ * registerBiometric() above already follows. */
+export async function voucherFor(
+  mode: 'test' | 'real',
+  voucherBioHash: string,
+  voucheeBioHash: string
+): Promise<VouchResult> {
+  if (!COORDINATOR_BASE) {
+    throw new Error('Biometric coordinator not configured (EXPO_PUBLIC_COORDINATOR_BASE unset)');
+  }
+  const resp = await fetch(`${COORDINATOR_BASE}/vouch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, voucher_bio_hash: voucherBioHash, vouchee_bio_hash: voucheeBioHash }),
+  });
   if (!resp.ok) {
-    throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    throw new Error(`Coordinator vouch request failed (HTTP ${resp.status})`);
   }
   return resp.json();
 }

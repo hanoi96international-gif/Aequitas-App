@@ -109,6 +109,8 @@ export interface Translations {
     remove: string;
     resetTitle: string;
     resetDesc: string;
+    confirmSendTitle: string;
+    confirmSendMsg: string;
   };
   network: {
     settingUpTitle: string;
@@ -259,11 +261,21 @@ export interface Translations {
     biometricChallengeLookUp: string;
     biometricChallengeLookDown: string;
     biometricChallengeSmile: string;
+    biometricBurstHoldOval: string;
+    biometricBurstBlinkNow: string;
+    biometricBurstHoldSeconds: string;
     biometricFingertipTitle: string;
     biometricFingertipHint: string;
     biometricFingertipStartBtn: string;
     biometricFingertipSkipBtn: string;
     biometricFingertipCapturing: string;
+    biometricEarTitle: string;
+    biometricEarHint: string;
+    biometricEarSkipBtn: string;
+    biometricAcousticTitle: string;
+    biometricAcousticHint: string;
+    biometricAcousticStartBtn: string;
+    biometricAcousticSkipBtn: string;
     biometricProcessing: string;
     biometricCameraPermissionDenied: string;
     biometricResultDuplicate: string;
@@ -273,6 +285,15 @@ export interface Translations {
     biometricResultLivenessFailed: string;
     biometricResultQuorumFailed: string;
     biometricBackBtn: string;
+    biometricVouchTitle: string;
+    biometricYourIdLabel: string;
+    biometricCopyIdBtn: string;
+    biometricVouchInputPlaceholder: string;
+    biometricVouchBtn: string;
+    biometricVouchResultRecorded: string;
+    biometricVouchResultUnknown: string;
+    biometricVouchResultSelf: string;
+    biometricVouchResultFailed: string;
   };
   node: {
     title: string;

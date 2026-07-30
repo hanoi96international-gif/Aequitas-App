@@ -25,6 +25,10 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+# Local Gradle/Metro run logs, one per debugging session -- two dozen of them
+# had accumulated untracked alongside the source.
+gradle-build-*.log
+metro-*.log
 
 # macOS
 .DS_Store
