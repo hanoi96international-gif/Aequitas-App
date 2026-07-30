@@ -65,6 +65,12 @@ jobs:
       # nicht mehr da. Genau das ist im ersten Release passiert.
       EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID }}
       EXPO_PUBLIC_COORDINATOR_BASE: ${{ vars.EXPO_PUBLIC_COORDINATOR_BASE }}
+      # Fehlte hier, obwohl lib/config.ts es liest: ohne diese Zeile bleibt
+      # BIOMETRIC_ENABLED im Bundle false, und der biometrische Weg ist in der
+      # App nicht vorhanden -- selbst wenn COORDINATOR_BASE gesetzt ist. Beide
+      # muessen zusammen kommen, sonst zeigt die App eine Registrierung an, die
+      # sie nicht anbietet, oder bietet keine an, obwohl ein Coordinator laeuft.
+      EXPO_PUBLIC_BIOMETRIC_ENABLED: ${{ vars.EXPO_PUBLIC_BIOMETRIC_ENABLED }}
       EXPO_PUBLIC_API_BASE: ${{ vars.EXPO_PUBLIC_API_BASE }}
       EXPO_PUBLIC_WEBAPP: ${{ vars.EXPO_PUBLIC_WEBAPP }}
       EXPO_PUBLIC_RPC_URL: ${{ vars.EXPO_PUBLIC_RPC_URL }}
