@@ -93,6 +93,25 @@ type Step =
 // needs >~3.4Hz sampling; this is ~5.5Hz), and fewer frames means less
 // client-side thumbnail-extraction time after the recording finishes.
 const BURST_DURATION_S = 5.5;
+// Zeitfenster, das NACH dem Ende der gesprochenen Aufforderung noch
+// aufgenommen wird, damit die Kopfdrehung ueberhaupt stattfinden kann.
+//
+// Vorher lief die Aufnahme stur nach BURST_DURATION_S aus, waehrend die drei
+// Anweisungen ("Gesicht im Oval halten", "einmal blinzeln", "schau nach
+// rechts") nacheinander gesprochen und per onDone verkettet werden. Zwei
+// deutsche Saetze dauern zusammen leicht 4-5 s -- die Aufforderung zur
+// Drehung kam also etwa in dem Moment, in dem die Kamera schon aufhoerte.
+// Auf dem Geraet gemessen: delta=1.2 Grad bei 8 Grad Schwelle, also eine
+// Drehung, die praktisch nicht mehr aufgezeichnet wurde.
+//
+// Die alte Berechnung Math.max(2000, ...) hat das sogar verschleiert: sie
+// verlaengerte nur den ANGESAGTEN Wert auf "noch 2 Sekunden", nicht die
+// Aufnahme. Die Ansage war damit schlicht unwahr.
+const DIRECTION_WINDOW_MS = 3000;
+// Nur noch Notbremse, nicht mehr das, was die Laenge bestimmt: beendet wird
+// jetzt aktiv nach DIRECTION_WINDOW_MS. Grosszuegig, weil eine langsame
+// Stimme oder eine wortreichere Sprache die Ansagen deutlich strecken kann.
+const BURST_MAX_DURATION_S = 20;
 const BURST_EXTRACT_COUNT = 30;
 const BURST_INTERVAL_MS = Math.round((BURST_DURATION_S * 1000) / BURST_EXTRACT_COUNT);
 
@@ -118,7 +137,7 @@ const GYROSCOPE_INTERVAL_MS = 50;
 // problem withTimeout already exists for on the WalletConnect side (see
 // lib/signer.ts). A stuck video recording or thumbnail extraction could
 // hang the same way, so both are wrapped in withTimeout below too.
-const VIDEO_RECORDING_TIMEOUT_MS = (BURST_DURATION_S + 5) * 1_000;
+const VIDEO_RECORDING_TIMEOUT_MS = (BURST_MAX_DURATION_S + 5) * 1_000;
 const FRAME_EXTRACT_TIMEOUT_MS = 5_000;
 const PALM_TIMEOUT_MS = 8_000;
 
@@ -896,6 +915,10 @@ export default function BiometricCapture() {
   // Fassung, die noch kein Video annimmt, nicht mit einem Formatfehler
   // antwortet, sondern mit einer inhaltlichen Ablehnung.
   const [burstVideoUri, setBurstVideoUri] = useState<string | null>(null);
+  // Damit die Sprachkette die Aufnahme beenden kann, sobald die
+  // Aufforderung zur Drehung ihr Zeitfenster hatte -- siehe
+  // DIRECTION_WINDOW_MS.
+  const activeRecorderRef = useRef<{ stopRecording: () => void } | null>(null);
   const [imuSamples, setImuSamples] = useState<ImuSample[]>([]);
   const [fingertipUris, setFingertipUris] = useState<string[]>([]);
   const [earUri, setEarUri] = useState<string | null>(null);
@@ -1046,19 +1069,39 @@ export default function BiometricCapture() {
         if (!burstChainCancelledRef.current) onDone?.();
       });
     };
+    // Die Aufnahme endet jetzt NACH der Ansage, nicht nach einer festen Uhr.
+    // Zugewiesen wird der Recorder erst weiter unten -- die Sprachkette
+    // laeuft asynchron und erreicht diese Stelle Sekunden spaeter, aber die
+    // Pruefung auf null bleibt drin: bricht der Nutzer vorher ab, gibt es
+    // keinen Recorder mehr, und maxDuration faengt den Fall ohnehin auf.
+    const stopAfterDirectionWindow = () => {
+      setTimeout(() => {
+        if (burstChainCancelledRef.current) return;
+        try {
+          activeRecorderRef.current?.stopRecording();
+        } catch (e) {
+          console.error('[biometric-capture] stopRecording failed', e);
+        }
+      }, DIRECTION_WINDOW_MS);
+    };
     const startDirectionStage = () => {
-      // Computed live from actual elapsed time, not a guessed budget --
-      // however long hold+blink genuinely took to say in this language/
-      // voice, whatever's left of BURST_DURATION_S is what's stated here,
-      // so the number is always true. Floored so a slow first two stages
-      // still leave a meaningful window to actually perform the direction.
-      const remainingMs = Math.max(2000, BURST_DURATION_S * 1000 - (Date.now() - burstStartedAt));
+      // Die angesagte Sekundenzahl ist jetzt die, die tatsaechlich noch
+      // aufgezeichnet wird -- vorher war sie aus dem Restbudget einer festen
+      // Gesamtdauer gerechnet und durch Math.max(2000, ...) auf einen Wert
+      // angehoben, den die Aufnahme gar nicht mehr hergab.
       if (challenge) {
-        sayStage(withSeconds(challengeInstruction(challenge.challengeType, t), remainingMs));
+        sayStage(
+          withSeconds(challengeInstruction(challenge.challengeType, t), DIRECTION_WINDOW_MS),
+          stopAfterDirectionWindow
+        );
       } else {
-        const halfMs = remainingMs / 2;
-        sayStage(withSeconds(t('identity.biometricChallengeLookLeft'), halfMs), () => {
-          sayStage(withSeconds(t('identity.biometricChallengeLookRight'), halfMs));
+        sayStage(withSeconds(t('identity.biometricChallengeLookLeft'), DIRECTION_WINDOW_MS), () => {
+          setTimeout(() => {
+            sayStage(
+              withSeconds(t('identity.biometricChallengeLookRight'), DIRECTION_WINDOW_MS),
+              stopAfterDirectionWindow
+            );
+          }, DIRECTION_WINDOW_MS);
         });
       }
     };
@@ -1083,7 +1126,8 @@ export default function BiometricCapture() {
       // Geräusch") -- see BURST_DURATION_S's own comment for why a single
       // video recording replaces that: recording isn't a "photo capture"
       // event, so it doesn't trigger the OS-forced shutter sound at all.
-      const recorder = await faceVideoOutput.createRecorder({ maxDuration: BURST_DURATION_S });
+      const recorder = await faceVideoOutput.createRecorder({ maxDuration: BURST_MAX_DURATION_S });
+      activeRecorderRef.current = recorder;
       const videoPath = await withTimeout(
         new Promise<string>((resolve, reject) => {
           recorder.startRecording(
@@ -1113,6 +1157,10 @@ export default function BiometricCapture() {
         VIDEO_RECORDING_TIMEOUT_MS,
         'timeout'
       );
+      // Aufnahme ist beendet -- ein noch offener Zeitgeber aus
+      // stopAfterDirectionWindow soll keinen abgeschlossenen Recorder mehr
+      // anfassen.
+      activeRecorderRef.current = null;
       const videoUri = 'file://' + videoPath;
 
       // Die Aufnahme wird NICHT mehr hier zerlegt. Sie geht als Video an den
