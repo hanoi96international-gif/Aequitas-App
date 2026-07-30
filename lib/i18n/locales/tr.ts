@@ -111,6 +111,8 @@ const tr: Translations = {
     remove: 'Kaldır',
     resetTitle: 'Sıfırlandı',
     resetDesc: 'WalletConnect oturumu tamamen silindi. Lütfen şimdi uygulamayı tamamen kapatın (sadece ana ekrana gitmek yerine uygulama değiştiriciden kaldırın) ve yeniden bağlanmadan önce tekrar açın.',
+    confirmSendTitle: 'İşlemi onayla',
+    confirmSendMsg: '{amount} AEQ {address} adresine gönderilsin mi?',
   },
   network: {
     settingUpTitle: 'AĞ AYARLANIYOR',

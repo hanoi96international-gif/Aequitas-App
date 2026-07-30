@@ -6,6 +6,25 @@ jest.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
 }));
 
+// wallet.ts gained ensureDeviceAuthentication() as a supplementary gate for
+// the case where SecureStore's own biometric prompt is unavailable -- which
+// is exactly the case the mock above sets up (canUseBiometricAuthentication
+// returns false), so every test here runs through it. Unmocked, the real
+// module has no native backing under Jest: getEnrolledLevelAsync() resolves
+// to undefined, which does not equal SecurityLevel.NONE, so the gate keeps
+// going and authenticateAsync() -- also undefined -- is dereferenced for
+// .success. That is what failed five tests, in wallet.ts rather than in
+// anything they assert.
+//
+// Enrolled + successful is the right default: it is the path where the gate
+// lets the caller through, leaving each test to exercise the key handling it
+// was written for. A test that wants the refusal can override authenticateAsync.
+jest.mock('expo-local-authentication', () => ({
+  getEnrolledLevelAsync: jest.fn(async () => 2),
+  authenticateAsync: jest.fn(async () => ({ success: true })),
+  SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
+}));
+
 import * as SecureStore from 'expo-secure-store';
 import { generateMnemonic, importWallet, signMessage, unlockWallet, lockWallet } from '../wallet';
 
