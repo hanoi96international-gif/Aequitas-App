@@ -117,7 +117,15 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Abhaengigkeiten installieren
-        run: npm ci
+        # npm 10 (gebuendelt mit Node 20) bricht an diesem Lockfile ab: es
+        # will die optionalen `async-storage: 1.x`-Peers von
+        # @walletconnect/keyvaluestorage nachziehen, findet sie nicht im Lock
+        # und meldet "Missing: @react-native-async-storage/async-storage@
+        # 1.24.0 from lock file". Geschrieben wurde das Lockfile mit npm 11,
+        # das diese Peers gar nicht erst aufloest.
+        run: |
+          npm install -g npm@11
+          npm ci
 
       # Vor dem teuren Android-Build. Ein Tippfehler in einer Uebersetzung
       # oder ein Typfehler faellt hier nach Sekunden auf statt nach zwanzig

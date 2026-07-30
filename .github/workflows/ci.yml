@@ -23,6 +23,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # package-lock.json was written by npm 11, which resolves the optional
+      # `async-storage: 1.x` peers of @walletconnect/keyvaluestorage to
+      # nothing. The npm 10 bundled with Node 22 still wants to install them,
+      # does not find them in the lock, and aborts `npm ci` with "Missing:
+      # @react-native-async-storage/async-storage@1.24.0 from lock file".
+      # Pinning the major keeps runner and lock on the same resolver.
+      - run: npm install -g npm@11
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx expo lint
