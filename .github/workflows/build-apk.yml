@@ -111,6 +111,37 @@ jobs:
               exit 1
             fi
           fi
+
+          # Railway ist am 14.08.2026 abgeschaltet worden und hostet keinen
+          # Teil dieses Netzwerks mehr (siehe docs/MIGRATION_RAILWAY_TO_CONTABO.md
+          # im Chain-Repo). Eine EXPO_PUBLIC_*-Variable landet per
+          # babel-preset-expo fest im JS-Bundle -- ein toter Host faellt
+          # deshalb nicht beim Deploy auf, sondern erst in der Hand des
+          # Nutzers, als App, die gegen nichts mehr spricht.
+          #
+          # Am 15.08.2026 live vorgefunden: die Repository-Variable
+          # EXPO_PUBLIC_COORDINATOR_BASE zeigte auf
+          # coordinator-production-dcd1.up.railway.app, das mit
+          # {"status":"error","code":404,"message":"Application not found"}
+          # antwortet -- bei gleichzeitig EXPO_PUBLIC_BIOMETRIC_ENABLED=true.
+          # Die App haette also eine Registrierung angeboten, die nach
+          # mehreren Minuten Erfassung zwangslaeufig fehlschlaegt.
+          #
+          # lib/__tests__/config.test.ts prueft dasselbe noch einmal im
+          # Testlauf; hier steht es zusaetzlich, weil dieser Schritt vor
+          # `npm ci` laeuft und damit Minuten frueher abbricht.
+          fail=0
+          for var in EXPO_PUBLIC_API_BASE EXPO_PUBLIC_WEBAPP EXPO_PUBLIC_RPC_URL EXPO_PUBLIC_COORDINATOR_BASE; do
+            value="${!var}"
+            case "$value" in
+              *railway.app*|*rlwy.net*)
+                echo "::error title=Abgeschalteter Host in $var::$var zeigt auf '$value'. Railway ist seit 14.08.2026 abgeschaltet; dieser Host antwortet nicht mehr. Variable auf die Contabo-Endpunkte umstellen (Settings -> Secrets and variables -> Actions -> Variables), sonst enthaelt die APK eine tote URL."
+                fail=1
+                ;;
+            esac
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
           {
             echo "### Build-Konfiguration"
             echo ""

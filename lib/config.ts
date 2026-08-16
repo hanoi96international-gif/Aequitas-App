@@ -11,9 +11,29 @@
 const orDefault = (value: string | undefined, fallback: string) =>
   value && value.trim() !== '' ? value : fallback;
 
-export const API_BASE = orDefault(process.env.EXPO_PUBLIC_API_BASE, 'https://aequitas.digital/api');
-export const WEBAPP = orDefault(process.env.EXPO_PUBLIC_WEBAPP, 'https://aequitas.digital');
-export const RPC_URL = orDefault(process.env.EXPO_PUBLIC_RPC_URL, 'https://aequitas.digital/rpc');
+// TEMPORARY — REVERT ON 2026-08-18. See docs/ENDPOINTS.md.
+//
+// aequitas.digital does not belong to this project yet; it arrives on
+// 2026-08-18. Measured 2026-08-16, that name resolves to a host serving a
+// DIFFERENT chain: height ~50, 0 humans, unknown node id, while the real
+// network is past 3.8 million blocks with 15 humans. An app pointed there
+// shows an empty chain, a zero balance and a zero supply, and any
+// registration it completed would land on a chain nobody else follows.
+//
+// So until the DNS switch, the app talks to Contabo1 — the primary
+// validator — by IP. That is plain HTTP, which is why app.json now sets
+// android.usesCleartextTraffic: true; without it Android (API 28+) blocks
+// every request and the app simply shows nothing.
+//
+// On 2026-08-18, after `Serve aequitas.digital from Contabo1` has issued the
+// certificate: put the three https://aequitas.digital values back and remove
+// usesCleartextTraffic. Both halves of that revert matter — leaving cleartext
+// enabled in a shipped app is a downgrade nobody would notice.
+const PRIMARY_NODE = 'http://173.249.37.118:8080';
+
+export const API_BASE = orDefault(process.env.EXPO_PUBLIC_API_BASE, PRIMARY_NODE + '/api');
+export const WEBAPP = orDefault(process.env.EXPO_PUBLIC_WEBAPP, PRIMARY_NODE);
+export const RPC_URL = orDefault(process.env.EXPO_PUBLIC_RPC_URL, PRIMARY_NODE + '/rpc');
 
 export const CHAIN_ID_HEX = '0x786';
 export const CHAIN_ID_DEC = 1926;

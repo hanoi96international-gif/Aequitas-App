@@ -27,7 +27,8 @@
         "USE_FINGERPRINT",
         "CAMERA",
         "RECORD_AUDIO"
-      ]
+      ],
+      "usesCleartextTraffic": true
     },
     "web": {
       "output": "static",
