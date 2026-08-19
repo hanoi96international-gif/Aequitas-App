@@ -994,7 +994,19 @@ export default function BiometricCapture() {
     }
     setConsent({ biometricConsent: true, bonusConsent: bonusChecked, consentedAt: Date.now() / 1000 });
     setConsentError('');
-    setStep('palm');
+    // 2026-08-19: the palm step is skipped.
+    //
+    // The palm cannot affect the duplicate decision. It is a WEAK modality and
+    // the matching service requires two weak modalities to agree, while every
+    // other weak one ships disabled -- so it can never reach that bar. Asking
+    // every person for it collected GDPR Art. 9 biometric data for a purpose
+    // it cannot serve, and cost them a capture step with its own failure modes
+    // (too_far/too_close, hand-detector timeouts) for no decision value.
+    //
+    // The step's code is left in place rather than deleted: enabling a second
+    // weak modality later makes the palm count again, and the service still
+    // accepts one. Re-enabling is this one line.
+    setStep('face_intro');
     // Not awaited -- see the `challenge` state's own comment on why this
     // fires now instead of at submit time. A slow/failed request just
     // means `challenge` stays null and the face_burst step below shows no
@@ -1376,7 +1388,8 @@ export default function BiometricCapture() {
     // fields, see submit()'s existing params for the established pattern).
     const finalEarUri = earUriParam === undefined ? earUri : earUriParam;
     const finalAcousticUri = acousticUriParam === undefined ? acousticUri : acousticUriParam;
-    if (!palmUri || !finalFaceUri || !consent || !address || !signer) return;
+    // palmUri is no longer required -- see confirmConsent above.
+    if (!finalFaceUri || !consent || !address || !signer) return;
     setFingertipUris(finalFingertip);
     setStep('submitting');
     setSubmitError('');

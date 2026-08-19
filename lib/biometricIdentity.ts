@@ -47,7 +47,18 @@ export interface ImuSample {
 }
 
 export interface BiometricCapture {
-  palmUri: string;
+  /** Optional since 2026-08-19.
+   *
+   *  The palm cannot affect the duplicate decision: it is a WEAK modality and
+   *  the matching service requires two weak modalities to agree, while every
+   *  other weak one is disabled by default. It was still demanded from every
+   *  person and stored as GDPR Art. 9 biometric data for a purpose it cannot
+   *  serve, so the capture step is being removed.
+   *
+   *  Kept in the type rather than deleted: the service still accepts a palm,
+   *  its anti-spoof signals remain available, and a build that sends one is
+   *  not broken by this change. */
+  palmUri?: string | null;
   faceUri: string;
   faceBurstUris: string[];
   /** Die Burst-Aufnahme selbst, statt der auf dem Geraet extrahierten
@@ -241,7 +252,7 @@ function toUploadFile(uri: string, name: string, type = 'image/jpeg') {
  * problems never mask the real registration result/error to the caller. */
 async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
   const uris = [
-    capture.palmUri,
+    ...(capture.palmUri ? [capture.palmUri] : []),
     capture.faceUri,
     ...capture.faceBurstUris,
     capture.faceBurstVideoUri,
@@ -287,7 +298,9 @@ export async function registerBiometric(
       form.append('consent_version', CONSENT_VERSION);
       form.append('consented_at', String(opts.consent.consentedAt));
     }
-    form.append('palm_image', toUploadFile(capture.palmUri, 'palm.jpg'));
+    if (capture.palmUri) {
+      form.append('palm_image', toUploadFile(capture.palmUri, 'palm.jpg'));
+    }
     form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
     capture.faceBurstUris.forEach((uri, i) => {
       form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
