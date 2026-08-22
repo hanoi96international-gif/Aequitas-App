@@ -20,16 +20,17 @@ const orDefault = (value: string | undefined, fallback: string) =>
 // shows an empty chain, a zero balance and a zero supply, and any
 // registration it completed would land on a chain nobody else follows.
 //
-// So until the DNS switch, the app talks to Contabo1 — the primary
-// validator — by IP. That is plain HTTP, which is why app.json now sets
-// android.usesCleartextTraffic: true; without it Android (API 28+) blocks
-// every request and the app simply shows nothing.
+// RESOLVED 2026-08-22. aequitas.digital now serves the primary over HTTPS:
+// /api/status reports height 4,511,424 and commit 7bf2db9, identical to the
+// node at 173.249.37.118, /rpc answers eth_chainId with 0x786, and the
+// certificate verifies. So the temporary IP default and the cleartext
+// permission that went with it are both gone -- config.test.ts had been red
+// since the 18th demanding exactly this, which is what that test is for.
 //
-// On 2026-08-18, after `Serve aequitas.digital from Contabo1` has issued the
-// certificate: put the three https://aequitas.digital values back and remove
-// usesCleartextTraffic. Both halves of that revert matter — leaving cleartext
-// enabled in a shipped app is a downgrade nobody would notice.
-const PRIMARY_NODE = 'http://173.249.37.118:8080';
+// Both halves of the revert matter. Leaving usesCleartextTraffic enabled in a
+// shipped app is a downgrade nobody would notice, and a hardcoded IP is one
+// server move away from an app that shows nothing.
+const PRIMARY_NODE = 'https://aequitas.digital';
 
 export const API_BASE = orDefault(process.env.EXPO_PUBLIC_API_BASE, PRIMARY_NODE + '/api');
 export const WEBAPP = orDefault(process.env.EXPO_PUBLIC_WEBAPP, PRIMARY_NODE);
