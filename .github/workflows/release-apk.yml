@@ -1,0 +1,98 @@
+name: APK als Release veroeffentlichen
+
+# Nimmt das Artefakt eines bereits gelaufenen Builds und macht daraus ein
+# GitHub-Release. Bewusst getrennt vom Build: ein Build soll man beliebig oft
+# laufen lassen koennen, ohne dass dabei etwas oeffentlich wird.
+#
+# WARUM DAS ARTEFAKT UND NICHT EIN NEUER BUILD. Ein Release muss genau die APK
+# enthalten, die jemand geprueft hat. Ein frischer Build waere eine ANDERE
+# Datei -- gleiche Quellen, andere Zeitstempel und andere Signatur -- und damit
+# waere die Pruefung wertlos.
+#
+# SIGNATUR, ehrlich benannt: solange ANDROID_KEYSTORE_BASE64 nicht hinterlegt
+# ist, signiert der Build mit dem Debug-Schluessel der Expo-Vorlage. Alle
+# bisherigen Releases sind so signiert, ein Update zwischen ihnen funktioniert
+# also. Ein spaeterer Wechsel auf einen echten Release-Schluessel zwingt
+# bestehende Nutzer EINMALIG zum Deinstallieren -- das ist der Preis dafuer,
+# ihn nicht von Anfang an gehabt zu haben, und er wird nicht kleiner.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run-ID des Builds, dessen APK veroeffentlicht werden soll"
+        required: true
+      tag:
+        description: "Tag fuer das Release, z. B. app-v1.4.0"
+        required: true
+      notes:
+        description: "Was sich geaendert hat (eine Zeile reicht)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Artefakt des Builds holen
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/apk
+          merge-multiple: true
+
+      - name: Pruefen, was da eigentlich liegt
+        id: check
+        run: |
+          set -euo pipefail
+          APK=$(find /tmp/apk -name '*.apk' -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "Kein APK im Artefakt von Run ${{ inputs.run_id }} gefunden."
+            find /tmp/apk -type f | head -20
+            exit 1
+          fi
+          SIZE=$(stat -c %s "$APK")
+          # Eine APK dieser App liegt bei ~85 MB. Alles unter 10 MB ist kein
+          # vollstaendiger Build, sondern ein abgebrochener -- und den will
+          # niemand als Release herunterladen.
+          if [ "$SIZE" -lt 10000000 ]; then
+            echo "APK ist nur $SIZE Bytes gross -- das ist kein vollstaendiger Build."
+            exit 1
+          fi
+          cp "$APK" /tmp/app-release.apk
+          echo "size=$(numfmt --to=iec "$SIZE")" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum /tmp/app-release.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "APK: $APK ($SIZE Bytes)"
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          {
+            echo "${{ inputs.notes }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Groesse | ${{ steps.check.outputs.size }} |"
+            echo "| SHA-256 | \`${{ steps.check.outputs.sha256 }}\` |"
+            echo "| Gebaut aus | Run [${{ inputs.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}) |"
+            echo ""
+            echo "Signiert mit dem Debug-Schluessel der Expo-Vorlage, wie alle bisherigen Releases."
+            echo "Ein Update von einer aelteren Version funktioniert damit; eine spaetere"
+            echo "Umstellung auf einen echten Release-Schluessel wird einmalig eine"
+            echo "Neuinstallation erfordern."
+          } > /tmp/notes.md
+
+          gh release create "${{ inputs.tag }}" /tmp/app-release.apk \
+            --repo "${{ github.repository }}" \
+            --title "Aequitas App ${{ inputs.tag }}" \
+            --notes-file /tmp/notes.md
+
+          echo "### Release veroeffentlicht" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}/app-release.apk" >> "$GITHUB_STEP_SUMMARY"
