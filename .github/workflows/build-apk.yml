@@ -268,9 +268,36 @@ jobs:
           # 8 GB auf einem Runner mit 16 GB laesst weiterhin genug fuer den
           # Kernel-Cache, ohne den das Schreiben derselben 215-MB-APK spuerbar
           # langsamer wird.
-          echo "org.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
+          # UND WARUM 8 GB TROTZDEM NICHT ANKAMEN, bis hierher:
+          #
+          # `echo ... >> gradle.properties` war der Fehler. Expos generierte
+          # Datei endet OHNE Zeilenumbruch, also klebte die neue Einstellung an
+          # die letzte Zeile statt eine eigene zu werden -- unsichtbar fuer
+          # `grep '^org.gradle.jvmargs'` und wirkungslos fuer Gradle. Der Lauf
+          # vom 23.08.2026 gab es selbst aus:
+          #
+          #   --- wirksame JVM-Einstellungen ---
+          #   org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+          #
+          # Eine einzige Zeile, und darin 2048m. Gradle bestaetigte es 15
+          # Minuten spaeter: "The currently configured max heap space is
+          # '2 GiB'". Der gruene Build davor war also kein Beleg fuer 8 GB --
+          # er lief mit 2 GB durch und hatte Glueck.
+          #
+          # Deshalb: vorhandene Zeile loeschen, Zeilenende erzwingen, neu
+          # setzen -- und danach PRUEFEN, dass genau eine Zeile mit genau
+          # diesem Wert dasteht. Ein Schritt, der eine Einstellung setzt und
+          # nicht nachsieht, ob sie angekommen ist, hat hier 40 Minuten und
+          # zwei Builds gekostet.
+          sed -i '/^org\.gradle\.jvmargs/d' gradle.properties
+          printf '\norg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\n' >> gradle.properties
           echo "--- wirksame JVM-Einstellungen ---"
-          grep '^org.gradle.jvmargs' gradle.properties
+          grep -n '^org.gradle.jvmargs' gradle.properties
+          n=$(grep -c '^org.gradle.jvmargs' gradle.properties)
+          if [ "$n" != "1" ] || ! grep -q '^org\.gradle\.jvmargs=-Xmx8g ' gradle.properties; then
+            echo "::error title=Heap-Einstellung nicht angekommen::gradle.properties enthaelt $n jvmargs-Zeilen und nicht genau eine mit -Xmx8g. Der Build wuerde nach ~35 Minuten in :app:packageRelease mit OutOfMemoryError sterben; hier abzubrechen kostet Sekunden."
+            exit 1
+          fi
           if [ "$VARIANT" = "debug" ]; then
             ./gradlew assembleDebug --no-daemon
           else
