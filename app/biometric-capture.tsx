@@ -7,7 +7,7 @@ import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Camera, CommonResolutions, useCameraDevice, useCameraPermission, usePhotoOutput, useVideoOutput, type CameraRef } from 'react-native-vision-camera';
+import { Camera, CommonResolutions, useCameraDevice, useCameraPermission, useVideoOutput, type CameraRef } from 'react-native-vision-camera';
 import { useImageFaceDetector, type Face } from 'react-native-vision-camera-face-detector';
 import { Gyroscope } from 'expo-sensors';
 import * as Speech from 'expo-speech';
@@ -258,34 +258,6 @@ function GradientButton({ label, onPress, disabled }: { label: string; onPress: 
   );
 }
 
-// Palm (1) -> Face (2) progress, echoing identity.tsx's StepItem circles
-// (done = gradient check, active = spinner ring, pending = plain number) so
-// the capture flow reads as one more step of the same registration process
-// rather than a bolted-on separate feature.
-function StepDots({ current }: { current: 1 | 2 | 3 }) {
-  return (
-    <View style={S.stepDots}>
-      {([1, 2] as const).map((n) => (
-        <React.Fragment key={n}>
-          {n < current ? (
-            <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.stepDot}>
-              <Text style={S.stepDotCheck}>✓</Text>
-            </LinearGradient>
-          ) : n === current ? (
-            <View style={[S.stepDot, S.stepDotActive]}>
-              <ActivityIndicator size="small" color={theme.purple} />
-            </View>
-          ) : (
-            <View style={[S.stepDot, S.stepDotPending]}>
-              <Text style={S.stepDotNum}>{n}</Text>
-            </View>
-          )}
-          {n === 1 && <View style={S.stepLine} />}
-        </React.Fragment>
-      ))}
-    </View>
-  );
-}
 
 // Real-device report: the face oval "template" looked too small. Root cause:
 // unlike PalmSilhouette (sized relative to window width, see its own
@@ -1307,7 +1279,6 @@ export default function BiometricCapture() {
               setFaceOverlayHeight((prev) => Math.max(prev, height));
             }}
           >
-            <StepDots current={2} />
             {step === 'face_intro' ? (
               <>
                 <Text style={S.overlayTitle}>{t('identity.biometricFaceTitle')}</Text>

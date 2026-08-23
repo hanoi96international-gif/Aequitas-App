@@ -231,10 +231,19 @@ jobs:
           # eingecheckten gradle.properties wirkungslos -- der Wert muss HIER
           # gesetzt werden, nach prebuild und vor gradlew.
           #
-          # 6 GB auf einem Runner mit 16 GB: genug Luft fuer R8 und das Packen
-          # einer 215-MB-APK, und noch genug uebrig fuer den Kernel-Cache, ohne
-          # den das Schreiben derselben APK wieder langsam wird.
-          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
+          # 6 GB reichten nicht dauerhaft. Am 23.08.2026 scheiterte
+          # :app:packageRelease erneut mit "Java heap space" -- nach 36 Minuten,
+          # am letzten Schritt, bei einem Stand, der GEGENUEBER dem letzten
+          # gruenen Build nur Code ENTFERNT hatte. Der Bedarf ist also nicht
+          # gewachsen; 6 GB lagen schlicht so dicht an der Grenze, dass derselbe
+          # Build mal durchlief und mal nicht. Eine Zahl, die in der Haelfte der
+          # Faelle reicht, ist keine Loesung, sondern eine Verabredung zum
+          # naechsten Fehlschlag.
+          #
+          # 8 GB auf einem Runner mit 16 GB laesst weiterhin genug fuer den
+          # Kernel-Cache, ohne den das Schreiben derselben 215-MB-APK spuerbar
+          # langsamer wird.
+          echo "org.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
           echo "--- wirksame JVM-Einstellungen ---"
           grep '^org.gradle.jvmargs' gradle.properties
           if [ "$VARIANT" = "debug" ]; then
