@@ -226,7 +226,7 @@ const zh: Translations = {
     logErrorPrefix: '错误: ',
     logUnknownError: '未知错误',
     registrationFailed: '注册失败',
-    biometricPrivacyNote: 'Phase 0 测试：你的掌纹和面部照片会发送到匹配服务，用于确认你尚未注册，之后会按照你在拍摄前确认的同意条款被删除。',
+    biometricPrivacyNote: 'Phase 0 测试：你的面部照片和一小段活体录制会发送给独立的比对服务，以核验你尚未注册，随后即被丢弃。没有任何验证节点持有完整模板。',
     biometricStepsIntro: '系统会先请你确认同意，然后拍摄一张掌纹照片和一段简短的面部+眨眼序列。具体细节将在下一屏显示，拍摄前不会有任何采集。',
     biometricConsentTitle: '生物特征测试同意',
     biometricConsentBody: '此 Phase 0 测试会拍摄你的面部照片以及一段简短的眨眼序列，用于检查你是否已经注册。这与是否参加注册奖励计划无关，也不是参加奖励计划的必要条件。',

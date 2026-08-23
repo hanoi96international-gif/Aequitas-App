@@ -226,7 +226,7 @@ const pt: Translations = {
     logErrorPrefix: 'Erro: ',
     logUnknownError: 'Erro desconhecido',
     registrationFailed: 'Falha no registro',
-    biometricPrivacyNote: 'Teste Fase 0: suas fotos de palma e rosto são enviadas a um serviço de verificação para checar se você já está registrado, e depois descartadas conforme o consentimento que você confirmar antes da captura.',
+    biometricPrivacyNote: 'Teste da Fase 0: a sua foto do rosto e uma curta gravação de vivacidade são enviadas a serviços de comparação independentes para verificar que ainda não está registado, e depois descartadas. Nenhum validador detém alguma vez um modelo inteiro.',
     biometricStepsIntro: 'Você confirmará seu consentimento e depois capturará uma foto da sua palma e uma breve sequência de rosto e piscada. Veja todos os detalhes na próxima tela antes de qualquer captura.',
     biometricConsentTitle: 'Consentimento para o teste biométrico',
     biometricConsentBody: 'Este teste da Fase 0 captura uma foto do seu rosto e uma breve sequência de piscada para verificar se você já está registrado. Isso é independente da participação no programa de bônus e não é necessário para ela.',

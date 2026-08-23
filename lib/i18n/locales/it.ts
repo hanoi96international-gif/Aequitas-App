@@ -226,7 +226,7 @@ const it: Translations = {
     logErrorPrefix: 'Errore: ',
     logUnknownError: 'Errore sconosciuto',
     registrationFailed: 'Registrazione fallita',
-    biometricPrivacyNote: 'Test Fase 0: le foto del tuo palmo e del tuo viso vengono inviate a un servizio di confronto per verificare che tu non sia già registrato, e poi eliminate secondo il consenso che confermi prima dell\'acquisizione.',
+    biometricPrivacyNote: 'Test di Fase 0: la tua foto del volto e una breve registrazione di vitalità vengono inviate a servizi di confronto indipendenti per verificare che tu non sia già registrato, poi scartate. Nessun validatore possiede mai un modello intero.',
     biometricStepsIntro: 'Ti verrà chiesto di confermare il consenso, poi di acquisire una foto del palmo e una breve sequenza di viso e battito di ciglia. Tutti i dettagli nella schermata successiva, prima che venga acquisito qualcosa.',
     biometricConsentTitle: 'Consenso al test biometrico',
     biometricConsentBody: 'Questo test di Fase 0 acquisisce una foto del tuo viso e una breve sequenza di battito di ciglia per verificare se sei già registrato. Questo è indipendente dalla partecipazione al programma bonus e non è richiesto per essa.',

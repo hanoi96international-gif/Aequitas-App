@@ -226,7 +226,7 @@ const fr: Translations = {
     logErrorPrefix: 'Erreur : ',
     logUnknownError: 'Erreur inconnue',
     registrationFailed: 'Échec de l\'enregistrement',
-    biometricPrivacyNote: 'Test Phase 0 : tes photos de paume et de visage sont envoyées à un service de vérification pour confirmer que tu n\'es pas déjà enregistré, puis supprimées selon le consentement que tu confirmes avant la capture.',
+    biometricPrivacyNote: 'Test Phase 0 : ta photo de visage et un court enregistrement de vivacité sont envoyés à des services de comparaison indépendants pour vérifier que tu n\'es pas déjà enregistré, puis écartés. Aucun validateur ne détient jamais un gabarit entier.',
     biometricStepsIntro: 'On te demandera de confirmer ton consentement, puis de capturer une photo de ta paume et une courte séquence visage + clignement. Détails complets sur l\'écran suivant avant toute capture.',
     biometricConsentTitle: 'Consentement au test biométrique',
     biometricConsentBody: 'Ce test Phase 0 capture une photo de ton visage et une courte séquence de clignement pour vérifier si tu es déjà enregistré. Ceci est indépendant de la participation au programme de bonus et non requis pour celle-ci.',

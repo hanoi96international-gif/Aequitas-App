@@ -226,7 +226,7 @@ const de: Translations = {
     logErrorPrefix: 'Fehler: ',
     logUnknownError: 'Unbekannter Fehler',
     registrationFailed: 'Registrierung fehlgeschlagen',
-    biometricPrivacyNote: 'Phase-0-Test: Deine Handflächen- und Gesichtsfotos werden an einen Abgleichsdienst gesendet, um zu prüfen, ob du bereits registriert bist, und danach gemäß deiner vor der Aufnahme bestätigten Einwilligung verworfen.',
+    biometricPrivacyNote: 'Phase-0-Test: Dein Gesichtsfoto und eine kurze Lebendigkeits-Aufnahme gehen an unabhängige Vergleichsdienste, um zu prüfen, ob du bereits registriert bist, und werden danach verworfen. Kein Validator hält je eine ganze Vorlage.',
     biometricStepsIntro: 'Du bestätigst zunächst deine Einwilligung, nimmst dann ein Foto deiner Handfläche sowie eine kurze Gesichts- und Blinzel-Sequenz auf. Alle Details dazu im nächsten Schritt, bevor irgendetwas aufgenommen wird.',
     biometricConsentTitle: 'Einwilligung zum biometrischen Test',
     biometricConsentBody: 'Dieser Phase-0-Test nimmt ein Foto deines Gesichts und eine kurze Blinzel-Sequenz auf, um zu prüfen, ob du bereits registriert bist. Das ist unabhängig von der Teilnahme am Bonus-Programm und dafür nicht erforderlich.',

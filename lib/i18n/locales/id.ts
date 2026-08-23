@@ -226,7 +226,7 @@ const id: Translations = {
     logErrorPrefix: 'Kesalahan: ',
     logUnknownError: 'Kesalahan tidak diketahui',
     registrationFailed: 'Pendaftaran gagal',
-    biometricPrivacyNote: 'Uji coba Fase 0: foto telapak tangan dan wajahmu dikirim ke layanan pencocokan untuk memeriksa apakah kamu belum terdaftar, lalu dihapus sesuai persetujuan yang kamu konfirmasi sebelum pengambilan foto.',
+    biometricPrivacyNote: 'Uji Fase 0: foto wajah Anda dan rekaman keaslian singkat dikirim ke layanan pencocokan independen untuk memeriksa Anda belum terdaftar, lalu dibuang. Tidak ada validator yang pernah memegang templat utuh.',
     biometricStepsIntro: 'Kamu akan diminta mengonfirmasi persetujuan, lalu mengambil foto telapak tangan dan urutan singkat wajah + kedipan. Lihat rincian lengkap di layar berikutnya sebelum ada yang diambil.',
     biometricConsentTitle: 'Persetujuan uji coba biometrik',
     biometricConsentBody: 'Uji coba Fase 0 ini mengambil foto wajahmu dan urutan kedipan singkat untuk memeriksa apakah kamu sudah terdaftar. Ini terpisah dari, dan tidak diperlukan untuk, keikutsertaan dalam program bonus.',

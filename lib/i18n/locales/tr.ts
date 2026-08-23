@@ -226,7 +226,7 @@ const tr: Translations = {
     logErrorPrefix: 'Hata: ',
     logUnknownError: 'Bilinmeyen hata',
     registrationFailed: 'Kayıt başarısız oldu',
-    biometricPrivacyNote: 'Faz 0 testi: avuç içi ve yüz fotoğrafların, zaten kayıtlı olup olmadığını kontrol etmek için bir eşleştirme hizmetine gönderilir, ardından çekimden önce onayladığın rıza doğrultusunda silinir.',
+    biometricPrivacyNote: 'Faz 0 testi: yüz fotoğrafınız ve kısa bir canlılık kaydı, henüz kayıtlı olmadığınızı denetlemek için bağımsız eşleştirme servislerine gönderilir, sonra atılır. Hiçbir doğrulayıcı tam bir şablon tutmaz.',
     biometricStepsIntro: 'Önce rızanı onaylaman istenecek, ardından avuç içinin bir fotoğrafını ve kısa bir yüz + göz kırpma dizisini çekeceksin. Hiçbir şey çekilmeden önce tüm ayrıntılar bir sonraki ekranda.',
     biometricConsentTitle: 'Biyometrik test rızası',
     biometricConsentBody: 'Bu Faz 0 testi, zaten kayıtlı olup olmadığını kontrol etmek için yüzünün bir fotoğrafını ve kısa bir göz kırpma dizisini çeker. Bu, bonus programına katılımdan bağımsızdır ve katılım için gerekli değildir.',

@@ -226,7 +226,7 @@ const en: Translations = {
     logErrorPrefix: 'Error: ',
     logUnknownError: 'Unknown error',
     registrationFailed: 'Registration failed',
-    biometricPrivacyNote: 'Phase 0 test: your palm and face photos are sent to a matching service to check you\'re not already registered, then discarded per the consent you confirm before capture.',
+    biometricPrivacyNote: 'Phase 0 test: your face photo and a short liveness recording are sent to independent matching services to check you\'re not already registered, then discarded. No validator ever holds a whole template.',
     biometricStepsIntro: 'You\'ll be asked to confirm consent, then capture a photo of your palm and a short face + blink sequence. See the next screen for full details before anything is captured.',
     biometricConsentTitle: 'Biometric test consent',
     biometricConsentBody: 'This Phase 0 test captures a photo of your face and a short blink sequence to check whether you\'re already registered. This is separate from, and not required for, participating in the bonus program.',
