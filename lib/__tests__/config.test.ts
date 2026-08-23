@@ -74,7 +74,24 @@ describe('config', () => {
   // {"status":"error","code":404,"message":"Application not found"} — with
   // EXPO_PUBLIC_BIOMETRIC_ENABLED=true, so the app offered a registration
   // flow that could not possibly complete.
-  const DECOMMISSIONED_HOSTS = [/\.railway\.app/i, /\.rlwy\.net/i, /\.up\.railway\./i];
+  // CORRECTED 2026-08-23. The list above was right about the CHAIN and wrong
+  // as a blanket rule. Railway project aequitas-matching is still running and
+  // hosts the only reachable coordinator: /challenge returns a real liveness
+  // challenge with a nonce, /register names its missing required fields.
+  //
+  // So this guard blocked a LIVE host because it matched a hostname, while it
+  // would have waved through a dead Contabo endpoint without a word. The
+  // property worth testing was never "which provider" but "does it answer",
+  // and a unit test cannot answer that -- so reachability now lives in
+  // build-apk.yml, which probes /health and additionally rejects an HTML
+  // response, after EXPO_PUBLIC_COORDINATOR_BASE briefly pointed at
+  // https://aequitas.digital/coordinator where every path returned 200 by
+  // serving the node's landing page.
+  //
+  // What remains here is the one host that is genuinely gone: the specific
+  // coordinator deployment found dead on 2026-08-15, which answers
+  // {"status":"error","code":404,"message":"Application not found"}.
+  const DECOMMISSIONED_HOSTS = [/coordinator-production-dcd1\.up\.railway\.app/i];
 
   it.each([
     ['API_BASE', 'EXPO_PUBLIC_API_BASE'],

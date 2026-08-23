@@ -130,14 +130,48 @@ jobs:
           # lib/__tests__/config.test.ts prueft dasselbe noch einmal im
           # Testlauf; hier steht es zusaetzlich, weil dieser Schritt vor
           # `npm ci` laeuft und damit Minuten frueher abbricht.
+          # FIX (23.08.2026): dieser Schutz lehnte jeden *.railway.app ab, mit der
+          # Begruendung "Railway ist seit 14.08. abgeschaltet". Fuer die KETTE
+          # stimmt das. Fuer den Biometrie-Stack nicht: das Railway-Projekt
+          # aequitas-matching laeuft weiter und ist der EINZIGE erreichbare
+          # Coordinator -- /challenge liefert dort eine echte Liveness-Aufgabe,
+          # /register nennt die fehlenden Pflichtfelder.
+          #
+          # Der Schutz hat also einen lebenden Host blockiert, weil er den
+          # Namen prueft statt die Erreichbarkeit. Umgekehrt haette er einen
+          # toten Contabo-Endpunkt anstandslos durchgelassen.
+          #
+          # Jetzt wird gefragt, ob die Adresse ANTWORTET. Das ist der Test, um
+          # den es eigentlich ging, und er faengt jede tote URL statt nur die
+          # eines Anbieters.
+          #
+          # WARUM DER KOERPER UND NICHT NUR DER STATUSCODE: die Variable stand
+          # kurzzeitig auf https://aequitas.digital/coordinator, wo /health,
+          # /challenge und /register alle 200 lieferten -- die Landing-Page des
+          # Knotens, die auf JEDEN Pfad HTML ausliefert. Eine 200, die nicht das
+          # ist, wonach gefragt wurde. Ein Coordinator antwortet mit JSON.
           fail=0
           for var in EXPO_PUBLIC_API_BASE EXPO_PUBLIC_WEBAPP EXPO_PUBLIC_RPC_URL EXPO_PUBLIC_COORDINATOR_BASE; do
             value="${!var}"
+            [ -n "$value" ] || continue
             case "$value" in
-              *railway.app*|*rlwy.net*)
-                echo "::error title=Abgeschalteter Host in $var::$var zeigt auf '$value'. Railway ist seit 14.08.2026 abgeschaltet; dieser Host antwortet nicht mehr. Variable auf die Contabo-Endpunkte umstellen (Settings -> Secrets and variables -> Actions -> Variables), sonst enthaelt die APK eine tote URL."
+              http://*|https://*) ;;
+              *) echo "::error title=Keine absolute URL in $var::'$value'"; fail=1; continue ;;
+            esac
+            probe="$value/health"
+            body=$(curl -s -L --max-time 25 "$probe" | head -c 400)
+            code=$(curl -s -L -o /dev/null --max-time 25 -w '%{http_code}' "$probe")
+            if [ "$code" != "200" ]; then
+              echo "::error title=Toter Host in $var::$var zeigt auf '$value'. $probe antwortet mit HTTP $code. Die URL wird fest ins JS-Bundle gebacken -- ein toter Host faellt nicht beim Deploy auf, sondern erst in der Hand des Nutzers."
+              fail=1
+              continue
+            fi
+            case "$body" in
+              *'<!DOCTYPE'*|*'<html'*)
+                echo "::error title=HTML statt JSON in $var::$probe antwortet mit 200, liefert aber eine HTML-Seite. Das ist der Catch-all eines Webservers, nicht der Dienst -- die App bekaeme HTML, wo sie JSON erwartet."
                 fail=1
                 ;;
+              *) echo "  $var: $probe antwortet mit 200 und liefert kein HTML" ;;
             esac
           done
           [ "$fail" -eq 0 ] || exit 1
