@@ -9,12 +9,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Camera, CommonResolutions, useCameraDevice, useCameraPermission, usePhotoOutput, useVideoOutput, type CameraRef } from 'react-native-vision-camera';
 import { useImageFaceDetector, type Face } from 'react-native-vision-camera-face-detector';
-import { detectHand, type HandBounds } from 'mediapipe-hand-detector';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Gyroscope } from 'expo-sensors';
 import * as Speech from 'expo-speech';
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioPlayer, useAudioRecorder } from 'expo-audio';
-import Svg, { Path } from 'react-native-svg';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
@@ -53,17 +49,18 @@ function challengeInstruction(type: ChallengeType, t: TFunc): string {
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister } from '@/lib/identity';
 import { withTimeout } from '@/lib/signer';
 
-type Step =
-  | 'consent'
-  | 'palm'
-  | 'face_intro'
-  | 'face_burst'
-  | 'fingertip_intro'
-  | 'fingertip_burst'
-  | 'ear_intro'
-  | 'acoustic_intro'
-  | 'submitting'
-  | 'result';
+// The face, and nothing else.
+//
+// 'palm', 'fingertip_intro', 'fingertip_burst', 'ear_intro' and
+// 'acoustic_intro' were all removed for one reason: match_policy requires TWO
+// weak modalities to agree before they count, and every weak modality ships
+// disabled (PALM/FINGERTIP_VEIN/EAR/SCLERA/PERIOCULAR_PARTICIPATES_IN_MATCH all
+// default to false). None of them could reach that bar alone or together, so
+// none could affect a duplicate decision at all -- while every one of them was
+// demanded from a person and stored as biometric data under GDPR Art. 9.
+// Collecting a special category of personal data for a purpose it cannot serve
+// is the part that had to stop, not the length of the flow.
+type Step = 'consent' | 'face_intro' | 'face_burst' | 'submitting' | 'result';
 
 // Real-device follow-up ("search for something better for palmprint/eye
 // verification"): the burst duration was extended from 1.5s (enough for
@@ -122,9 +119,6 @@ const BURST_INTERVAL_MS = Math.round((BURST_DURATION_S * 1000) / BURST_EXTRACT_C
 // different interval here would silently make the fingertip channel's BPM
 // math wrong -- same mistake capture-web's own capture.js was written to
 // deliberately avoid, see its own comment on this exact point.
-const FINGERTIP_EXTRACT_COUNT = 25;
-const FINGERTIP_DURATION_S = (FINGERTIP_EXTRACT_COUNT * BURST_INTERVAL_MS) / 1000;
-const FINGERTIP_RECORDING_TIMEOUT_MS = (FINGERTIP_DURATION_S + 5) * 1_000;
 
 // Gyroscope sampling rate for imu_motion.py's own motion-consistency check
 // (see its docstring) -- 20Hz is plenty for a correlation against optical
@@ -138,7 +132,6 @@ const GYROSCOPE_INTERVAL_MS = 50;
 // lib/signer.ts). A stuck video recording or thumbnail extraction could
 // hang the same way, so both are wrapped in withTimeout below too.
 const VIDEO_RECORDING_TIMEOUT_MS = (BURST_MAX_DURATION_S + 5) * 1_000;
-const FRAME_EXTRACT_TIMEOUT_MS = 5_000;
 const PALM_TIMEOUT_MS = 8_000;
 
 // Real-device feedback: "there should be a template/guide showing whether the
@@ -238,53 +231,14 @@ function getFaceGuideStatus(face: Face, windowWidth: number, windowHeight: numbe
 // needs the palm detector to run on live preview frames like the face
 // guide does (see the comment above checkPalmPosition() for why that's a
 // bigger, not-yet-attempted native rewrite).
-type PalmGuideStatus = 'none' | 'off_center' | 'ok';
 
-function getPalmGuideStatus(bounds: HandBounds): PalmGuideStatus {
-  const cx = (bounds.minX + bounds.maxX) / 2;
-  const cy = (bounds.minY + bounds.maxY) / 2;
-  const centered = Math.abs(cx - 0.5) < CENTER_TOLERANCE && Math.abs(cy - 0.5) < CENTER_TOLERANCE;
-  if (!centered) return 'off_center';
-  return 'ok';
-}
 
 // Real-device feedback: a plain dashed square gave no clue WHAT to place
 // inside it (unlike the face oval, which reads as "put your face here" on
 // its own) -- an actual open-palm outline (stylized, not anatomically
 // literal) makes the "spread your fingers, palm flat" instruction visible
 // instead of only written.
-const PALM_SILHOUETTE_PATH =
-  'M100,250 C78,250 62,238 60,214 L58,150 C46,148 34,140 26,126 L14,102 ' +
-  'C10,94 12,84 20,80 C27,77 34,80 38,87 L52,110 L46,58 C45,48 51,40 60,39 ' +
-  'C69,38 76,45 77,55 L82,98 L80,26 C79,15 86,7 96,7 C106,7 113,15 113,26 ' +
-  'L114,98 L120,42 C121,32 129,25 139,26 C148,27 155,35 154,45 L148,104 ' +
-  'L162,86 C168,79 178,79 184,86 C189,92 189,101 183,108 L158,138 ' +
-  'C150,148 140,152 130,152 L128,214 C126,238 122,250 100,250 Z';
 
-// Real-device report: the silhouette was hardcoded to a fixed 200x260px --
-// on a real phone screen (hundreds of dp wide) that renders as a small,
-// oddly-placed shape unrelated to the actual screen size ("sehr klein und
-// skaliert nicht"). Sized relative to window width instead, same idea as
-// the face oval's fixed-but-screen-appropriate 210x280 (that one happens
-// to already look right at typical phone widths, this one didn't because
-// its original size was chosen without checking against a real device).
-function PalmSilhouette({ ok }: { ok: boolean }) {
-  const { width: windowWidth } = useWindowDimensions();
-  const width = Math.min(windowWidth * 0.55, 230);
-  const height = width * 1.3; // matches the path's own 200:260 aspect ratio
-  return (
-    <Svg width={width} height={height} viewBox="0 0 200 260">
-      <Path
-        d={PALM_SILHOUETTE_PATH}
-        fill={ok ? 'rgba(52,211,153,0.12)' : 'rgba(155,114,246,0.06)'}
-        stroke={ok ? theme.neon : theme.borderStrong}
-        strokeWidth={3}
-        strokeDasharray={ok ? undefined : '7,6'}
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
 
 // Matches the app's one established primary-button look (see e.g.
 // identity.tsx's proveHumanityBtn/retryBtn) instead of a flat fill, so this
@@ -329,48 +283,6 @@ function StepDots({ current }: { current: 1 | 2 | 3 }) {
           {n === 1 && <View style={S.stepLine} />}
         </React.Fragment>
       ))}
-    </View>
-  );
-}
-
-// checked=false means "no manual check has run yet this step" -- shows the
-// idle "tap to check" hint instead of implying a hand was searched for and
-// not found (biometricPalmGuideNone, which now only applies to an actual
-// checked-and-empty result).
-function PalmGuide({
-  status,
-  checked,
-  checking,
-  onCheck,
-  overlayHeight,
-}: {
-  status: PalmGuideStatus;
-  checked: boolean;
-  checking: boolean;
-  onCheck: () => void;
-  overlayHeight: number;
-}) {
-  const { t } = useLanguage();
-  const hint = (() => {
-    if (!checked) return t('identity.biometricPalmGuideIdle');
-    switch (status) {
-      case 'none': return t('identity.biometricPalmGuideNone');
-      case 'off_center': return t('identity.biometricPalmGuideOffCenter');
-      case 'ok': return t('identity.biometricPalmGuideOk');
-    }
-  })();
-  const ok = status === 'ok';
-  return (
-    <View style={[S.guideWrap, { bottom: overlayHeight }]} pointerEvents="box-none">
-      <View style={S.guideOvalCenterer} pointerEvents="none">
-        <PalmSilhouette ok={ok && checked} />
-      </View>
-      <View style={S.guideBottomGroup} pointerEvents="box-none">
-        <Text style={[S.guideHint, ok && checked && S.guideHintOk]} pointerEvents="none">{hint}</Text>
-        <TouchableOpacity style={S.retryPill} onPress={onCheck} activeOpacity={0.8} disabled={checking}>
-          <Text style={S.retryPillText}>{checking ? t('identity.biometricPalmChecking') : t('identity.biometricPalmCheckBtn')}</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -706,9 +618,6 @@ export default function BiometricCapture() {
   // reached on those steps. The default case below stops it explicitly.
   useEffect(() => {
     switch (step) {
-      case 'palm':
-        speak(t('identity.biometricPalmHint'));
-        break;
       case 'face_intro':
         speak(t('identity.biometricFaceHint'));
         break;
@@ -717,15 +626,6 @@ export default function BiometricCapture() {
         // sequence (see burstStageText's own comment) -- calling
         // Speech.stop() here would race with, and could cut off, that
         // chain's own first utterance.
-        break;
-      case 'fingertip_intro':
-        speak(t('identity.biometricFingertipHint'));
-        break;
-      case 'fingertip_burst':
-        speak(t('identity.biometricFingertipCapturing'));
-        break;
-      case 'ear_intro':
-        speak(t('identity.biometricEarHint'));
         break;
       default:
         Speech.stop();
@@ -743,7 +643,6 @@ export default function BiometricCapture() {
   }, []);
 
   const { hasPermission, requestPermission } = useCameraPermission();
-  const backDevice = useCameraDevice('back');
   const frontDevice = useCameraDevice('front');
 
   // Acoustic sonar liveness (see matching-service/app/acoustic_liveness.py)
@@ -764,8 +663,6 @@ export default function BiometricCapture() {
   // inside an async function), so -- same pattern as usePhotoOutput/
   // useVideoOutput above -- declared here at the top level and used
   // imperatively inside captureAcoustic() below.
-  const chirpPlayer = useAudioPlayer(require('@/assets/audio/liveness_chirp.wav'));
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   // Real-device report: whole app felt sluggish on this screen. Root cause:
   // usePhotoOutput() with no targetResolution defaults to
   // CommonResolutions.UHD_4_3 (3024x4032, ~12MP) -- every single capture
@@ -776,7 +673,6 @@ export default function BiometricCapture() {
   // plenty of detail for palm/face matching and MediaPipe's own model
   // input is far smaller than either, but cuts capture/encode/decode/
   // upload cost roughly 4x versus the 12MP default.
-  const photoOutput = usePhotoOutput({ targetResolution: CommonResolutions.FHD_4_3 });
   // Real-device report: see BURST_DURATION_S's own comment -- video
   // recording (unlike capturePhotoToFile) is not a "photo capture" event on
   // Android, so it never triggers the forced shutter sound. enableAudio is
@@ -808,7 +704,6 @@ export default function BiometricCapture() {
   // proven for face_burst above, rather than a photo-burst loop (which hit
   // the forced-shutter-sound problem palm/face capture both had to work
   // around, see BURST_DURATION_S's own comment).
-  const fingertipVideoOutput = useVideoOutput({ targetResolution: CommonResolutions.FHD_4_3 });
   // FIX (2026-07-18): a single overlayHeight shared across palm/face/
   // fingertip meant whichever of the three ever measured tallest (even a
   // totally different step, visited earlier in the same session) became
@@ -820,7 +715,6 @@ export default function BiometricCapture() {
   // palm's guide no longer inherits face's taller panel height or vice
   // versa. Fingertip has no live guide reading a height at all, so it
   // doesn't need a tracked value of its own.
-  const [palmOverlayHeight, setPalmOverlayHeight] = useState(200);
   const [faceOverlayHeight, setFaceOverlayHeight] = useState(200);
 
   const [faceGuideStatus, setFaceGuideStatus] = useState<FaceGuideStatus>('none');
@@ -864,7 +758,6 @@ export default function BiometricCapture() {
     }
   }
 
-  const [palmGuideStatus, setPalmGuideStatus] = useState<PalmGuideStatus>('none');
   // Real-device report: an automatic background poll -- even slowed down
   // and bounded -- still means the camera fires an UNPROMPTED shutter
   // sound every ~900ms with no way to turn it off (see PALM_SILHOUETTE's
@@ -876,8 +769,6 @@ export default function BiometricCapture() {
   // instead, exactly like the real capture button already does: a shutter
   // sound the user just caused themselves reads as normal camera feedback,
   // not as the app malfunctioning.
-  const [palmChecking, setPalmChecking] = useState(false);
-  const [palmChecked, setPalmChecked] = useState(false);
   // Real-device report: the actual palm capture button started failing
   // with "Testaufnahme konnte nicht abgeschlossen werden" every time
   // (capturePalm's withTimeout hitting PALM_TIMEOUT_MS) -- this same lock
@@ -886,26 +777,6 @@ export default function BiometricCapture() {
   // vision-camera doesn't handle two concurrent capture requests cleanly.
   const cameraBusyRef = useRef(false);
 
-  async function checkPalmPosition() {
-    if (!(await ensurePermission()) || cameraBusyRef.current) return;
-    cameraBusyRef.current = true;
-    setPalmChecking(true);
-    try {
-      const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), PALM_TIMEOUT_MS, 'timeout');
-      const bounds = await detectHand('file://' + file.filePath);
-      setPalmGuideStatus(bounds ? getPalmGuideStatus(bounds) : 'none');
-      setPalmChecked(true);
-    } catch (e) {
-      console.error('[biometric-capture] palm position check failed', e);
-      setPalmGuideStatus('none');
-      setPalmChecked(true);
-    } finally {
-      cameraBusyRef.current = false;
-      setPalmChecking(false);
-    }
-  }
-
-  const [palmUri, setPalmUri] = useState<string | null>(null);
   const [faceUri, setFaceUri] = useState<string | null>(null);
   const [burstUris, setBurstUris] = useState<string[]>([]);
   // Die Burst-Aufnahme selbst. Geht ungeschnitten an den Coordinator, der
@@ -920,9 +791,6 @@ export default function BiometricCapture() {
   // DIRECTION_WINDOW_MS.
   const activeRecorderRef = useRef<{ stopRecording: () => void } | null>(null);
   const [imuSamples, setImuSamples] = useState<ImuSample[]>([]);
-  const [fingertipUris, setFingertipUris] = useState<string[]>([]);
-  const [earUri, setEarUri] = useState<string | null>(null);
-  const [acousticUri, setAcousticUri] = useState<string | null>(null);
 
   const [result, setResult] = useState<BiometricRegisterResult | null>(null);
   const [submitError, setSubmitError] = useState('');
@@ -1038,29 +906,6 @@ export default function BiometricCapture() {
     return false;
   }
 
-  async function capturePalm() {
-    if (!(await ensurePermission())) return;
-    // Wait out a manual position-check capture if one's in flight (always
-    // brief), then hold the same lock so checkPalmPosition() can't collide
-    // with this real capture -- see cameraBusyRef's comment.
-    const waitDeadline = Date.now() + 2_000;
-    while (cameraBusyRef.current && Date.now() < waitDeadline) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    cameraBusyRef.current = true;
-    try {
-      const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), PALM_TIMEOUT_MS, 'timeout');
-      setPalmUri('file://' + file.filePath);
-      setStep('face_intro');
-    } catch (e) {
-      console.error('[biometric-capture] palm capture failed', e);
-      setSubmitError(t('identity.biometricResultFailed'));
-      setStep('result');
-    } finally {
-      cameraBusyRef.current = false;
-    }
-  }
-
   async function startFaceCapture() {
     if (!(await ensurePermission())) return;
     setStep('face_burst');
@@ -1071,7 +916,6 @@ export default function BiometricCapture() {
     // earlier call (or one still catching up after Speech.stop() resolved
     // its onStopped) can't keep talking once the user has left face_burst.
     burstChainCancelledRef.current = false;
-    const burstStartedAt = Date.now();
     const withSeconds = (direction: string, ms: number) =>
       `${direction} · ${t('identity.biometricBurstHoldSeconds', { seconds: String(Math.round(ms / 1000)) })}`;
     const sayStage = (text: string, onDone?: () => void) => {
@@ -1211,7 +1055,8 @@ export default function BiometricCapture() {
         console.error('[biometric-capture] face snapshot failed', e);
       }
 
-      setImuSamples(await imuPromise);
+      const imu = await imuPromise;
+      setImuSamples(imu);
       if (!snapshotFaceUri) {
         burstChainCancelledRef.current = true;
         clearFlashTimers();
@@ -1222,18 +1067,29 @@ export default function BiometricCapture() {
       const frames: string[] = [];
       setBurstUris(frames);
       setFaceUri(snapshotFaceUri);
-      // Fingertip pulse is a genuinely separate, optional capture step (see
-      // fingertip_pulse.py) -- not submitted automatically here, the user
-      // can also skip it (see skipFingertip below).
-      // Stop the burst chain before leaving -- otherwise a still-pending
-      // stage (its onDone hasn't fired yet) would speak over whatever
-      // fingertip_intro/burst says next (see burstChainCancelledRef's own
-      // comment). Flash timers stopped the same way -- the recording has
-      // finished by now regardless, but a late setFlashColor would still
-      // needlessly tint the next step's screen for a moment.
+      // Stop the burst chain before leaving -- otherwise a still-pending stage
+      // (its onDone hasn't fired yet) would speak over whatever comes next
+      // (see burstChainCancelledRef's own comment). Flash timers stopped the
+      // same way -- the recording has finished by now regardless, but a late
+      // setFlashColor would still needlessly tint the next screen.
       burstChainCancelledRef.current = true;
       clearFlashTimers();
-      setStep('fingertip_intro');
+      // Straight to submit. The face is the only thing asked of a person now.
+      //
+      // Fingertip, ear and the acoustic chirp used to sit between here and
+      // submit. All three were WEAK modalities, and match_policy needs TWO
+      // weak modalities to agree before they count for anything -- while every
+      // weak modality ships disabled (FINGERTIP_VEIN/EAR/SCLERA/PERIOCULAR_
+      // PARTICIPATES_IN_MATCH all default to false). So none of them could
+      // reach the bar, alone or together: they could not affect a duplicate
+      // decision at all. They were nevertheless demanded from every human and
+      // stored as biometric data under GDPR Art. 9, collected for a purpose
+      // they cannot serve. Exactly the reasoning that removed the palm step.
+      //
+      // Values are passed explicitly rather than read from state: the setState
+      // calls just above have not landed in this closure yet, and submit()'s
+      // parameters are authoritative for precisely that reason.
+      await submit(snapshotFaceUri, frames, imu);
     } catch (e) {
       console.error('[biometric-capture] face video capture failed', e);
       burstChainCancelledRef.current = true;
@@ -1243,161 +1099,24 @@ export default function BiometricCapture() {
     }
   }
 
-  async function startFingertipCapture() {
-    if (!(await ensurePermission())) return;
-    setStep('fingertip_burst');
-    try {
-      const recorder = await fingertipVideoOutput.createRecorder({ maxDuration: FINGERTIP_DURATION_S });
-      const videoPath = await withTimeout(
-        new Promise<string>((resolve, reject) => {
-          recorder.startRecording(
-            (filePath) => resolve(filePath),
-            (error) => reject(error)
-          );
-        }),
-        FINGERTIP_RECORDING_TIMEOUT_MS,
-        'timeout'
-      );
-      const videoUri = 'file://' + videoPath;
-
-      const frames: string[] = [];
-      for (let i = 0; i < FINGERTIP_EXTRACT_COUNT; i++) {
-        try {
-          const thumb = await withTimeout(
-            VideoThumbnails.getThumbnailAsync(videoUri, { time: i * BURST_INTERVAL_MS, quality: 0.8 }),
-            FRAME_EXTRACT_TIMEOUT_MS,
-            'timeout'
-          );
-          frames.push(thumb.uri);
-        } catch (e) {
-          console.error('[biometric-capture] fingertip frame extraction failed', e);
-        }
-      }
-      // Unlike the face burst, an empty/failed fingertip capture is NOT a
-      // reason to fail the whole registration -- this channel is entirely
-      // optional (see fingertip_pulse.py's own "informational only"
-      // reasoning). Move on to the (also optional) ear step with whatever
-      // was captured, even nothing.
-      setFingertipUris(frames);
-      setStep('ear_intro');
-    } catch (e) {
-      console.error('[biometric-capture] fingertip video capture failed', e);
-      setFingertipUris([]);
-      setStep('ear_intro');
-    }
-  }
-
-  async function skipFingertip() {
-    // Cut immediately on tap rather than waiting for the step-change
-    // effect's own Speech.stop() to run on the next render -- see that
-    // effect's own comment on the "still reads after skipping" report.
-    Speech.stop();
-    setFingertipUris([]);
-    setStep('ear_intro');
-  }
-
-  // Ear shape (see ear.py) is a single still photo, not a burst -- no
-  // liveness/pulse signal to extract, just static geometry, same capture
-  // shape as the palm step. Uses the BACK device + the same photoOutput
-  // the palm step already has (no reason for a second still-photo output).
-  // Genuinely awkward to self-capture (you can't easily see your own ear
-  // without a mirror or help) -- see this screen's biometricEarHint copy --
-  // so, like fingertip, it's optional and skippable, never blocking
-  // registration.
-  async function captureEar() {
-    if (!(await ensurePermission())) return;
-    const waitDeadline = Date.now() + 2_000;
-    while (cameraBusyRef.current && Date.now() < waitDeadline) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    cameraBusyRef.current = true;
-    try {
-      const file = await withTimeout(photoOutput.capturePhotoToFile({}, {}), PALM_TIMEOUT_MS, 'timeout');
-      const uri = 'file://' + file.filePath;
-      setEarUri(uri);
-      setStep('acoustic_intro');
-    } catch (e) {
-      console.error('[biometric-capture] ear capture failed', e);
-      setEarUri(null);
-      setStep('acoustic_intro');
-    } finally {
-      cameraBusyRef.current = false;
-    }
-  }
-
-  async function skipEar() {
-    Speech.stop();
-    setStep('acoustic_intro');
-  }
-
-  // Acoustic sonar liveness (see chirpPlayer/audioRecorder's own comment
-  // above, and matching-service/app/acoustic_liveness.py) -- the last
-  // optional step before submit. setAudioModeAsync's allowsRecording is
-  // what actually lets playback and recording run at once on this device;
-  // without it the recorder and player would fight over the audio session
-  // (see expo-audio's own docs on this).
-  async function captureAcoustic() {
-    try {
-      const perm = await AudioModule.requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        await submit(undefined, undefined, undefined, undefined, null);
-        return;
-      }
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-      chirpPlayer.seekTo(0);
-      chirpPlayer.play();
-      // Recording window generously covers the ~400ms chirp plus room for
-      // the echo's own travel time and playback-start latency -- not tied
-      // to the chirp's exact duration since a bit of extra silence on
-      // either side doesn't hurt the server's own correlation search
-      // (see acoustic_liveness.py's own MAX_LAG_MS -- it searches for the
-      // chirp within the recording, not assumes it starts at sample 0).
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      await audioRecorder.stop();
-      const uri = audioRecorder.uri;
-      setAcousticUri(uri ?? null);
-      await submit(undefined, undefined, undefined, undefined, uri ?? null);
-    } catch (e) {
-      console.error('[biometric-capture] acoustic capture failed', e);
-      setAcousticUri(null);
-      await submit(undefined, undefined, undefined, undefined, null);
-    }
-  }
-
-  async function skipAcoustic() {
-    Speech.stop();
-    await submit(undefined, undefined, undefined, undefined, null);
-  }
-
   async function submit(
     firstFrame?: string,
     frames?: string[],
-    fingertipFrames?: string[],
-    earUriParam?: string | null,
-    acousticUriParam?: string | null
+    // The IMU samples resolve one line before the only call site, so state has
+    // not landed yet. Passing them is the difference between sending the motion
+    // trace and silently sending an empty one.
+    imuParam?: typeof imuSamples
   ) {
     const finalFaceUri = firstFrame ?? faceUri;
     const finalBurst = frames ?? burstUris;
-    const finalFingertip = fingertipFrames ?? fingertipUris;
-    // undefined means "not passed, read state" (mirrors firstFrame/frames/
-    // fingertipFrames above); null/a string is treated as authoritative --
-    // relying on the earUri state alone here would race the setEarUri()
-    // call in captureEar() (same stale-closure risk as the other capture
-    // fields, see submit()'s existing params for the established pattern).
-    const finalEarUri = earUriParam === undefined ? earUri : earUriParam;
-    const finalAcousticUri = acousticUriParam === undefined ? acousticUri : acousticUriParam;
-    // palmUri is no longer required -- see confirmConsent above.
+    const finalImu = imuParam ?? imuSamples;
     if (!finalFaceUri || !consent || !address || !signer) return;
-    setFingertipUris(finalFingertip);
     setStep('submitting');
     setSubmitError('');
     try {
       const deviceId = await getOrCreateDeviceId();
       const res = await registerBiometric(
         {
-          palmUri,
           faceUri: finalFaceUri,
           faceBurstUris: finalBurst,
           // Der Coordinator zieht die Einzelbilder hieraus und ignoriert
@@ -1405,11 +1124,8 @@ export default function BiometricCapture() {
           // uebersteuert er ebenfalls mit dem echten Wert aus dem Videostrom.
           faceBurstVideoUri: burstVideoUri ?? undefined,
           burstIntervalMs: BURST_INTERVAL_MS,
-          imuSamples,
-          fingertipBurstUris: finalFingertip,
+          imuSamples: finalImu,
           challengeNonce: challenge?.nonce,
-          earUri: finalEarUri ?? undefined,
-          acousticRecordingUri: finalAcousticUri ?? undefined,
         },
         // `mode: 'test'` used to be hardcoded here, which meant this screen
         // deduplicated every capture against the coordinator's synthetic test
@@ -1489,42 +1205,6 @@ export default function BiometricCapture() {
             <TouchableOpacity style={S.btnGhost} onPress={close} activeOpacity={0.8}>
               <Text style={S.btnGhostText}>{t('identity.biometricCancelBtn')}</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {step === 'palm' && (
-        <View style={S.cameraWrap}>
-          {hasPermission && backDevice ? (
-            <>
-              <Camera style={S.camera} device={backDevice} isActive outputs={[photoOutput]} />
-              <PalmGuide
-                status={palmGuideStatus}
-                checked={palmChecked}
-                checking={palmChecking}
-                onCheck={checkPalmPosition}
-                overlayHeight={palmOverlayHeight}
-              />
-            </>
-          ) : (
-            <View style={S.content}>
-              <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
-            </View>
-          )}
-          <View
-            style={S.overlayBox}
-            onLayout={(e) => {
-              // Read the plain number out synchronously here rather than
-              // inside the functional updater below -- see faceOverlayHeight
-              // site's own comment on why (React's synthetic-event pooling).
-              const height = e.nativeEvent.layout.height;
-              setPalmOverlayHeight((prev) => Math.max(prev, height));
-            }}
-          >
-            <StepDots current={1} />
-            <Text style={S.overlayTitle}>{t('identity.biometricPalmTitle')}</Text>
-            <Text style={S.overlayHint}>{t('identity.biometricPalmHint')}</Text>
-            <GradientButton label={t('identity.biometricCaptureBtn')} onPress={capturePalm} />
           </View>
         </View>
       )}
@@ -1645,92 +1325,6 @@ export default function BiometricCapture() {
                 <Text style={S.actionInstruction}>🎯 {burstStageText}</Text>
               </>
             )}
-          </View>
-        </View>
-      )}
-
-      {(step === 'fingertip_intro' || step === 'fingertip_burst') && (
-        // Optional step, deliberately not part of StepDots' numbered 1-2
-        // sequence above -- see fingertip_pulse.py's own "informational
-        // only" reasoning and skipFingertip() below. Uses the BACK device
-        // (same one palm's step already used) with torchMode, rather than
-        // any web-style getCapabilities()/applyConstraints() dance --
-        // react-native-vision-camera exposes torch as a plain declarative
-        // prop.
-        <View style={S.cameraWrap}>
-          {hasPermission && backDevice ? (
-            <Camera
-              style={S.camera}
-              device={backDevice}
-              isActive
-              torchMode={step === 'fingertip_burst' ? 'on' : 'off'}
-              outputs={[fingertipVideoOutput]}
-            />
-          ) : (
-            <View style={S.content}>
-              <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
-            </View>
-          )}
-          <View style={S.overlayBox}>
-            {step === 'fingertip_intro' ? (
-              <>
-                <Text style={S.overlayTitle}>{t('identity.biometricFingertipTitle')}</Text>
-                <Text style={S.overlayHint}>{t('identity.biometricFingertipHint')}</Text>
-                <GradientButton label={t('identity.biometricFingertipStartBtn')} onPress={startFingertipCapture} />
-                <TouchableOpacity style={S.btnGhost} onPress={skipFingertip} activeOpacity={0.8}>
-                  <Text style={S.btnGhostText}>{t('identity.biometricFingertipSkipBtn')}</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <ActivityIndicator color={theme.purple} size="large" style={S.spinnerGap} />
-                <Text style={S.overlayHint}>{t('identity.biometricFingertipCapturing')}</Text>
-              </>
-            )}
-          </View>
-        </View>
-      )}
-
-      {step === 'ear_intro' && (
-        // Optional step, deliberately not part of StepDots' numbered
-        // sequence -- same "informational only, never blocks" posture as
-        // the fingertip step above. A single still photo (see ear.py),
-        // reusing the palm step's own BACK-camera photoOutput rather than
-        // standing up a second still-photo output -- no burst, no live
-        // guide (no ear landmark model exists to drive one, see ear.py's
-        // own docstring), just a plain framing hint and a capture button.
-        <View style={S.cameraWrap}>
-          {hasPermission && backDevice ? (
-            <Camera style={S.camera} device={backDevice} isActive outputs={[photoOutput]} />
-          ) : (
-            <View style={S.content}>
-              <Text style={S.body}>{t('identity.biometricCameraPermissionDenied')}</Text>
-            </View>
-          )}
-          <View style={S.overlayBox}>
-            <Text style={S.overlayTitle}>{t('identity.biometricEarTitle')}</Text>
-            <Text style={S.overlayHint}>{t('identity.biometricEarHint')}</Text>
-            <GradientButton label={t('identity.biometricCaptureBtn')} onPress={captureEar} />
-            <TouchableOpacity style={S.btnGhost} onPress={skipEar} activeOpacity={0.8}>
-              <Text style={S.btnGhostText}>{t('identity.biometricEarSkipBtn')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {step === 'acoustic_intro' && (
-        // Optional, last step before submit -- same "informational only,
-        // never blocks" posture as fingertip/ear above. No camera needed
-        // (audio-only, see captureAcoustic's own comment), so this is a
-        // plain card like the consent step rather than a camera view.
-        <View style={S.content}>
-          <View style={S.card}>
-            <Text style={S.title}>{t('identity.biometricAcousticTitle')}</Text>
-            <Text style={S.body}>{t('identity.biometricAcousticHint')}</Text>
-            <GradientButton label={t('identity.biometricAcousticStartBtn')} onPress={captureAcoustic} />
-            <TouchableOpacity style={S.btnGhost} onPress={skipAcoustic} activeOpacity={0.8}>
-              <Text style={S.btnGhostText}>{t('identity.biometricAcousticSkipBtn')}</Text>
-            </TouchableOpacity>
           </View>
         </View>
       )}

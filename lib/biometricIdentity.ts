@@ -46,19 +46,25 @@ export interface ImuSample {
   acceleration?: { x: number; y: number; z: number } | null;
 }
 
+/** The face, and nothing else.
+ *
+ *  palm, fingertip and ear are gone from this type, not merely unused. Each was
+ *  a WEAK modality, and match_policy requires TWO weak modalities to agree
+ *  before they count for anything — while every weak modality ships disabled
+ *  (PALM/FINGERTIP_VEIN/EAR/SCLERA/PERIOCULAR_PARTICIPATES_IN_MATCH all default
+ *  to false). None of them could reach that bar alone or together, so none could
+ *  affect a duplicate decision at all. They were nevertheless demanded from
+ *  every person and stored as GDPR Art. 9 biometric data for a purpose they
+ *  cannot serve.
+ *
+ *  The acoustic chirp went with them: its own liveness check is off by default
+ *  (REQUIRE_ACOUSTIC_LIVENESS=false) and informational when on, so it too asked
+ *  a person for a recording that changed nothing.
+ *
+ *  Removing the FIELDS rather than just the capture steps is deliberate. An
+ *  optional field that nothing fills is an invitation to fill it again later,
+ *  and the reason it must not be filled lives here, not in the screen. */
 export interface BiometricCapture {
-  /** Optional since 2026-08-19.
-   *
-   *  The palm cannot affect the duplicate decision: it is a WEAK modality and
-   *  the matching service requires two weak modalities to agree, while every
-   *  other weak one is disabled by default. It was still demanded from every
-   *  person and stored as GDPR Art. 9 biometric data for a purpose it cannot
-   *  serve, so the capture step is being removed.
-   *
-   *  Kept in the type rather than deleted: the service still accepts a palm,
-   *  its anti-spoof signals remain available, and a build that sends one is
-   *  not broken by this change. */
-  palmUri?: string | null;
   faceUri: string;
   faceBurstUris: string[];
   /** Die Burst-Aufnahme selbst, statt der auf dem Geraet extrahierten
@@ -87,19 +93,6 @@ export interface BiometricCapture {
    * graceful "not checked" degradation for why this is fine to omit
    * rather than block registration on. */
   imuSamples?: ImuSample[];
-  /** Optional: the user can skip the fingertip-pulse step entirely (see
-   * fingertip_pulse.py's own docstring) -- absent here just means that
-   * channel wasn't checked, not a failure. */
-  fingertipBurstUris?: string[];
-  /** Optional: the user can skip the ear-shape step entirely (see ear.py's
-   * own docstring on why it's a backup signal, not a requirement) --
-   * absent here just means that channel wasn't checked, not a failure. */
-  earUri?: string;
-  /** Optional: microphone recording of the chirp+echo (see
-   * matching-service/app/acoustic_liveness.py) -- absent means the user
-   * skipped it, or recording/permission failed, same graceful-degrade
-   * posture as every other optional channel here. */
-  acousticRecordingUri?: string;
   /** One-time nonce from requestChallenge() below, echoed back so every
    * validator can independently verify the face_burst actually performed
    * the randomly-issued challenge (see matching-service/app/challenge.py's
@@ -252,13 +245,9 @@ function toUploadFile(uri: string, name: string, type = 'image/jpeg') {
  * problems never mask the real registration result/error to the caller. */
 async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
   const uris = [
-    ...(capture.palmUri ? [capture.palmUri] : []),
     capture.faceUri,
     ...capture.faceBurstUris,
     capture.faceBurstVideoUri,
-    ...(capture.fingertipBurstUris ?? []),
-    capture.earUri,
-    capture.acousticRecordingUri,
   ].filter((uri): uri is string => !!uri);
 
   await Promise.all(
@@ -298,9 +287,6 @@ export async function registerBiometric(
       form.append('consent_version', CONSENT_VERSION);
       form.append('consented_at', String(opts.consent.consentedAt));
     }
-    if (capture.palmUri) {
-      form.append('palm_image', toUploadFile(capture.palmUri, 'palm.jpg'));
-    }
     form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
     capture.faceBurstUris.forEach((uri, i) => {
       form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
@@ -314,18 +300,6 @@ export async function registerBiometric(
     form.append('burst_interval_ms', String(capture.burstIntervalMs));
     if (capture.imuSamples?.length) {
       form.append('imu_samples', JSON.stringify(capture.imuSamples));
-    }
-    capture.fingertipBurstUris?.forEach((uri, i) => {
-      form.append('fingertip_burst', toUploadFile(uri, `fingertip_${i}.jpg`));
-    });
-    if (capture.earUri) {
-      form.append('ear_image', toUploadFile(capture.earUri, 'ear.jpg'));
-    }
-    if (capture.acousticRecordingUri) {
-      // expo-audio's RecordingPresets.HIGH_QUALITY produces .m4a (AAC) --
-      // see matching-service/app/acoustic_liveness.py's own decode_audio_
-      // to_samples, which handles this container via PyAV.
-      form.append('acoustic_recording', toUploadFile(capture.acousticRecordingUri, 'chirp.m4a', 'audio/mp4'));
     }
     if (capture.challengeNonce) {
       form.append('challenge_nonce', capture.challengeNonce);
