@@ -71,6 +71,12 @@ jobs:
       # muessen zusammen kommen, sonst zeigt die App eine Registrierung an, die
       # sie nicht anbietet, oder bietet keine an, obwohl ein Coordinator laeuft.
       EXPO_PUBLIC_BIOMETRIC_ENABLED: ${{ vars.EXPO_PUBLIC_BIOMETRIC_ENABLED }}
+      # Ohne diese Zeile war die Variable folgenlos, selbst wenn jemand sie
+      # gesetzt haette: babel-preset-expo backt nur ein, was zur Bauzeit in der
+      # Prozessumgebung steht. Genau daran scheiterte die Attestierung bisher
+      # unbemerkt -- der Schluessel lag laut Projektnotizen seit dem 18.07.2026
+      # bereit, erreichte die App aber nie.
+      EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER: ${{ vars.EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER }}
       EXPO_PUBLIC_API_BASE: ${{ vars.EXPO_PUBLIC_API_BASE }}
       EXPO_PUBLIC_WEBAPP: ${{ vars.EXPO_PUBLIC_WEBAPP }}
       EXPO_PUBLIC_RPC_URL: ${{ vars.EXPO_PUBLIC_RPC_URL }}
@@ -110,6 +116,25 @@ jobs:
               echo "::error title=Kein WalletConnect-Projekt-ID::Das Repository-Secret EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID fehlt. Ohne sie liefert lib/walletconnect.ts null, WalletContext meldet walletConnectAvailable=false, und der Verbinden-Knopf ist in der fertigen App nicht vorhanden. Secret hinterlegen (Settings -> Secrets and variables -> Actions) oder den Build mit allow_unconfigured=true starten, wenn das gewollt ist."
               exit 1
             fi
+          fi
+
+          # GERAETE-ATTESTIERUNG: lieber sichtbar fehlend als still behauptet.
+          #
+          # lib/attestation.ts liest EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER und
+          # gibt ohne sie null zurueck -- die App schickt dann kein Token, und
+          # der Coordinator vermerkt attestation_status "not_configured". Diese
+          # Variable ist in diesem Repository nie gesetzt gewesen und wurde von
+          # diesem Workflow bis heute nicht einmal durchgereicht, also lief Play
+          # Integrity in KEINER ausgelieferten APK -- waehrend die Release-Notiz
+          # zu v1.5.0 schrieb, die Attestierung laufe "jetzt mit".
+          #
+          # Kein Abbruch: die Attestierung ist erklaertermassen nur ein
+          # Risikosignal und niemals eine Huerde (Geraetequalitaet darf ueber
+          # Personenhaftigkeit nicht entscheiden). Ein fehlendes Signal ist also
+          # kein Grund, niemanden zu registrieren -- wohl aber einer, es nicht
+          # als vorhanden auszuweisen.
+          if [ -z "$EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER" ]; then
+            echo "::warning title=APK ohne Geraete-Attestierung::EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER ist nicht gesetzt. getAttestationPayload() liefert null, die App sendet kein Play-Integrity-Token, und der Coordinator sieht attestation_status=not_configured. Das blockiert niemanden -- aber diese APK darf nicht als attestiert beschrieben werden. Zum Aktivieren: Repository-Variable mit der GCP-Projektnummer anlegen."
           fi
 
           # Railway ist am 14.08.2026 abgeschaltet worden und hostet keinen
