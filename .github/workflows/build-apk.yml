@@ -183,6 +183,26 @@ jobs:
         working-directory: android
         run: |
           chmod +x ./gradlew
+
+          # FIX: der Build starb reproduzierbar mit
+          #   java.lang.OutOfMemoryError: Java heap space
+          # in :app:packageRelease -- also ganz am Ende, nach 30 Minuten Arbeit.
+          #
+          # Ein frueherer Lauf schien das durch einen simplen Neustart zu
+          # ueberleben; das war kein Beweis, sondern ein kleinerer Build. Mit
+          # aktiver Gesichtspruefung (EXPO_PUBLIC_BIOMETRIC_ENABLED) bleibt mehr
+          # Code und mehr Asset erhalten, und seitdem scheitert es zuverlaessig.
+          #
+          # expo prebuild erzeugt android/ neu, also ist jede Aenderung an einer
+          # eingecheckten gradle.properties wirkungslos -- der Wert muss HIER
+          # gesetzt werden, nach prebuild und vor gradlew.
+          #
+          # 6 GB auf einem Runner mit 16 GB: genug Luft fuer R8 und das Packen
+          # einer 215-MB-APK, und noch genug uebrig fuer den Kernel-Cache, ohne
+          # den das Schreiben derselben APK wieder langsam wird.
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
+          echo "--- wirksame JVM-Einstellungen ---"
+          grep '^org.gradle.jvmargs' gradle.properties
           if [ "$VARIANT" = "debug" ]; then
             ./gradlew assembleDebug --no-daemon
           else
