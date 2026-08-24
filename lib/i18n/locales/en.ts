@@ -226,7 +226,7 @@ const en: Translations = {
     logErrorPrefix: 'Error: ',
     logUnknownError: 'Unknown error',
     registrationFailed: 'Registration failed',
-    biometricPrivacyNote: 'Phase 0 test: your face photo and a short liveness recording go to the matching services to check whether you are already registered. The recordings are discarded afterwards. The template computed from them stays stored encrypted; the service decrypts it to compare. A mode in which no single party holds the whole template is built and tested, but not yet active.',
+    biometricPrivacyNote: 'Your face photo and a short liveness recording are compared to check whether you are already registered — and discarded afterwards. Only a 512-bit feature (64 bytes) is stored, from which no face can be reconstructed. The complete face template is not kept anywhere, not even encrypted.',
     deleteTitle: 'Erase my data (withdraw consent)',
     deleteBody: 'Erases your biometric profile at every matching service: wallet link, consent record and all features but one.',
     deleteRetainNote: 'What stays: an encrypted uniqueness token, bound to no wallet and no identity. It answers only whether this person has enrolled before, and stops anyone collecting the 1,000 AEQ a second time. Your on-chain registration remains — you cannot register again afterwards.',

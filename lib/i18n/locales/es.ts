@@ -226,7 +226,7 @@ const es: Translations = {
     logErrorPrefix: 'Error: ',
     logUnknownError: 'Error desconocido',
     registrationFailed: 'Registro fallido',
-    biometricPrivacyNote: 'Prueba de fase 0: tu foto de rostro y una breve grabación de vitalidad se envían a los servicios de comparación para comprobar si ya estás registrado. Las grabaciones se descartan después. La plantilla calculada a partir de ellas queda almacenada cifrada; el servicio la descifra para comparar. Existe un modo en el que ninguna parte guarda la plantilla completa: está construido y probado, pero aún no activo.',
+    biometricPrivacyNote: 'Tu foto de rostro y una breve grabación de vitalidad se comparan para comprobar si ya estás registrado, y luego se descartan. Solo se guarda un rasgo de 512 bits (64 bytes), del que no puede reconstruirse ningún rostro. La plantilla facial completa no se almacena en ningún sitio, ni siquiera cifrada.',
     deleteTitle: 'Borrar mis datos (retirar consentimiento)',
     deleteBody: 'Borra tu perfil biométrico en todos los servicios de comparación: vínculo con la cartera, registro de consentimiento y todos los rasgos menos uno.',
     deleteRetainNote: 'Lo que queda: una marca de unicidad cifrada, sin vínculo con ninguna cartera ni identidad. Solo responde si esta persona ya se registró antes e impide cobrar los 1.000 AEQ por segunda vez. Tu registro en la cadena permanece: después no podrás registrarte de nuevo.',
