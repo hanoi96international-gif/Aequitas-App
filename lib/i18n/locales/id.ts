@@ -226,7 +226,7 @@ const id: Translations = {
     logErrorPrefix: 'Kesalahan: ',
     logUnknownError: 'Kesalahan tidak diketahui',
     registrationFailed: 'Pendaftaran gagal',
-    biometricPrivacyNote: 'Uji Fase 0: foto wajah Anda dan rekaman keaslian singkat dikirim ke layanan pencocokan independen untuk memeriksa Anda belum terdaftar, lalu dibuang. Tidak ada validator yang pernah memegang templat utuh.',
+    biometricPrivacyNote: 'Uji fase 0: foto wajahmu dan rekaman keaslian singkat dikirim ke layanan pencocokan untuk memeriksa apakah kamu sudah terdaftar. Rekaman itu dibuang setelahnya. Templat yang dihitung darinya tetap tersimpan terenkripsi; layanan mendekripsinya untuk membandingkan. Mode di mana tidak ada satu pihak pun memegang templat utuh sudah dibangun dan diuji, tetapi belum aktif.',
     deleteTitle: 'Hapus data saya (tarik persetujuan)',
     deleteBody: 'Menghapus profil biometrikmu di semua layanan pencocokan: kaitan dompet, catatan persetujuan, dan semua ciri kecuali satu.',
     deleteRetainNote: 'Yang tersisa: penanda keunikan terenkripsi, tidak terikat pada dompet atau identitas mana pun. Ia hanya menjawab apakah orang ini pernah mendaftar dan mencegah siapa pun menerima 1.000 AEQ untuk kedua kalinya. Pendaftaranmu di rantai tetap ada — kamu tidak dapat mendaftar lagi setelahnya.',

@@ -226,7 +226,7 @@ const de: Translations = {
     logErrorPrefix: 'Fehler: ',
     logUnknownError: 'Unbekannter Fehler',
     registrationFailed: 'Registrierung fehlgeschlagen',
-    biometricPrivacyNote: 'Phase-0-Test: Dein Gesichtsfoto und eine kurze Lebendigkeits-Aufnahme gehen an unabhängige Vergleichsdienste, um zu prüfen, ob du bereits registriert bist, und werden danach verworfen. Kein Validator hält je eine ganze Vorlage.',
+    biometricPrivacyNote: 'Phase-0-Test: Dein Gesichtsfoto und eine kurze Lebendigkeits-Aufnahme gehen an die Vergleichsdienste, um zu prüfen, ob du bereits registriert bist. Die Aufnahmen werden danach verworfen. Die daraus berechnete Vorlage bleibt verschlüsselt gespeichert; zum Vergleichen entschlüsselt der Dienst sie. Ein Verfahren, bei dem keine einzelne Stelle die ganze Vorlage hält, ist gebaut und getestet, aber noch nicht aktiv.',
     deleteTitle: 'Daten loeschen (Widerruf)',
     deleteBody: 'Loescht dein biometrisches Profil bei allen Vergleichsdiensten: Wallet-Bezug, Einwilligungsdatensatz und alle Merkmale ausser einem.',
     deleteRetainNote: 'Was bleibt: eine verschluesselte Einmaligkeits-Marke, an keine Wallet und keine Identitaet gebunden. Sie beantwortet nur die Frage, ob dieser Mensch sich schon einmal angemeldet hat, und verhindert, dass jemand die 1.000 AEQ ein zweites Mal erhaelt. Deine Registrierung in der Kette bleibt bestehen – du kannst dich danach nicht erneut anmelden.',

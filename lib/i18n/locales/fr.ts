@@ -226,7 +226,7 @@ const fr: Translations = {
     logErrorPrefix: 'Erreur : ',
     logUnknownError: 'Erreur inconnue',
     registrationFailed: 'Échec de l\'enregistrement',
-    biometricPrivacyNote: 'Test Phase 0 : ta photo de visage et un court enregistrement de vivacité sont envoyés à des services de comparaison indépendants pour vérifier que tu n\'es pas déjà enregistré, puis écartés. Aucun validateur ne détient jamais un gabarit entier.',
+    biometricPrivacyNote: 'Test de phase 0 : votre photo de visage et un court enregistrement de vivacité sont envoyés aux services de comparaison pour vérifier si vous êtes déjà inscrit. Les enregistrements sont ensuite supprimés. Le gabarit qui en est calculé reste stocké chiffré ; le service le déchiffre pour comparer. Un mode où aucune partie ne détient le gabarit entier est construit et testé, mais pas encore actif.',
     deleteTitle: 'Effacer mes données (retrait du consentement)',
     deleteBody: 'Efface votre profil biométrique auprès de tous les services de comparaison : lien avec le portefeuille, enregistrement du consentement et tous les traits sauf un.',
     deleteRetainNote: 'Ce qui reste : un jeton d’unicité chiffré, lié à aucun portefeuille ni à aucune identité. Il indique seulement si cette personne s’est déjà inscrite et empêche de toucher les 1 000 AEQ une seconde fois. Votre inscription sur la chaîne demeure : vous ne pourrez plus vous inscrire ensuite.',
