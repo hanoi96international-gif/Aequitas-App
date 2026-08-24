@@ -8,6 +8,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
 import { BIOMETRIC_ENABLED } from '@/lib/config';
+import { storedBioHash, deleteEnrollment } from '@/lib/biometricIdentity';
+import { Alert } from 'react-native';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
@@ -53,6 +55,12 @@ export default function Identity() {
   const [activeStep, setActiveStep] = useState(0);
   const [checkSlow, setCheckSlow] = useState(false);
   const [provingSlow, setProvingSlow] = useState(false);
+  // Withdrawal of consent. bioHash is null when this device never registered
+  // (or the enrolment was already erased) -- the whole section stays hidden
+  // then, rather than offering an action that cannot work.
+  const [bioHash, setBioHash] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const STEPS = [
     { title: t('identity.step1Title'), desc: t('identity.step1Desc') },
@@ -96,6 +104,53 @@ export default function Identity() {
     const timer = setTimeout(() => setCheckSlow(true), CHECK_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [status]);
+
+  useEffect(() => {
+    storedBioHash().then(setBioHash).catch(() => setBioHash(null));
+  }, []);
+
+  // Two-step on purpose: erasure is irreversible, and it does more than drop
+  // this person's row -- it makes them a stranger to the duplicate check, so
+  // the next registration attempt succeeds as a new human. A single stray tap
+  // must not be able to do that.
+  function confirmDelete() {
+    Alert.alert(
+      t('identity.deleteConfirmTitle'),
+      t('identity.deleteConfirmBody'),
+      [
+        { text: t('identity.deleteCancel'), style: 'cancel' },
+        { text: t('identity.deleteConfirmBtn'), style: 'destructive', onPress: runDelete },
+      ],
+    );
+  }
+
+  async function runDelete() {
+    if (!bioHash) return;
+    setDeleting(true);
+    setDeleteMsg(null);
+    try {
+      const res = await deleteEnrollment(bioHash);
+      if (res.status === 'deleted' || res.status === 'not_found') {
+        setBioHash(null);
+        setDeleteMsg({ text: t('identity.deleteDone'), ok: true });
+        addLog(t('identity.deleteDone'), 'success');
+      } else if (res.status === 'partial') {
+        // NOT a success. A validator that was unreachable still holds the
+        // template and can still recognize someone who withdrew consent, so
+        // this says so and keeps the button available for a retry.
+        setDeleteMsg({ text: t('identity.deletePartial'), ok: false });
+        addLog(t('identity.deletePartial'), 'error');
+      } else {
+        setDeleteMsg({ text: t('identity.deleteFailed'), ok: false });
+        addLog(`${t('identity.deleteFailed')} (${res.status})`, 'error');
+      }
+    } catch (e: any) {
+      setDeleteMsg({ text: e?.message ?? t('identity.deleteFailed'), ok: false });
+      addLog(t('identity.deleteFailed'), 'error');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function retryChecking() {
     setCheckSlow(false);
@@ -267,6 +322,37 @@ export default function Identity() {
           ))}
         </View>
 
+        {/* Withdrawal of consent (GDPR Art. 17). Only shown when this device
+            actually holds a bio_hash -- offering an action that cannot work
+            is worse than not offering it.
+
+            The copy deliberately does NOT promise total erasure. An encrypted
+            uniqueness token stays behind, because erasing a biometric and
+            still recognizing its owner are mutually exclusive, and without
+            that token the same person could delete, register again, and
+            collect the 1000 AEQ starting grant a second time -- without limit.
+            See matching-service/app/storage.py:delete_enrollment. */}
+        {bioHash && (
+          <View style={S.deleteCard}>
+            <Text style={S.deleteTitle}>{t('identity.deleteTitle')}</Text>
+            <Text style={S.deleteBody}>{t('identity.deleteBody')}</Text>
+            <Text style={S.deleteNote}>{t('identity.deleteRetainNote')}</Text>
+            {deleteMsg && (
+              <Text style={[S.deleteMsg, deleteMsg.ok ? S.deleteMsgOk : S.deleteMsgErr]}>{deleteMsg.text}</Text>
+            )}
+            {deleting ? (
+              <View style={S.loadingBox}>
+                <ActivityIndicator color={theme.purple} size="small" />
+                <Text style={S.loadingText}>{t('identity.deleteRunning')}</Text>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={confirmDelete} activeOpacity={0.85} style={S.deleteBtn}>
+                <Text style={S.deleteBtnText}>{t('identity.deleteBtn')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {log.length > 0 && (
           <View style={S.logCard}>
             <Text style={S.logTitle}>{t('identity.activityLog')}</Text>
@@ -296,6 +382,16 @@ const S = StyleSheet.create({
   privBadgeText: { color: theme.neon, fontSize: 11, lineHeight: 16, textAlign: 'center' },
 
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 22, borderWidth: 1, borderColor: theme.border },
+
+  deleteCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, borderWidth: 1, borderColor: '#e5484d55' },
+  deleteTitle: { fontSize: 14, fontWeight: '800', color: '#e5484d', marginBottom: 8 },
+  deleteBody: { fontSize: 12, color: theme.muted, lineHeight: 18, marginBottom: 10 },
+  deleteNote: { fontSize: 11, color: theme.muted, lineHeight: 16, fontStyle: 'italic', marginBottom: 14 },
+  deleteBtn: { borderWidth: 1, borderColor: '#e5484d', borderRadius: theme.radiusSm, paddingVertical: 13, alignItems: 'center' },
+  deleteBtnText: { color: '#e5484d', fontSize: 13, fontWeight: '700' },
+  deleteMsg: { fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  deleteMsgOk: { color: theme.neon },
+  deleteMsgErr: { color: '#e5484d' },
 
   step: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, gap: 12 },
   stepCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },

@@ -16,6 +16,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
 import {
   registerBiometric,
+  rememberBioHash,
   requestChallenge,
   getOrCreateDeviceId,
   voucherFor,
@@ -1115,6 +1116,14 @@ export default function BiometricCapture() {
       // device-derived one. No changes to that pipeline, the chain, or the
       // proof server were needed for this.
       if (res.bio_hash && (res.decision === 'new_enrollment' || res.decision === 'duplicate_detected')) {
+        // Keep the bio_hash so this person can later erase their own
+        // enrolment (identity.tsx). It used to be discarded here, which
+        // left DELETE /enrollment reachable only for an operator -- the
+        // self-service half of GDPR Art. 17 existed on the server and had
+        // no client. Deliberately also on duplicate_detected: that person
+        // IS enrolled (from an earlier attempt) and has the same right to
+        // withdraw.
+        await rememberBioHash(res.bio_hash);
         const identity = identityFromBioHash(res.bio_hash);
         const check = await checkAlreadyRegistered(identity.bio);
         if (check.registered && check.is_human) {

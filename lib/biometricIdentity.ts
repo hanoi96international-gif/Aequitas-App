@@ -369,3 +369,96 @@ export async function voucherFor(
   }
   return resp.json();
 }
+
+// ---------------------------------------------------------------------------
+// Withdrawal of consent (GDPR Art. 17).
+//
+// The coordinator has exposed DELETE /enrollment for a while, but nothing in
+// this app ever called it, and worse: the bio_hash it needs was thrown away
+// the moment registration finished. The self-service erasure path existed on
+// the server and was unreachable from the only client that exists.
+//
+// WHY THE bio_hash AND NOT THE WALLET. Both identify the enrolment, but they
+// are not equally secret. The wallet address is PUBLIC -- the chain lists
+// every registered human at /api/humans to anyone who asks -- so the
+// coordinator (rightly) demands an operator credential for that key, and an
+// app must never carry one. The bio_hash is handed to the registrant and to
+// nobody else, so knowing one is itself the evidence of being that person.
+// That is the key a client can legitimately hold, and the only one this code
+// touches.
+
+const BIO_HASH_KEY = 'aequitas_bio_hash_v1';
+
+/** Persists the bio_hash so the person can later erase their own enrolment.
+ *
+ * SecureStore, not AsyncStorage: this value IS the erasure credential for one
+ * human's biometric enrolment. It is not a biometric template and cannot be
+ * turned back into a face, but anyone holding it can delete that enrolment --
+ * which does not merely remove data, it lets the next person through as a
+ * stranger. Hardware-backed storage is the proportionate place for it.
+ *
+ * Never throws: a device that cannot persist it still completed a valid
+ * registration, and failing the whole flow at the last step over a
+ * convenience feature would be the wrong trade. The consequence is a person
+ * who must ask the operator to erase them instead of doing it themselves. */
+export async function rememberBioHash(bioHash: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(BIO_HASH_KEY, bioHash);
+  } catch (e) {
+    console.warn('[biometric] bio_hash konnte nicht gesichert werden', e);
+  }
+}
+
+/** The stored bio_hash, or null if this device never registered (or the
+ * enrolment was already erased). */
+export async function storedBioHash(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(BIO_HASH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export interface DeleteEnrollmentResult {
+  // deleted | not_found | partial | invalid_request | unauthorized
+  status: string;
+  validator_results: { url?: string; status?: string; [k: string]: unknown }[];
+}
+
+/** Erases this person's enrolment at every matching validator.
+ *
+ * PARTIAL IS NOT SUCCESS. The coordinator reports per-validator results
+ * rather than one boolean precisely because a validator that was unreachable
+ * still holds the template and can still "recognize" someone who withdrew
+ * consent. Callers must show `partial` as the incomplete erasure it is
+ * instead of collapsing it into a checkmark.
+ *
+ * The local copy is only forgotten on a clean `deleted`. Dropping it on
+ * `partial` would strand the person: the one key that lets them retry the
+ * erasure would be gone while their data was still out there. */
+export async function deleteEnrollment(bioHash: string): Promise<DeleteEnrollmentResult> {
+  if (!COORDINATOR_BASE) {
+    throw new Error('Biometric coordinator not configured (EXPO_PUBLIC_COORDINATOR_BASE unset)');
+  }
+  const resp = await fetch(`${COORDINATOR_BASE}/enrollment`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    // No wallet_address: that key is public and needs an operator token this
+    // app must not carry. See the block comment above.
+    body: JSON.stringify({ bio_hash: bioHash }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Coordinator delete request failed (HTTP ${resp.status})`);
+  }
+  const result: DeleteEnrollmentResult = await resp.json();
+  if (result.status === 'deleted' || result.status === 'not_found') {
+    // not_found counts: nothing of this person is held any more, which is
+    // exactly the state the request asked for.
+    try {
+      await SecureStore.deleteItemAsync(BIO_HASH_KEY);
+    } catch {
+      /* the server state is what matters; a stale local copy is harmless */
+    }
+  }
+  return result;
+}
