@@ -225,6 +225,23 @@ export interface Translations {
     logUnknownError: string;
     registrationFailed: string;
     biometricPrivacyNote: string;
+
+    // Widerruf der Einwilligung (DSGVO Art. 17). deleteRetainNote traegt die
+    // unbequeme Haelfte: eine verschluesselte Einmaligkeits-Marke bleibt
+    // zurueck, sonst koennte dieselbe Person loeschen, sich neu anmelden und
+    // den Startbetrag ein zweites Mal beziehen.
+    deleteTitle: string;
+    deleteBody: string;
+    deleteRetainNote: string;
+    deleteBtn: string;
+    deleteRunning: string;
+    deleteConfirmTitle: string;
+    deleteConfirmBody: string;
+    deleteConfirmBtn: string;
+    deleteCancel: string;
+    deleteDone: string;
+    deletePartial: string;
+    deleteFailed: string;
     biometricStepsIntro: string;
     biometricConsentTitle: string;
     biometricConsentBody: string;
