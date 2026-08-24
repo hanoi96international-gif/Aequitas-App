@@ -226,7 +226,7 @@ const pt: Translations = {
     logErrorPrefix: 'Erro: ',
     logUnknownError: 'Erro desconhecido',
     registrationFailed: 'Falha no registro',
-    biometricPrivacyNote: 'Teste da Fase 0: a sua foto do rosto e uma curta gravação de vivacidade são enviadas a serviços de comparação independentes para verificar que ainda não está registado, e depois descartadas. Nenhum validador detém alguma vez um modelo inteiro.',
+    biometricPrivacyNote: 'Teste de fase 0: a tua foto de rosto e uma curta gravação de vivacidade vão para os serviços de comparação para verificar se já estás registado. As gravações são descartadas depois. O modelo calculado a partir delas fica guardado cifrado; o serviço decifra-o para comparar. Existe um modo em que nenhuma parte guarda o modelo inteiro: está construído e testado, mas ainda não ativo.',
     deleteTitle: 'Apagar os meus dados (retirar consentimento)',
     deleteBody: 'Apaga o teu perfil biométrico em todos os serviços de comparação: ligação à carteira, registo de consentimento e todas as características menos uma.',
     deleteRetainNote: 'O que fica: uma marca de unicidade cifrada, sem ligação a qualquer carteira ou identidade. Responde apenas se esta pessoa já se registou antes e impede receber os 1.000 AEQ uma segunda vez. O teu registo na cadeia permanece — depois não poderás registar-te de novo.',

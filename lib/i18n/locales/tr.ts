@@ -226,7 +226,7 @@ const tr: Translations = {
     logErrorPrefix: 'Hata: ',
     logUnknownError: 'Bilinmeyen hata',
     registrationFailed: 'Kayıt başarısız oldu',
-    biometricPrivacyNote: 'Faz 0 testi: yüz fotoğrafınız ve kısa bir canlılık kaydı, henüz kayıtlı olmadığınızı denetlemek için bağımsız eşleştirme servislerine gönderilir, sonra atılır. Hiçbir doğrulayıcı tam bir şablon tutmaz.',
+    biometricPrivacyNote: 'Faz 0 testi: yüz fotoğrafın ve kısa bir canlılık kaydı, zaten kayıtlı olup olmadığını denetlemek için karşılaştırma servislerine gider. Kayıtlar sonrasında atılır. Bunlardan hesaplanan şablon şifreli olarak saklanır; servis karşılaştırmak için onu çözer. Hiçbir tarafın şablonun tamamını tutmadığı bir kip yazıldı ve sınandı, ancak henüz etkin değil.',
     deleteTitle: 'Verilerimi sil (rızayı geri çek)',
     deleteBody: 'Biyometrik profilini tüm karşılaştırma servislerinde siler: cüzdan bağlantısı, rıza kaydı ve biri dışında tüm özellikler.',
     deleteRetainNote: 'Kalan: hiçbir cüzdana ve kimliğe bağlı olmayan şifreli bir teklik işareti. Yalnızca bu kişinin daha önce kayıt olup olmadığını yanıtlar ve 1.000 AEQ’nun ikinci kez alınmasını engeller. Zincirdeki kaydın kalır — sonrasında yeniden kayıt olamazsın.',

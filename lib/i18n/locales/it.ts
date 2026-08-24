@@ -226,7 +226,7 @@ const it: Translations = {
     logErrorPrefix: 'Errore: ',
     logUnknownError: 'Errore sconosciuto',
     registrationFailed: 'Registrazione fallita',
-    biometricPrivacyNote: 'Test di Fase 0: la tua foto del volto e una breve registrazione di vitalità vengono inviate a servizi di confronto indipendenti per verificare che tu non sia già registrato, poi scartate. Nessun validatore possiede mai un modello intero.',
+    biometricPrivacyNote: 'Test di fase 0: la tua foto del viso e una breve registrazione di vitalità vengono inviate ai servizi di confronto per verificare se sei già registrato. Le registrazioni vengono poi scartate. Il modello che ne deriva resta memorizzato cifrato; il servizio lo decifra per confrontarlo. Una modalità in cui nessuna singola parte detiene il modello intero è costruita e testata, ma non ancora attiva.',
     deleteTitle: 'Cancella i miei dati (revoca del consenso)',
     deleteBody: 'Cancella il tuo profilo biometrico presso tutti i servizi di confronto: collegamento al portafoglio, registro del consenso e tutte le caratteristiche tranne una.',
     deleteRetainNote: 'Ciò che resta: un contrassegno di unicità cifrato, non legato ad alcun portafoglio né identità. Indica soltanto se questa persona si è già registrata e impedisce di riscuotere i 1.000 AEQ una seconda volta. La tua registrazione sulla catena resta: dopo non potrai registrarti di nuovo.',
