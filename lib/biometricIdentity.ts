@@ -1,4 +1,5 @@
-// Phase 0 biometric proof-of-personhood client (palm+face matching, see
+// Phase 0 biometric proof-of-personhood client (face matching only since
+// 2026-08-23 -- palm, fingertip, ear and the acoustic test were removed, see
 // aequitas-biometric-beta). Talks to the COORDINATOR, never a validator
 // directly -- going straight to one validator would bypass the quorum
 // protection that architecture exists for (see quorum.py's docstring).
