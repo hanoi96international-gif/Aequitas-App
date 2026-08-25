@@ -21,7 +21,11 @@ import { COORDINATOR_BASE } from './config';
 // Matches aequitas-biometric-beta/docs/einwilligung-entwurf.md -- bump if
 // that text changes, so consent records stay tied to the exact version
 // someone agreed to.
-export const CONSENT_VERSION = 'einwilligung-entwurf-v1-2026-07-13';
+// Erhoeht am 25.08.2026: v1 zeigte auf einen Entwurf, der ein Foto der
+// Handflaeche ankuendigte (seit 23.08. nicht mehr erfasst) und behauptete,
+// es werde noch kein Bonus ausgezahlt (wird er). Siehe
+// aequitas-biometric-beta/docs/dsgvo/09_EINWILLIGUNG.md.
+export const CONSENT_VERSION = 'einwilligung-v2-2026-08-25';
 
 const DEVICE_ID_KEY = 'aequitas_biometric_device_id_v1';
 
