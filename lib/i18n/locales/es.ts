@@ -198,6 +198,7 @@ const es: Translations = {
     checkingStatus: 'Comprobando estado de registro…',
     checkingSlow: 'Está tardando más de lo esperado — comprueba tu conexión e inténtalo de nuevo.',
     proveHumanityBtn: '🔐  DEMOSTRAR MI HUMANIDAD',
+    biometricDisabled: 'La verificación facial no está activada en esta versión. Sin ella no es posible registrarse: instala la aplicación actual desde aequitas.digital.',
     verifying: 'Verificando…',
     provingSlow: 'Generando tu prueba de conocimiento cero — esto puede tardar hasta un minuto.',
     retryBtn: 'REINTENTAR',

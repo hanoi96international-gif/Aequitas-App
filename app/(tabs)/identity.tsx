@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import { useWallet } from '@/contexts/WalletContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
-import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
 import { BIOMETRIC_ENABLED } from '@/lib/config';
 import { storedBioHash, deleteEnrollment } from '@/lib/biometricIdentity';
 import { Alert } from 'react-native';
@@ -162,50 +161,20 @@ export default function Identity() {
       router.push('/biometric-capture');
       return;
     }
-    if (!signer) return;
-    setStatus('proving');
-    setLog([]);
-    setActiveStep(0);
-    setProvingSlow(false);
-    const slowTimer = setTimeout(() => setProvingSlow(true), PROVING_SLOW_MS);
-    try {
-      addLog(t('identity.logCheckingBiometric'), 'info');
-      const identity = await getDeviceIdentity();
-      addLog(t('identity.logDeviceReady'), 'success');
-      setActiveStep(1);
-
-      addLog(t('identity.logCheckingExisting'), 'info');
-      const check = await checkAlreadyRegistered(identity.bio);
-      if (check.registered && check.is_human) {
-        addLog(t('identity.logAlreadyRegistered'), 'success');
-        setStatus('already_registered');
-        refreshBalance();
-        return;
-      }
-      if (check.biometric_in_use) {
-        addLog(t('identity.logBiometricInUse'), 'error');
-        addLog(t('identity.logOnePersonOneWallet'), 'error');
-        setStatus('error');
-        return;
-      }
-
-      addLog(t('identity.logRequestingProof'), 'info');
-      setActiveStep(2);
-      const result = await proveAndRegister(signer, identity, t('trade.signTimeout'));
-      if (!result.success) throw new Error(result.message || t('identity.registrationFailed'));
-
-      setActiveStep(4);
-      addLog(t('identity.logConfirmed'), 'success');
-      addLog(t('identity.logCredited'), 'success');
-      setStatus('registered');
-      refreshBalance();
-    } catch (e: any) {
-      addLog(t('identity.logErrorPrefix') + (e?.message ?? t('identity.logUnknownError')), 'error');
-      setStatus('error');
-    } finally {
-      clearTimeout(slowTimer);
-      setProvingSlow(false);
-    }
+    // FAIL-CLOSED (25.08.2026): der Geraetegeheimnis-Weg darunter prueft
+    // KEINEN Menschen, nur ein Geraet. Solange BIOMETRIC_ENABLED gesetzt ist,
+    // wird er nie erreicht -- aber ein umgelegter Schalter haette die
+    // Registrierung stillschweigend auf ihn zurueckfallen lassen, und genau
+    // dieses Muster (ein Flag oeffnet lautlos ein Sybil-Loch) ist in diesem
+    // Projekt schon einmal aufgetreten.
+    //
+    // Seit die Proof-Server BIO_ATTESTATION_MODE=required fahren, KANN dieser
+    // Weg ohnehin nicht mehr durchgehen: er schickt keine Attestierung und
+    // bekaeme ein 403 mit einer Meldung, die niemandem etwas sagt. Lieber
+    // ehrlich stehenbleiben als unverstaendlich scheitern.
+    addLog(t('identity.biometricDisabled'), 'error');
+    setStatus('error');
+    return;
   }
 
   function stepState(i: number): StepState {

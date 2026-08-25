@@ -196,6 +196,7 @@ export interface Translations {
     checkingStatus: string;
     checkingSlow: string;
     proveHumanityBtn: string;
+    biometricDisabled: string;
     verifying: string;
     provingSlow: string;
     retryBtn: string;

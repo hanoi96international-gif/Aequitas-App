@@ -198,6 +198,7 @@ const tr: Translations = {
     checkingStatus: 'Kayıt durumu kontrol ediliyor…',
     checkingSlow: 'Beklenenden uzun sürüyor — bağlantınızı kontrol edip tekrar deneyin.',
     proveHumanityBtn: '🔐  İNSANLIĞIMI KANITLA',
+    biometricDisabled: 'Yüz doğrulama bu sürümde etkin değil. Onsuz kayıt mümkün değildir — lütfen güncel uygulamayı aequitas.digital adresinden yükleyin.',
     verifying: 'Doğrulama devam ediyor…',
     provingSlow: 'Sıfır bilgi kanıtınız oluşturuluyor — bu bir dakikaya kadar sürebilir.',
     retryBtn: 'TEKRAR DENE',

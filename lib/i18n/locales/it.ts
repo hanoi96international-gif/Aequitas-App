@@ -198,6 +198,7 @@ const it: Translations = {
     checkingStatus: 'Verifica dello stato di registrazione…',
     checkingSlow: 'Ci sta mettendo più tempo del previsto — controlla la tua connessione e riprova.',
     proveHumanityBtn: '🔐  DIMOSTRA LA MIA UMANITÀ',
+    biometricDisabled: "La verifica del volto non è attiva in questa versione. Senza di essa la registrazione non è possibile: installa l'app aggiornata da aequitas.digital.",
     verifying: 'Verifica in corso…',
     provingSlow: 'Generazione della tua prova a conoscenza zero in corso — può richiedere fino a un minuto.',
     retryBtn: 'RIPROVA',

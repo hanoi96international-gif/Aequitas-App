@@ -198,6 +198,7 @@ const id: Translations = {
     checkingStatus: 'Memeriksa status pendaftaran…',
     checkingSlow: 'Prosesnya lebih lama dari perkiraan — periksa koneksi Anda dan coba lagi.',
     proveHumanityBtn: '🔐  BUKTIKAN KEMANUSIAAN SAYA',
+    biometricDisabled: 'Verifikasi wajah tidak aktif di versi ini. Tanpa itu pendaftaran tidak mungkin — silakan pasang aplikasi terbaru dari aequitas.digital.',
     verifying: 'Verifikasi sedang berlangsung…',
     provingSlow: 'Membuat bukti tanpa pengetahuan Anda — ini bisa memakan waktu hingga satu menit.',
     retryBtn: 'COBA LAGI',

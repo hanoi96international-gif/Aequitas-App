@@ -44,12 +44,25 @@ export const NATIVE_CURRENCY = { name: 'Aequitas', symbol: 'AEQ', decimals: 18 }
 
 export const WALLETCONNECT_PROJECT_ID = process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '';
 
-// Phase 0 biometric proof-of-personhood (palm+face matching, see
-// aequitas-biometric-beta). Defaults OFF/empty -- unset in every build
-// today, so the Identity tab's existing device-secret flow (and its "your
-// biometric data never leaves this device" copy, which is true for THAT
-// flow) is completely unchanged unless this is explicitly turned on. Do
-// not enable before Phase 0 accuracy validation and Phase 2 legal review
-// are actually done, not just this code being merged.
+// Biometrischer Menschlichkeitsnachweis (Gesichtsvergleich, siehe
+// aequitas-biometric-beta).
+//
+// STAND 25.08.2026: EINGESCHALTET. Die Repository-Variable
+// EXPO_PUBLIC_BIOMETRIC_ENABLED steht seit dem 23.08.2026 auf true, und
+// v1.6.0 ist damit gebaut. Der frueher hier stehende Satz "unset in every
+// build today" stimmte nicht mehr.
+//
+// Die urspruengliche Auflage lautete: nicht einschalten, bevor die
+// Phase-2-Rechtspruefung durch ist. Die steht weiterhin AUS. Was heute
+// schuetzt, ist der serverseitige Riegel -- ALLOW_REAL_BIOMETRIC_DATA=false
+// und SERVICE_MODE=test beim Coordinator --, nicht dieser Schalter. Wer die
+// Rechtslage bewertet, sollte das wissen: es werden echte Gesichter
+// verarbeitet, sie landen nur in der Testtabelle.
+//
+// Ist der Schalter AUS, registriert die App nicht mehr ueber den alten
+// Geraetegeheimnis-Weg, sondern bleibt mit einer Meldung stehen -- siehe
+// identity.tsx, proveHumanity(). Jener Weg prueft keinen Menschen, und seit
+// die Proof-Server BIO_ATTESTATION_MODE=required fahren, kaeme er ohnehin
+// nicht mehr durch.
 export const BIOMETRIC_ENABLED = process.env.EXPO_PUBLIC_BIOMETRIC_ENABLED === 'true';
 export const COORDINATOR_BASE = process.env.EXPO_PUBLIC_COORDINATOR_BASE ?? '';

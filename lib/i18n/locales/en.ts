@@ -198,6 +198,7 @@ const en: Translations = {
     checkingStatus: 'Checking registration status…',
     checkingSlow: 'Taking longer than expected — check your connection and try again.',
     proveHumanityBtn: '🔐  PROVE YOUR HUMANITY',
+    biometricDisabled: 'Face verification is not enabled in this build. Registration is not possible without it — please install the current app from aequitas.digital.',
     verifying: 'Verifying…',
     provingSlow: 'Generating your zero-knowledge proof — this can take up to a minute.',
     retryBtn: 'RETRY',
