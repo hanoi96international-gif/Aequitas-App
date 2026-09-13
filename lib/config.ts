@@ -47,22 +47,25 @@ export const WALLETCONNECT_PROJECT_ID = process.env.EXPO_PUBLIC_WALLETCONNECT_PR
 // Biometrischer Menschlichkeitsnachweis (Gesichtsvergleich, siehe
 // aequitas-biometric-beta).
 //
-// STAND 25.08.2026: EINGESCHALTET. Die Repository-Variable
-// EXPO_PUBLIC_BIOMETRIC_ENABLED steht seit dem 23.08.2026 auf true, und
-// v1.6.0 ist damit gebaut. Der frueher hier stehende Satz "unset in every
-// build today" stimmte nicht mehr.
+// Phase 0 launch (2026-09): default OFF. When true, Identity routes to
+// /biometric-capture and registerBiometric() REQUIRES COORDINATOR_BASE;
+// do not ship true without a live coordinator.
 //
-// Die urspruengliche Auflage lautete: nicht einschalten, bevor die
-// Phase-2-Rechtspruefung durch ist. Die steht weiterhin AUS. Was heute
-// schuetzt, ist der serverseitige Riegel -- ALLOW_REAL_BIOMETRIC_DATA=false
-// und SERVICE_MODE=test beim Coordinator --, nicht dieser Schalter. Wer die
-// Rechtslage bewertet, sollte das wissen: es werden echte Gesichter
-// verarbeitet, sie landen nur in der Testtabelle.
+// When BIOMETRIC_ENABLED is false, registration is NOT a silent fallback to
+// the device-secret path. It runs only if ALLOW_DEVICE_SECRET_REGISTER is
+// explicitly true (build-time EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER=true);
+// otherwise Identity fail-closes with identity.biometricDisabled.
+// Device-secret uniqueness is per-device, not per-face — intentional for the
+// Phase 0 launch window without face/coordinator.
 //
-// Ist der Schalter AUS, registriert die App nicht mehr ueber den alten
-// Geraetegeheimnis-Weg, sondern bleibt mit einer Meldung stehen -- siehe
-// identity.tsx, proveHumanity(). Jener Weg prueft keinen Menschen, und seit
-// die Proof-Server BIO_ATTESTATION_MODE=required fahren, kaeme er ohnehin
-// nicht mehr durch.
+// v1.6.0 was built with the repo variable set true (23.08.2026) while public
+// docs later removed the coordinator URL — that combination cannot register.
+// Phase 0 APK builds should leave BIOMETRIC unset/false and set ALLOW=true.
+//
+// Server note (not changed here): device-secret proofs omit bioAttestation.
+// That works when proof servers run BIO_ATTESTATION_MODE=off|optional; if
+// mode=required, Phase 0 registration will 403 until mode is relaxed or a
+// coordinator is restored (Contabo / proof-server out of scope for this PR).
 export const BIOMETRIC_ENABLED = process.env.EXPO_PUBLIC_BIOMETRIC_ENABLED === 'true';
+export const ALLOW_DEVICE_SECRET_REGISTER = process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER === 'true';
 export const COORDINATOR_BASE = process.env.EXPO_PUBLIC_COORDINATOR_BASE ?? '';

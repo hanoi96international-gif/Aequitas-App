@@ -199,6 +199,7 @@ const hi: Translations = {
     checkingSlow: 'अपेक्षा से अधिक समय लग रहा है — अपना कनेक्शन जांचें और फिर से प्रयास करें।',
     proveHumanityBtn: '🔐  अपनी मानवता सिद्ध करें',
     biometricDisabled: 'इस संस्करण में चेहरा सत्यापन सक्षम नहीं है। इसके बिना पंजीकरण संभव नहीं है — कृपया aequitas.digital से वर्तमान ऐप इंस्टॉल करें।',
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: 'सत्यापन जारी है…',
     provingSlow: 'आपका ज़ीरो-नॉलेज प्रूफ तैयार किया जा रहा है — इसमें एक मिनट तक लग सकता है।',
     retryBtn: 'पुनः प्रयास करें',

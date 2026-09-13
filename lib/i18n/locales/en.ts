@@ -199,6 +199,7 @@ const en: Translations = {
     checkingSlow: 'Taking longer than expected — check your connection and try again.',
     proveHumanityBtn: '🔐  PROVE YOUR HUMANITY',
     biometricDisabled: 'Face verification is not enabled in this build. Registration is not possible without it — please install the current app from aequitas.digital.',
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: 'Verifying…',
     provingSlow: 'Generating your zero-knowledge proof — this can take up to a minute.',
     retryBtn: 'RETRY',

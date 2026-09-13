@@ -199,6 +199,7 @@ const id: Translations = {
     checkingSlow: 'Prosesnya lebih lama dari perkiraan — periksa koneksi Anda dan coba lagi.',
     proveHumanityBtn: '🔐  BUKTIKAN KEMANUSIAAN SAYA',
     biometricDisabled: 'Verifikasi wajah tidak aktif di versi ini. Tanpa itu pendaftaran tidak mungkin — silakan pasang aplikasi terbaru dari aequitas.digital.',
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: 'Verifikasi sedang berlangsung…',
     provingSlow: 'Membuat bukti tanpa pengetahuan Anda — ini bisa memakan waktu hingga satu menit.',
     retryBtn: 'COBA LAGI',

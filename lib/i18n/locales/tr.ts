@@ -199,6 +199,7 @@ const tr: Translations = {
     checkingSlow: 'Beklenenden uzun sürüyor — bağlantınızı kontrol edip tekrar deneyin.',
     proveHumanityBtn: '🔐  İNSANLIĞIMI KANITLA',
     biometricDisabled: 'Yüz doğrulama bu sürümde etkin değil. Onsuz kayıt mümkün değildir — lütfen güncel uygulamayı aequitas.digital adresinden yükleyin.',
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: 'Doğrulama devam ediyor…',
     provingSlow: 'Sıfır bilgi kanıtınız oluşturuluyor — bu bir dakikaya kadar sürebilir.',
     retryBtn: 'TEKRAR DENE',
