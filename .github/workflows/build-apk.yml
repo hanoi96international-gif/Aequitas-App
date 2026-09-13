@@ -71,6 +71,7 @@ jobs:
       # muessen zusammen kommen, sonst zeigt die App eine Registrierung an, die
       # sie nicht anbietet, oder bietet keine an, obwohl ein Coordinator laeuft.
       EXPO_PUBLIC_BIOMETRIC_ENABLED: ${{ vars.EXPO_PUBLIC_BIOMETRIC_ENABLED }}
+      EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER: ${{ vars.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER }}
       # Ohne diese Zeile war die Variable folgenlos, selbst wenn jemand sie
       # gesetzt haette: babel-preset-expo backt nur ein, was zur Bauzeit in der
       # Prozessumgebung steht. Genau daran scheiterte die Attestierung bisher
