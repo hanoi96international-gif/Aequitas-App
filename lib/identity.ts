@@ -105,7 +105,7 @@ export async function proveAndRegister(
   // Forwarded verbatim to the proof server when the identity came from the
   // biometric coordinator. Absent for the device-secret flow, which has no
   // coordinator to attest for it.
-  attestation?: { signature: string | null; issuedAt: number | null }
+  attestation?: { signature: string | null; issuedAt: number | null; grantClass?: string | null; grantClassSignature?: string | null }
 ) {
   const proof = await requestProof({
     bio: identity.bio,
@@ -113,6 +113,8 @@ export async function proveAndRegister(
     wallet: signer.address,
     bioAttestation: attestation?.signature ?? undefined,
     bioAttestationIssuedAt: attestation?.issuedAt ?? undefined,
+    grantClass: attestation?.grantClass ?? undefined,
+    grantClassSignature: attestation?.grantClassSignature ?? undefined,
   });
   const { pA, pB, pC, pubSignals, zkNullifier, circuitVersion, bioHashKey } = proof;
   if (!zkNullifier) {

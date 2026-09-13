@@ -190,6 +190,11 @@ export async function requestProof(params: {
   // not a deployment detail.
   bioAttestation?: string | null;
   bioAttestationIssuedAt?: number | null;
+  // WP 2 (staged grant): the coordinator's signed grant class, forwarded
+  // verbatim. The proof server verifies the signature; the chain reads the
+  // class from its own /prove provenance note -- never from the app.
+  grantClass?: string | null;
+  grantClassSignature?: string | null;
 }): Promise<ProveResponse> {
   // Goes through the chain server's authenticated proxy (/api/prove), never
   // directly to the proof server — the proof server's own /prove requires a

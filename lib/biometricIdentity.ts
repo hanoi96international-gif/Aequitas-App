@@ -307,6 +307,11 @@ export interface BiometricRegisterResult {
   bio_attestation_issued_at?: number | null;
   attestation_key?: string | null;
   bio_attestation_error?: string | null;
+  // WP 2: signed grant class ("sofort" | "gestaffelt"), only present when the
+  // coordinator runs with LEBENDIGKEIT_VERBINDLICH=true. Forwarded to
+  // /api/prove as-is; the app never interprets it.
+  grant_class?: string | null;
+  grant_class_signature?: string | null;
 }
 
 function toUploadFile(uri: string, name: string, type = 'image/jpeg') {

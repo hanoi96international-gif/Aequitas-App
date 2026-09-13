@@ -1173,6 +1173,8 @@ export default function BiometricCapture() {
         const proveResult = await proveAndRegister(signer, identity, t('trade.signTimeout'), {
           signature: res.bio_attestation ?? null,
           issuedAt: res.bio_attestation_issued_at ?? null,
+          grantClass: res.grant_class ?? null,
+          grantClassSignature: res.grant_class_signature ?? null,
         });
         if (!proveResult.success) {
           setSubmitError(proveResult.message || t('identity.registrationFailed'));
