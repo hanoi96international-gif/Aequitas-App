@@ -26,6 +26,8 @@ const de: Translations = {
     statValidatorsSub: 'verschiedene Vorschlagende, zuletzt',
     ubiNextPayout: 'NÄCHSTE UBI-AUSSCHÜTTUNG',
     ubiSub: 'Täglich · automatisch · für jeden verifizierten Menschen',
+    ubiTimeBarLbl: 'Zeit bis zur täglichen Auszahlung (20:00 Berlin)',
+    ubiPoolBalance: 'UBI-Pool-Guthaben',
     equalityIndex: 'EQUALITY INDEX',
     grade: 'Grade',
     giniCoefficient: 'Gini-Koeffizient',

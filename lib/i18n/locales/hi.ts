@@ -26,6 +26,8 @@ const hi: Translations = {
     statValidatorsSub: 'हाल के अलग प्रस्तावक',
     ubiNextPayout: 'अगला UBI भुगतान',
     ubiSub: 'प्रतिदिन · स्वचालित · हर सत्यापित मनुष्य के लिए',
+    ubiTimeBarLbl: 'Time until daily payout (20:00 Berlin)',
+    ubiPoolBalance: 'UBI pool balance',
     equalityIndex: 'समानता सूचकांक',
     grade: 'ग्रेड',
     giniCoefficient: 'गिनी गुणांक',

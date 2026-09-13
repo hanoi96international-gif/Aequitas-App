@@ -26,6 +26,8 @@ const tr: Translations = {
     statValidatorsSub: 'farklı öneren, son zamanlarda',
     ubiNextPayout: 'SONRAKİ UBI ÖDEMESİ',
     ubiSub: 'Günlük · otomatik · doğrulanmış her insan için',
+    ubiTimeBarLbl: 'Time until daily payout (20:00 Berlin)',
+    ubiPoolBalance: 'UBI pool balance',
     equalityIndex: 'EŞİTLİK ENDEKSİ',
     grade: 'Not',
     giniCoefficient: 'Gini Katsayısı',

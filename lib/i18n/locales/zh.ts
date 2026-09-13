@@ -26,6 +26,8 @@ const zh: Translations = {
     statValidatorsSub: '近期不同提案者',
     ubiNextPayout: '下次 UBI 发放',
     ubiSub: '每日 · 自动 · 面向每位已验证人类',
+    ubiTimeBarLbl: 'Time until daily payout (20:00 Berlin)',
+    ubiPoolBalance: 'UBI pool balance',
     equalityIndex: '平等指数',
     grade: '等级',
     giniCoefficient: '基尼系数',

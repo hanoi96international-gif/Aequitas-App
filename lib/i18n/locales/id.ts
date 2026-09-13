@@ -26,6 +26,8 @@ const id: Translations = {
     statValidatorsSub: 'pengusul berbeda, terbaru',
     ubiNextPayout: 'PEMBAYARAN UBI BERIKUTNYA',
     ubiSub: 'Harian · otomatis · untuk setiap manusia terverifikasi',
+    ubiTimeBarLbl: 'Time until daily payout (20:00 Berlin)',
+    ubiPoolBalance: 'UBI pool balance',
     equalityIndex: 'INDEKS KESETARAAN',
     grade: 'Nilai',
     giniCoefficient: 'Koefisien Gini',
