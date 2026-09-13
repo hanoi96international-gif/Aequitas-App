@@ -74,7 +74,7 @@ export const COORDINATOR_BASE = process.env.EXPO_PUBLIC_COORDINATOR_BASE ?? '';
 // ganzen Ablauf derselbe: ein Challenge-Nonce gilt nur bei dem Coordinator,
 // der ihn ausgegeben hat (coordinator/app/main.py, _pending_challenges liegt
 // im Arbeitsspeicher). Siehe lib/biometricIdentity.ts, coordinatorBase().
-export const COORDINATOR_FALLBACKS: string[] = (process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS ?? '')
+export const COORDINATOR_FALLBACKS: string[] = String(process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS ?? '')
   .split(',')
-  .map((s) => s.trim().replace(/\/+$/, ''))
+  .map((s: string) => s.trim().replace(/\/+$/, ''))
   .filter(Boolean);
