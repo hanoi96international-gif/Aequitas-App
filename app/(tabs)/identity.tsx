@@ -8,7 +8,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
-import { storedBioHash, deleteEnrollment } from '@/lib/biometricIdentity';
+import { storedBioHash, deleteEnrollment, nachgezogenAt } from '@/lib/biometricIdentity';
 import { Alert } from 'react-native';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 
@@ -59,6 +59,9 @@ export default function Identity() {
   // (or the enrolment was already erased) -- the whole section stays hidden
   // then, rather than offering an action that cannot work.
   const [bioHash, setBioHash] = useState<string | null>(null);
+  // null = never added a face via the Nachziehen step on this device; a
+  // timestamp once it was done (or the gallery already knew the face).
+  const [nachgezogen, setNachgezogen] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -107,7 +110,18 @@ export default function Identity() {
 
   useEffect(() => {
     storedBioHash().then(setBioHash).catch(() => setBioHash(null));
+    nachgezogenAt().then(setNachgezogen).catch(() => setNachgezogen(null));
   }, []);
+
+  // Re-read after the capture screen closes: rememberNachgezogen() runs
+  // there, and this tab stays mounted underneath it.
+  useEffect(() => {
+    if (status !== 'already_registered') return;
+    const timer = setInterval(() => {
+      nachgezogenAt().then(setNachgezogen).catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [status]);
 
   // Two-step on purpose: erasure is irreversible, and it does more than drop
   // this person's row -- it makes them a stranger to the duplicate check, so
@@ -348,6 +362,29 @@ export default function Identity() {
             that token the same person could delete, register again, and
             collect the 1000 AEQ starting grant a second time -- without limit.
             See matching-service/app/storage.py:delete_enrollment. */}
+        {/* Nachziehen: this wallet is a registered human, but this device
+            holds no bio_hash -- so it was registered before the face check
+            (device secret, before 2026-08-25) and the gallery does not know
+            the face. Offer the one step that closes that gap. Shown until
+            done; the coordinator answers bereits_in_galerie if it was ever
+            done elsewhere, which counts as done too. */}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && nachgezogen === null && (
+          <View style={S.nachziehCard}>
+            <Text style={S.nachziehTitle}>{t('identity.nachziehenTitle')}</Text>
+            <Text style={S.deleteBody}>{t('identity.nachziehenBody')}</Text>
+            <TouchableOpacity onPress={() => router.push('/biometric-capture?zweck=nachziehen')} activeOpacity={0.85}>
+              <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                <Text style={S.btnPrimaryText}>{t('identity.nachziehenBtn')}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && nachgezogen !== null && (
+          <View style={S.nachziehCard}>
+            <Text style={S.nachziehDone}>{t('identity.nachziehenDone')}</Text>
+          </View>
+        )}
+
         {bioHash && (
           <View style={S.deleteCard}>
             <Text style={S.deleteTitle}>{t('identity.deleteTitle')}</Text>
@@ -403,6 +440,9 @@ const S = StyleSheet.create({
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 22, borderWidth: 1, borderColor: theme.border },
 
   deleteCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, borderWidth: 1, borderColor: '#e5484d55' },
+  nachziehCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, borderWidth: 1, borderColor: theme.purple + '66' },
+  nachziehTitle: { fontSize: 14, fontWeight: '800', color: theme.purple, marginBottom: 8 },
+  nachziehDone: { fontSize: 12, color: theme.muted, lineHeight: 18 },
   deleteTitle: { fontSize: 14, fontWeight: '800', color: '#e5484d', marginBottom: 8 },
   deleteBody: { fontSize: 12, color: theme.muted, lineHeight: 18, marginBottom: 10 },
   deleteNote: { fontSize: 11, color: theme.muted, lineHeight: 16, fontStyle: 'italic', marginBottom: 14 },

@@ -69,3 +69,12 @@ export const WALLETCONNECT_PROJECT_ID = process.env.EXPO_PUBLIC_WALLETCONNECT_PR
 export const BIOMETRIC_ENABLED = process.env.EXPO_PUBLIC_BIOMETRIC_ENABLED === 'true';
 export const ALLOW_DEVICE_SECRET_REGISTER = process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER === 'true';
 export const COORDINATOR_BASE = process.env.EXPO_PUBLIC_COORDINATOR_BASE ?? '';
+// Weitere Coordinatoren, kommagetrennt (z. B. proof2, wenn COORDINATOR_BASE
+// auf proof1 zeigt). Der erste erreichbare gewinnt -- und bleibt fuer den
+// ganzen Ablauf derselbe: ein Challenge-Nonce gilt nur bei dem Coordinator,
+// der ihn ausgegeben hat (coordinator/app/main.py, _pending_challenges liegt
+// im Arbeitsspeicher). Siehe lib/biometricIdentity.ts, coordinatorBase().
+export const COORDINATOR_FALLBACKS: string[] = (process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS ?? '')
+  .split(',')
+  .map((s) => s.trim().replace(/\/+$/, ''))
+  .filter(Boolean);

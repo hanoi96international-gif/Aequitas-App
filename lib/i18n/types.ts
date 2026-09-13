@@ -306,6 +306,20 @@ export interface Translations {
     biometricResultLivenessFailed: string;
     biometricResultQuorumFailed: string;
     biometricBackBtn: string;
+    // Nachziehen: ein Altkonto (Geraetegeheimnis, vor 25.08.2026) liefert
+    // sein Gesicht nach -- siehe lib/biometricIdentity.ts, nachziehenBiometric.
+    nachziehenTitle: string;
+    nachziehenBody: string;
+    nachziehenBtn: string;
+    nachziehenDone: string;
+    nachziehenConsentTitle: string;
+    nachziehenConsentBody: string;
+    nachziehenResultDone: string;
+    nachziehenResultAlready: string;
+    nachziehenResultNotRegistered: string;
+    nachziehenResultSignature: string;
+    nachziehenResultNoChallenge: string;
+    nachziehenResultChainDown: string;
     biometricVouchTitle: string;
     biometricYourIdLabel: string;
     biometricCopyIdBtn: string;

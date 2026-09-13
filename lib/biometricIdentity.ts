@@ -16,7 +16,70 @@ import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { getAttestationPayload } from './attestation';
-import { COORDINATOR_BASE } from './config';
+import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
+import type { AequitasSigner } from './signer';
+
+// ---------------------------------------------------------------------------
+// Which coordinator. COORDINATOR_BASE first, then COORDINATOR_FALLBACKS in
+// order; the first one whose /health answers wins and STAYS the choice for
+// the next few minutes. Sticky on purpose: a /challenge nonce lives only in
+// the memory of the coordinator that issued it (coordinator/app/main.py,
+// _pending_challenges), so /challenge and the /register or /nachziehen that
+// follows must reach the same instance. /nachziehen even requires the nonce
+// (it is part of the ownership signature) -- a silent switch mid-flow would
+// fail every attempt with nonce_ungueltig.
+// ---------------------------------------------------------------------------
+const COORDINATOR_STICKY_MS = 5 * 60 * 1000;
+const COORDINATOR_PROBE_MS = 6000;
+let activeCoordinator: { base: string; since: number } | null = null;
+
+export function coordinatorCandidates(): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [COORDINATOR_BASE, ...COORDINATOR_FALLBACKS]) {
+    const base = (raw ?? '').trim().replace(/\/+$/, '');
+    if (base && !seen.has(base)) {
+      seen.add(base);
+      out.push(base);
+    }
+  }
+  return out;
+}
+
+async function healthy(base: string): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), COORDINATOR_PROBE_MS);
+  try {
+    const resp = await fetch(`${base}/health`, { signal: ctrl.signal });
+    return resp.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The coordinator to talk to for this flow. Throws only when none is
+ * configured; when none ANSWERS it returns the first configured one, so the
+ * actual request produces the real network error instead of a made-up one. */
+export async function coordinatorBase(opts: { fresh?: boolean } = {}): Promise<string> {
+  const candidates = coordinatorCandidates();
+  if (candidates.length === 0) {
+    throw new Error('Biometric coordinator not configured (EXPO_PUBLIC_COORDINATOR_BASE unset)');
+  }
+  if (candidates.length === 1) return candidates[0];
+  if (!opts.fresh && activeCoordinator && Date.now() - activeCoordinator.since < COORDINATOR_STICKY_MS) {
+    return activeCoordinator.base;
+  }
+  for (const base of candidates) {
+    if (await healthy(base)) {
+      activeCoordinator = { base, since: Date.now() };
+      return base;
+    }
+  }
+  activeCoordinator = null;
+  return candidates[0];
+}
 
 // Matches aequitas-biometric-beta/docs/einwilligung-entwurf.md -- bump if
 // that text changes, so consent records stay tied to the exact version
@@ -137,9 +200,12 @@ export interface IssuedChallenge {
  * step is informational-only, so a failed request here should just skip
  * straight to capture without it, not block the whole flow. */
 export async function requestChallenge(): Promise<IssuedChallenge | null> {
-  if (!COORDINATOR_BASE) return null;
+  if (coordinatorCandidates().length === 0) return null;
   try {
-    const resp = await fetch(`${COORDINATOR_BASE}/challenge`, { method: 'POST' });
+    // fresh: a new flow starts here, so re-pick the coordinator now and let
+    // every later call of this flow stick to it.
+    const base = await coordinatorBase({ fresh: true });
+    const resp = await fetch(`${base}/challenge`, { method: 'POST' });
     if (!resp.ok) return null;
     const body = await resp.json();
     if (!body?.nonce || !body?.challenge_type) return null;
@@ -274,9 +340,7 @@ export async function registerBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<BiometricRegisterResult> {
-  if (!COORDINATOR_BASE) {
-    throw new Error('Biometric coordinator not configured (EXPO_PUBLIC_COORDINATOR_BASE unset)');
-  }
+  const base = await coordinatorBase();
 
   try {
     const form = new FormData();
@@ -322,7 +386,7 @@ export async function registerBiometric(
       form.append('attestation_token', attestation.token);
     }
 
-    const resp = await fetch(`${COORDINATOR_BASE}/register`, { method: 'POST', body: form });
+    const resp = await fetch(`${base}/register`, { method: 'POST', body: form });
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
     }
@@ -359,10 +423,8 @@ export async function voucherFor(
   voucherBioHash: string,
   voucheeBioHash: string
 ): Promise<VouchResult> {
-  if (!COORDINATOR_BASE) {
-    throw new Error('Biometric coordinator not configured (EXPO_PUBLIC_COORDINATOR_BASE unset)');
-  }
-  const resp = await fetch(`${COORDINATOR_BASE}/vouch`, {
+  const base = await coordinatorBase();
+  const resp = await fetch(`${base}/vouch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // No `mode` -- same reason as registerBiometric above: which table a
@@ -442,10 +504,8 @@ export interface DeleteEnrollmentResult {
  * `partial` would strand the person: the one key that lets them retry the
  * erasure would be gone while their data was still out there. */
 export async function deleteEnrollment(bioHash: string): Promise<DeleteEnrollmentResult> {
-  if (!COORDINATOR_BASE) {
-    throw new Error('Biometric coordinator not configured (EXPO_PUBLIC_COORDINATOR_BASE unset)');
-  }
-  const resp = await fetch(`${COORDINATOR_BASE}/enrollment`, {
+  const base = await coordinatorBase();
+  const resp = await fetch(`${base}/enrollment`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     // No wallet_address: that key is public and needs an operator token this
@@ -466,4 +526,121 @@ export async function deleteEnrollment(bioHash: string): Promise<DeleteEnrollmen
     }
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Nachziehen: an account registered BEFORE the face check (device secret,
+// before 2026-08-25) adds its face to the gallery -- so that nobody,
+// including its owner on a second phone, can register that face again. No
+// grant, no proof, nothing minted: the coordinator answers without bio_hash
+// and without attestation by design (coordinator/app/nachziehen.py).
+//
+// Ownership is proven with the wallet key: an EIP-191 signature over
+//   aequitas-nachziehen-v1|<wallet, lower-case>|<challenge nonce>
+// The nonce is the one /challenge issued for this very capture, so the
+// signature is single-use and bound to the liveness challenge. Without a
+// nonce there is nothing to sign -- the flow must stop, not degrade.
+// ---------------------------------------------------------------------------
+export const NACHZIEHEN_DOMAIN = 'aequitas-nachziehen-v1';
+const NACHGEZOGEN_KEY = 'aequitas_biometric_nachgezogen_v1';
+
+export function nachziehenMessage(walletAddress: string, nonce: string): string {
+  return `${NACHZIEHEN_DOMAIN}|${walletAddress.trim().toLowerCase()}|${nonce}`;
+}
+
+export interface NachziehenResult {
+  // nachgezogen | bereits_in_galerie | nicht_registriert | kette_nicht_erreichbar |
+  // signatur_ungueltig | nonce_ungueltig | capture_failed | liveness_failed |
+  // risk_blocked | quorum_failed | commit_quorum_failed | missing_consent
+  decision: string;
+  quorum_size: number;
+  validator_count: number;
+  votes: RegisterVote[];
+  commit_results?: unknown[] | null;
+  attestation_status?: string;
+  attestation_reason?: string | null;
+  challenge_type?: string | null;
+  widerspruch_kennung?: string | null;
+}
+
+export class NachziehenNeedsChallenge extends Error {
+  constructor() {
+    super('nachziehen: no challenge nonce -- the coordinator did not issue one');
+    this.name = 'NachziehenNeedsChallenge';
+  }
+}
+
+export async function nachziehenBiometric(
+  capture: BiometricCapture,
+  opts: {
+    deviceId: string;
+    walletAddress: string;
+    signer: AequitasSigner;
+    consent?: ConsentDecision;
+  }
+): Promise<NachziehenResult> {
+  const base = await coordinatorBase();
+  try {
+    if (!capture.challengeNonce) {
+      throw new NachziehenNeedsChallenge();
+    }
+    const signature = await opts.signer.signMessage(
+      nachziehenMessage(opts.walletAddress, capture.challengeNonce)
+    );
+    const form = new FormData();
+    form.append('wallet_address', opts.walletAddress.toLowerCase());
+    form.append('wallet_signature', signature);
+    form.append('challenge_nonce', capture.challengeNonce);
+    form.append('device_id', opts.deviceId);
+    if (opts.consent?.biometricConsent) {
+      form.append('consent_version', CONSENT_VERSION);
+      form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    if (capture.faceBurstVideoUri) {
+      form.append(
+        'face_burst_video',
+        toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4')
+      );
+    }
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    const attestation = await getAttestationPayload();
+    if (attestation) {
+      form.append('attestation_platform', attestation.platform);
+      form.append('attestation_token', attestation.token);
+    }
+    const resp = await fetch(`${base}/nachziehen`, { method: 'POST', body: form });
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    return await resp.json();
+  } finally {
+    await cleanupCaptureFiles(capture);
+  }
+}
+
+/** Remembered locally so the Identity tab stops offering the step. Not a
+ * security property -- the gallery is the truth, and asking again would
+ * simply answer bereits_in_galerie. */
+export async function rememberNachgezogen(): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(NACHGEZOGEN_KEY, String(Math.floor(Date.now() / 1000)));
+  } catch (e) {
+    console.warn('[biometric] nachgezogen-Merker konnte nicht gesichert werden', e);
+  }
+}
+
+export async function nachgezogenAt(): Promise<number | null> {
+  try {
+    const v = await SecureStore.getItemAsync(NACHGEZOGEN_KEY);
+    return v ? Number(v) : null;
+  } catch {
+    return null;
+  }
 }

@@ -6,7 +6,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, useWi
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Camera, CommonResolutions, useCameraDevice, useCameraPermission, useVideoOutput, type CameraRef } from 'react-native-vision-camera';
 import { useImageFaceDetector, type Face } from 'react-native-vision-camera-face-detector';
 import { Gyroscope } from 'expo-sensors';
@@ -20,6 +20,10 @@ import {
   requestChallenge,
   getOrCreateDeviceId,
   voucherFor,
+  nachziehenBiometric,
+  rememberNachgezogen,
+  NachziehenNeedsChallenge,
+  type NachziehenResult,
   type BiometricRegisterResult,
   type ChallengeType,
   type ConsentDecision,
@@ -494,6 +498,11 @@ export default function BiometricCapture() {
   );
 
   const { address, signer } = useWallet();
+  // ?zweck=nachziehen: the same capture, but for an account that is ALREADY a
+  // registered human and only adds its face to the gallery (see
+  // lib/biometricIdentity.ts, nachziehenBiometric). No grant, no proof.
+  const { zweck } = useLocalSearchParams<{ zweck?: string }>();
+  const nachziehen = zweck === 'nachziehen';
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
@@ -766,6 +775,7 @@ export default function BiometricCapture() {
   const [imuSamples, setImuSamples] = useState<ImuSample[]>([]);
 
   const [result, setResult] = useState<BiometricRegisterResult | null>(null);
+  const [nachziehResult, setNachziehResult] = useState<NachziehenResult | null>(null);
   const [submitError, setSubmitError] = useState('');
 
   // Web-of-trust vouching (see aequitas-biometric-beta/matching-service/
@@ -1088,6 +1098,28 @@ export default function BiometricCapture() {
     setSubmitError('');
     try {
       const deviceId = await getOrCreateDeviceId();
+      if (nachziehen) {
+        // Requires the challenge nonce: it is part of the ownership
+        // signature. If /challenge failed, this throws NachziehenNeedsChallenge
+        // and the result screen says so -- retrying is the fix, not degrading.
+        const nz = await nachziehenBiometric(
+          {
+            faceUri: finalFaceUri,
+            faceBurstUris: finalBurst,
+            faceBurstVideoUri: burstVideoUri ?? undefined,
+            burstIntervalMs: BURST_INTERVAL_MS,
+            imuSamples: finalImu,
+            challengeNonce: challenge?.nonce,
+          },
+          { deviceId, walletAddress: address, signer, consent }
+        );
+        setNachziehResult(nz);
+        if (nz.decision === 'nachgezogen' || nz.decision === 'bereits_in_galerie') {
+          await rememberNachgezogen();
+        }
+        setStep('result');
+        return;
+      }
       const res = await registerBiometric(
         {
           faceUri: finalFaceUri,
@@ -1149,7 +1181,11 @@ export default function BiometricCapture() {
       setStep('result');
     } catch (e: any) {
       console.error('[biometric-capture] submit failed', e);
-      setSubmitError(e?.message ?? t('identity.biometricResultFailed'));
+      if (e instanceof NachziehenNeedsChallenge) {
+        setSubmitError(t('identity.nachziehenResultNoChallenge'));
+      } else {
+        setSubmitError(e?.message ?? t('identity.biometricResultFailed'));
+      }
       setStep('result');
     }
   }
@@ -1163,8 +1199,8 @@ export default function BiometricCapture() {
       {step === 'consent' && (
         <View style={S.content}>
           <View style={S.card}>
-            <Text style={S.title}>{t('identity.biometricConsentTitle')}</Text>
-            <Text style={S.body}>{t('identity.biometricConsentBody')}</Text>
+            <Text style={S.title}>{nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
+            <Text style={S.body}>{nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
 
             <TouchableOpacity style={S.checkRow} onPress={() => setBiometricChecked((v) => !v)} activeOpacity={0.8}>
               <View style={[S.checkbox, biometricChecked && S.checkboxChecked]}>
@@ -1173,12 +1209,15 @@ export default function BiometricCapture() {
               <Text style={S.checkLabel}>{t('identity.biometricConsentBiometricLabel')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={S.checkRow} onPress={() => setBonusChecked((v) => !v)} activeOpacity={0.8}>
-              <View style={[S.checkbox, bonusChecked && S.checkboxChecked]}>
-                {bonusChecked && <Text style={S.checkboxMark}>✓</Text>}
-              </View>
-              <Text style={S.checkLabel}>{t('identity.biometricConsentBonusLabel')}</Text>
-            </TouchableOpacity>
+            {/* No bonus when only adding a face: nothing is minted. */}
+            {!nachziehen && (
+              <TouchableOpacity style={S.checkRow} onPress={() => setBonusChecked((v) => !v)} activeOpacity={0.8}>
+                <View style={[S.checkbox, bonusChecked && S.checkboxChecked]}>
+                  {bonusChecked && <Text style={S.checkboxMark}>✓</Text>}
+                </View>
+                <Text style={S.checkLabel}>{t('identity.biometricConsentBonusLabel')}</Text>
+              </TouchableOpacity>
+            )}
 
             {consentError ? <Text style={S.errorText}>{consentError}</Text> : null}
 
@@ -1327,6 +1366,21 @@ export default function BiometricCapture() {
               <>
                 <Text style={S.body}>
                   {(() => {
+                    if (nachziehen) {
+                      switch (nachziehResult?.decision) {
+                        case 'nachgezogen': return t('identity.nachziehenResultDone');
+                        case 'bereits_in_galerie': return t('identity.nachziehenResultAlready');
+                        case 'nicht_registriert': return t('identity.nachziehenResultNotRegistered');
+                        case 'kette_nicht_erreichbar': return t('identity.nachziehenResultChainDown');
+                        case 'signatur_ungueltig': return t('identity.nachziehenResultSignature');
+                        case 'nonce_ungueltig': return t('identity.nachziehenResultNoChallenge');
+                        case 'capture_failed': return t('identity.biometricResultCaptureFailed');
+                        case 'liveness_failed': return t('identity.biometricResultLivenessFailed');
+                        case 'quorum_failed':
+                        case 'commit_quorum_failed': return t('identity.biometricResultQuorumFailed');
+                        default: return t('identity.biometricResultFailed');
+                      }
+                    }
                     switch (result?.decision) {
                       case 'duplicate_detected': return t('identity.biometricResultDuplicate');
                       case 'new_enrollment': return t('identity.biometricResultNew');
