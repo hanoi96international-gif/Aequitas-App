@@ -229,6 +229,11 @@ jobs:
       # Minuten Gradle — und zwar mit einer Fehlermeldung, die die Ursache
       # nennt, statt mit einem Metro-Bundlerfehler tief im Gradle-Log.
       - name: Typen und Tests pruefen
+        # Job-Level ALLOW=true bleibt fuer Metro/Gradle (APK-Bake-in). Hier
+        # leeren, sonst sieht babel-preset-expo beim Jest-Lauf true und die
+        # Default-/Delete-Tests in config.test.ts scheitern.
+        env:
+          EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER: ''
         run: |
           npx tsc --noEmit
           npx jest --ci
