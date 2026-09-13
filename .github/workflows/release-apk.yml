@@ -67,6 +67,20 @@ jobs:
           echo "size=$(numfmt --to=iec "$SIZE")" >> "$GITHUB_OUTPUT"
           echo "sha256=$(sha256sum /tmp/app-release.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "APK: $APK ($SIZE Bytes)"
+          # Wer hat signiert? Aus der APK gelesen, nicht behauptet: bis
+          # app-v0.3.1-phase0 stand in jeder Notiz "Debug-Schluessel der
+          # Expo-Vorlage", waehrend der Build seit v1.6.0 mit dem eigenen
+          # Release-Schluessel signiert. Eine Notiz, die das Gegenteil des
+          # Builds sagt, ist schlimmer als keine.
+          RSA=$(unzip -Z1 /tmp/app-release.apk 'META-INF/*.RSA' 'META-INF/*.EC' 2>/dev/null | head -1 || true)
+          if [ -n "$RSA" ]; then
+            CERT=$(unzip -p /tmp/app-release.apk "$RSA" | openssl pkcs7 -inform DER -print_certs 2>/dev/null || true)
+            FP=$(echo "$CERT" | openssl x509 -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2 | tr -d ':' | tr 'A-F' 'a-f')
+            SUBJ=$(echo "$CERT" | openssl x509 -noout -subject 2>/dev/null | sed 's/^subject=//')
+          fi
+          echo "signer=${SUBJ:-unbekannt}" >> "$GITHUB_OUTPUT"
+          echo "fingerprint=${FP:-unbekannt}" >> "$GITHUB_OUTPUT"
+          echo "Signiert von: ${SUBJ:-unbekannt} (${FP:-unbekannt})"
 
       - name: Release anlegen
         env:
@@ -82,10 +96,15 @@ jobs:
             echo "| SHA-256 | \`${{ steps.check.outputs.sha256 }}\` |"
             echo "| Gebaut aus | Run [${{ inputs.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ inputs.run_id }}) |"
             echo ""
-            echo "Signiert mit dem Debug-Schluessel der Expo-Vorlage, wie alle bisherigen Releases."
-            echo "Ein Update von einer aelteren Version funktioniert damit; eine spaetere"
-            echo "Umstellung auf einen echten Release-Schluessel wird einmalig eine"
-            echo "Neuinstallation erfordern."
+            echo "Signiert von \`${{ steps.check.outputs.signer }}\`, SHA-256 \`${{ steps.check.outputs.fingerprint }}\`."
+            if [ "${{ steps.check.outputs.fingerprint }}" = "473e9de3a5ba2077d176af95daed88be50c0789815e35428d1c185ae2fc95288" ]; then
+              echo "Das ist der eigene Release-Schluessel (seit app-v1.6.0): ein Update von v1.6.0 oder neuer"
+              echo "funktioniert normal. Von v1.5.x oder aelter (Debug-Schluessel) einmal deinstallieren --"
+              echo "vorher die Seed-Phrase sichern."
+            else
+              echo "ACHTUNG: das ist NICHT der Release-Schluessel von app-v1.6.0 -- ein Update von dort"
+              echo "wird Android ablehnen. Nur veroeffentlichen, wenn das Absicht ist."
+            fi
           } > /tmp/notes.md
 
           gh release create "${{ inputs.tag }}" /tmp/app-release.apk \
