@@ -24,6 +24,8 @@ export interface Translations {
     statValidatorsSub: string;
     ubiNextPayout: string;
     ubiSub: string;
+    ubiTimeBarLbl: string;
+    ubiPoolBalance: string;
     equalityIndex: string;
     grade: string;
     giniCoefficient: string;

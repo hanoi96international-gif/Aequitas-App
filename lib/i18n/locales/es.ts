@@ -26,6 +26,8 @@ const es: Translations = {
     statValidatorsSub: 'proponentes distintos, recientes',
     ubiNextPayout: 'PRÓXIMO PAGO DE UBI',
     ubiSub: 'Diario · automático · para cada humano verificado',
+    ubiTimeBarLbl: 'Time until daily payout (20:00 Berlin)',
+    ubiPoolBalance: 'UBI pool balance',
     equalityIndex: 'ÍNDICE DE IGUALDAD',
     grade: 'Nota',
     giniCoefficient: 'Coeficiente de Gini',

@@ -141,6 +141,8 @@ export default function Home() {
         <View style={S.ubiHero}>
           <Text style={S.ubiHeroLabel}>{t('home.ubiNextPayout')}</Text>
           <Text style={S.ubiTime}>{formatCountdown(ubiLeft)}</Text>
+          <Text style={S.ubiPoolBalLbl}>{t('home.ubiPoolBalance')}</Text>
+          <Text style={S.ubiPoolBal}>{status?.pool_ubi != null ? `${status.pool_ubi} AEQ` : '—'}</Text>
           <View style={S.progressTrack}>
             <LinearGradient
               colors={[theme.gold, theme.neon]}
@@ -149,6 +151,7 @@ export default function Home() {
               style={[S.progressFill, { width: `${ubiPct.toFixed(1)}%` as `${number}%` }]}
             />
           </View>
+          <Text style={S.ubiTimeBarLbl}>{t('home.ubiTimeBarLbl')}</Text>
           <Text style={S.ubiHeroSub}>{t('home.ubiSub')}</Text>
         </View>
 
@@ -320,7 +323,10 @@ const S = StyleSheet.create({
   ubiTime: { color: theme.gold, fontSize: 34, fontWeight: '900', letterSpacing: 3, marginVertical: 8, fontFamily: theme.fontMono },
   progressTrack: { height: 7, backgroundColor: 'rgba(240,180,41,0.1)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(240,180,41,0.18)', width: '100%' },
   progressFill: { height: 7, borderRadius: 4 },
-  ubiHeroSub: { color: theme.muted, fontSize: 10, marginTop: 10 },
+  ubiHeroSub: { color: theme.muted, fontSize: 10, marginTop: 8 },
+  ubiPoolBalLbl: { color: theme.muted, fontSize: 10, marginTop: 4, letterSpacing: 0.5 },
+  ubiPoolBal: { color: theme.neon, fontSize: 18, fontWeight: '700', fontFamily: theme.fontMono, marginBottom: 6 },
+  ubiTimeBarLbl: { color: theme.muted, fontSize: 10, marginTop: 6, textAlign: 'center' },
 
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: theme.border },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },

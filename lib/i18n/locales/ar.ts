@@ -26,6 +26,8 @@ const ar: Translations = {
     statValidatorsSub: 'مقترحون مميزون، حديثون',
     ubiNextPayout: 'الدفعة القادمة للدخل الأساسي الشامل',
     ubiSub: 'يوميًا · تلقائيًا · لكل إنسان موثّق',
+    ubiTimeBarLbl: 'Time until daily payout (20:00 Berlin)',
+    ubiPoolBalance: 'UBI pool balance',
     equalityIndex: 'مؤشر المساواة',
     grade: 'التقييم',
     giniCoefficient: 'معامل جيني',
