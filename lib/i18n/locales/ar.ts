@@ -199,6 +199,7 @@ const ar: Translations = {
     checkingSlow: 'الأمر يستغرق وقتًا أطول من المتوقع — تحقق من اتصالك وحاول مرة أخرى.',
     proveHumanityBtn: '🔐  إثبات إنسانيتي',
     biometricDisabled: 'التحقق من الوجه غير مُفعَّل في هذا الإصدار. لا يمكن التسجيل بدونه — يُرجى تثبيت التطبيق الحالي من aequitas.digital.',
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: 'جارٍ التحقق…',
     provingSlow: 'جارٍ إنشاء إثبات المعرفة الصفرية الخاص بك — قد يستغرق ذلك حتى دقيقة واحدة.',
     retryBtn: 'إعادة المحاولة',

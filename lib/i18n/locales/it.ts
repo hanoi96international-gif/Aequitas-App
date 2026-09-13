@@ -199,6 +199,7 @@ const it: Translations = {
     checkingSlow: 'Ci sta mettendo più tempo del previsto — controlla la tua connessione e riprova.',
     proveHumanityBtn: '🔐  DIMOSTRA LA MIA UMANITÀ',
     biometricDisabled: "La verifica del volto non è attiva in questa versione. Senza di essa la registrazione non è possibile: installa l'app aggiornata da aequitas.digital.",
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: 'Verifica in corso…',
     provingSlow: 'Generazione della tua prova a conoscenza zero in corso — può richiedere fino a un minuto.',
     retryBtn: 'RIPROVA',

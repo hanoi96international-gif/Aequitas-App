@@ -199,6 +199,7 @@ const de: Translations = {
     checkingSlow: 'Dauert länger als erwartet — prüfe deine Verbindung und versuche es erneut.',
     proveHumanityBtn: '🔐  MENSCHLICHKEIT NACHWEISEN',
     biometricDisabled: 'Die Gesichtsprüfung ist in dieser App-Fassung nicht aktiviert. Ohne sie ist keine Registrierung möglich — bitte die aktuelle App von aequitas.digital laden.',
+    phase0DeviceSecretDisclaimer: 'Phase 0: Registrierung ist gerätegebunden (Device-Secret), kein Face-Abgleich. Zweites Gerät oder Reinstall kann ein neues Konto erzeugen.',
     verifying: 'Verifizierung läuft…',
     provingSlow: 'Dein Zero-Knowledge-Proof wird erstellt — das kann bis zu einer Minute dauern.',
     retryBtn: 'ERNEUT VERSUCHEN',

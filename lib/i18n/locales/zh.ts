@@ -199,6 +199,7 @@ const zh: Translations = {
     checkingSlow: '耗时比预期长 — 请检查网络连接后重试。',
     proveHumanityBtn: '🔐  证明我是真人',
     biometricDisabled: '此版本未启用人脸验证。没有它无法注册 — 请从 aequitas.digital 安装最新应用。',
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: '正在验证…',
     provingSlow: '正在生成零知识证明 — 这可能需要长达一分钟。',
     retryBtn: '重试',

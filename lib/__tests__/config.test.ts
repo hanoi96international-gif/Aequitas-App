@@ -126,4 +126,34 @@ describe('config', () => {
       expect(config.COORDINATOR_BASE).not.toBe('');
     }
   });
+
+  it('defaults ALLOW_DEVICE_SECRET_REGISTER to false (explicit opt-in only)', () => {
+    delete process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER;
+    const config = require('../config');
+    expect(config.ALLOW_DEVICE_SECRET_REGISTER).toBe(false);
+  });
+
+  it('treats empty or non-true ALLOW_DEVICE_SECRET_REGISTER as false', () => {
+    process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER = '';
+    expect(require('../config').ALLOW_DEVICE_SECRET_REGISTER).toBe(false);
+    jest.resetModules();
+    process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER = '1';
+    expect(require('../config').ALLOW_DEVICE_SECRET_REGISTER).toBe(false);
+  });
+
+  it('enables ALLOW_DEVICE_SECRET_REGISTER only for the string true', () => {
+    process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER = 'true';
+    const config = require('../config');
+    expect(config.ALLOW_DEVICE_SECRET_REGISTER).toBe(true);
+  });
+
+  it('Phase-0 ALLOW path does not require COORDINATOR_BASE when Bio is off', () => {
+    process.env.EXPO_PUBLIC_BIOMETRIC_ENABLED = 'false';
+    process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER = 'true';
+    process.env.EXPO_PUBLIC_COORDINATOR_BASE = '';
+    const config = require('../config');
+    expect(config.BIOMETRIC_ENABLED).toBe(false);
+    expect(config.ALLOW_DEVICE_SECRET_REGISTER).toBe(true);
+    expect(config.COORDINATOR_BASE).toBe('');
+  });
 });

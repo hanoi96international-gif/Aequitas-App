@@ -199,6 +199,7 @@ const ru: Translations = {
     checkingSlow: 'Это занимает больше времени, чем ожидалось — проверьте соединение и попробуйте снова.',
     proveHumanityBtn: '🔐  ПОДТВЕРДИТЬ ЧЕЛОВЕЧНОСТЬ',
     biometricDisabled: 'Проверка лица не включена в этой сборке. Без неё регистрация невозможна — установите актуальное приложение с aequitas.digital.',
+    phase0DeviceSecretDisclaimer: 'Phase 0: registration is device-bound (device secret), not face matching. A second phone or reinstall can create a new account.',
     verifying: 'Идёт проверка…',
     provingSlow: 'Генерация доказательства с нулевым разглашением — это может занять до минуты.',
     retryBtn: 'ПОВТОРИТЬ',
