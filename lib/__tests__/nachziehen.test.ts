@@ -44,31 +44,22 @@ describe('nachziehen ownership signature', () => {
 });
 
 describe('coordinator candidates', () => {
-  const OLD = { ...process.env };
-  afterEach(() => {
-    process.env = { ...OLD };
-    jest.resetModules();
-  });
-
+  // Pure function on purpose: EXPO_PUBLIC_* is inlined by babel-preset-expo at
+  // transform time, so setting process.env inside a test changes nothing.
   it('lists the base first, then the fallbacks, without duplicates or trailing slashes', () => {
-    process.env.EXPO_PUBLIC_COORDINATOR_BASE = 'https://proof1.example/coordinator/';
-    process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS =
-      ' https://proof2.example/coordinator , https://proof1.example/coordinator,, ';
-    jest.isolateModules(() => {
-      const { coordinatorCandidates } = require('../biometricIdentity');
-      expect(coordinatorCandidates()).toEqual([
+    const { coordinatorCandidatesFrom } = require('../biometricIdentity');
+    expect(
+      coordinatorCandidatesFrom('https://proof1.example/coordinator/', [
+        ' https://proof2.example/coordinator ',
         'https://proof1.example/coordinator',
-        'https://proof2.example/coordinator',
-      ]);
-    });
+        '',
+      ])
+    ).toEqual(['https://proof1.example/coordinator', 'https://proof2.example/coordinator']);
   });
 
   it('is empty when nothing is configured', () => {
-    delete process.env.EXPO_PUBLIC_COORDINATOR_BASE;
-    delete process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS;
-    jest.isolateModules(() => {
-      const { coordinatorCandidates } = require('../biometricIdentity');
-      expect(coordinatorCandidates()).toEqual([]);
-    });
+    const { coordinatorCandidatesFrom } = require('../biometricIdentity');
+    expect(coordinatorCandidatesFrom('', [])).toEqual([]);
+    expect(coordinatorCandidatesFrom(undefined, [' '])).toEqual([]);
   });
 });

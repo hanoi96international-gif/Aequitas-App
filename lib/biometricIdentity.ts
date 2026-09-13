@@ -33,17 +33,25 @@ const COORDINATOR_STICKY_MS = 5 * 60 * 1000;
 const COORDINATOR_PROBE_MS = 6000;
 let activeCoordinator: { base: string; since: number } | null = null;
 
-export function coordinatorCandidates(): string[] {
+/** Pure, so it can be tested without touching process.env: babel-preset-expo
+ * inlines EXPO_PUBLIC_* at transform time, so a test that sets or deletes
+ * those variables at runtime tests nothing (that is how the CI build of
+ * 2026-09-13 failed while the same test passed locally with no env). */
+export function coordinatorCandidatesFrom(base: string | undefined, fallbacks: readonly string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const raw of [COORDINATOR_BASE, ...COORDINATOR_FALLBACKS]) {
-    const base = (raw ?? '').trim().replace(/\/+$/, '');
-    if (base && !seen.has(base)) {
-      seen.add(base);
-      out.push(base);
+  for (const raw of [base, ...fallbacks]) {
+    const b = (raw ?? '').trim().replace(/\/+$/, '');
+    if (b && !seen.has(b)) {
+      seen.add(b);
+      out.push(b);
     }
   }
   return out;
+}
+
+export function coordinatorCandidates(): string[] {
+  return coordinatorCandidatesFrom(COORDINATOR_BASE, COORDINATOR_FALLBACKS);
 }
 
 async function healthy(base: string): Promise<boolean> {
