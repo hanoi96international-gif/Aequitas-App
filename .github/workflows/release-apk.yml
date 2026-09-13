@@ -85,10 +85,16 @@ jobs:
       - name: Release anlegen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ueber die Umgebung, nicht als ${{ }} im Skript: als Text ins Skript
+          # eingesetzt, wurden Klammern und Backticks in den Notizen zu
+          # Shell-Syntax -- "syntax error near unexpected token `('" am
+          # 13.09.2026, und die Notizen einer Version mit `Code` darin waren
+          # damit gar nicht veroeffentlichbar.
+          NOTES: ${{ inputs.notes }}
         run: |
           set -euo pipefail
           {
-            echo "${{ inputs.notes }}"
+            printf '%s\n' "$NOTES"
             echo ""
             echo "| | |"
             echo "|---|---|"
