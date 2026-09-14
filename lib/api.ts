@@ -6,8 +6,25 @@ async function apiGet<T>(path: string): Promise<T> {
   return r.json();
 }
 
+// A 429 from the node is "wait a moment", not "you failed". The node limits
+// bursts per ADDRESS (x/humanity/keeper/ip_burst.go), and a group behind one
+// address -- a phone carrier's CGNAT, one WiFi at a table -- shares that
+// budget. Retrying here, after the wait the node asks for, turns a collision
+// into a few seconds of patience instead of a redone face capture.
+const RETRY_WAITS_MS = [4000, 8000, 12000];
+
+async function fetchMitWartezeit(input: string, init: RequestInit): Promise<Response> {
+  let r = await fetch(input, init);
+  for (const wait of RETRY_WAITS_MS) {
+    if (r.status !== 429) break;
+    await new Promise((res) => setTimeout(res, wait));
+    r = await fetch(input, init);
+  }
+  return r;
+}
+
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetch(API_BASE + path, {
+  const r = await fetchMitWartezeit(API_BASE + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -202,7 +219,7 @@ export async function requestProof(params: {
   // The proxy forwards the body verbatim (it only peeks at `wallet` for its
   // own per-wallet throttle), so these two fields reach the proof server
   // without any chain-side change.
-  const r = await fetch(API_BASE + '/prove', {
+  const r = await fetchMitWartezeit(API_BASE + '/prove', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
