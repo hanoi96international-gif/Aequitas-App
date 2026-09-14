@@ -35,6 +35,19 @@ const PRIMARY_NODE = 'https://aequitas.digital';
 export const API_BASE = orDefault(process.env.EXPO_PUBLIC_API_BASE, PRIMARY_NODE + '/api');
 export const WEBAPP = orDefault(process.env.EXPO_PUBLIC_WEBAPP, PRIMARY_NODE);
 export const RPC_URL = orDefault(process.env.EXPO_PUBLIC_RPC_URL, PRIMARY_NODE + '/rpc');
+// Ausweichadressen (kommagetrennt). aequitas.digital haengt allein an
+// Contabo1; faellt die Box aus, laeuft die Kette auf Contabo2 weiter -- und
+// die App waere blind. proof2.aequitas.digital fuehrt seit 14.09.2026 /api/*
+// und /rpc zum zweiten Knoten. Auswahl und Wechsel: lib/api.ts (apiBase) und
+// lib/wallet.ts (FallbackProvider).
+function liste(raw: string | undefined): string[] {
+  return String(raw ?? '')
+    .split(',')
+    .map((s: string) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+export const API_FALLBACKS: string[] = liste(process.env.EXPO_PUBLIC_API_FALLBACKS);
+export const RPC_FALLBACKS: string[] = liste(process.env.EXPO_PUBLIC_RPC_FALLBACKS);
 
 export const CHAIN_ID_HEX = '0x786';
 export const CHAIN_ID_DEC = 1926;

@@ -1,7 +1,74 @@
-import { API_BASE } from './config';
+import { API_BASE, API_FALLBACKS } from './config';
+
+// ---------------------------------------------------------------------------
+// Which node. API_BASE first, then API_FALLBACKS. The choice is STICKY for a
+// quarter hour: the node only accepts a registration whose proof came from
+// ITS OWN /api/prove (x/humanity/keeper/prove_provenance.go, 15 min), so
+// prove and register must reach the same node. A base is dropped only when a
+// request to it fails at the network level (no answer at all) -- an HTTP
+// error is an answer, and the node that gave it is the one to keep talking to.
+// ---------------------------------------------------------------------------
+const API_STICKY_MS = 15 * 60 * 1000;
+let activeApi: { base: string; since: number } | null = null;
+
+export function apiCandidatesFrom(base: string | undefined, fallbacks: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [base, ...fallbacks]) {
+    const b = (raw ?? '').trim().replace(/\/+$/, '');
+    if (b && !seen.has(b)) {
+      seen.add(b);
+      out.push(b);
+    }
+  }
+  return out;
+}
+
+// Tests only: EXPO_PUBLIC_* is inlined at transform time, so a test cannot
+// steer the candidates through process.env (learned the hard way, 2026-09-13).
+let candidateOverride: string[] | null = null;
+export function _setApiCandidatesForTest(list: string[] | null): void {
+  candidateOverride = list;
+  activeApi = null;
+}
+
+export function apiCandidates(): string[] {
+  return candidateOverride ?? apiCandidatesFrom(API_BASE, API_FALLBACKS);
+}
+
+function apiBase(): string {
+  const c = apiCandidates();
+  if (c.length === 0) return API_BASE;
+  if (activeApi && Date.now() - activeApi.since < API_STICKY_MS && c.includes(activeApi.base)) {
+    return activeApi.base;
+  }
+  activeApi = { base: c[0], since: Date.now() };
+  return c[0];
+}
+
+function apiWechsel(kaputt: string): string | null {
+  const c = apiCandidates();
+  const next = c.find((b) => b !== kaputt);
+  if (!next) return null;
+  activeApi = { base: next, since: Date.now() };
+  return next;
+}
+
+/** fetch against the active node; on a NETWORK failure (no response) switch
+ * to the next node once and retry the same request there. */
+async function fetchApi(path: string, init?: RequestInit): Promise<Response> {
+  const base = apiBase();
+  try {
+    return await fetch(base + path, init);
+  } catch (e) {
+    const next = apiWechsel(base);
+    if (!next) throw e;
+    return fetch(next + path, init);
+  }
+}
 
 async function apiGet<T>(path: string): Promise<T> {
-  const r = await fetch(API_BASE + path);
+  const r = await fetchApi(path);
   if (!r.ok) throw new Error(r.statusText);
   return r.json();
 }
@@ -13,18 +80,18 @@ async function apiGet<T>(path: string): Promise<T> {
 // into a few seconds of patience instead of a redone face capture.
 const RETRY_WAITS_MS = [4000, 8000, 12000];
 
-async function fetchMitWartezeit(input: string, init: RequestInit): Promise<Response> {
-  let r = await fetch(input, init);
+async function fetchMitWartezeit(path: string, init: RequestInit): Promise<Response> {
+  let r = await fetchApi(path, init);
   for (const wait of RETRY_WAITS_MS) {
     if (r.status !== 429) break;
     await new Promise((res) => setTimeout(res, wait));
-    r = await fetch(input, init);
+    r = await fetchApi(path, init);
   }
   return r;
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetchMitWartezeit(API_BASE + path, {
+  const r = await fetchMitWartezeit(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -219,7 +286,7 @@ export async function requestProof(params: {
   // The proxy forwards the body verbatim (it only peeks at `wallet` for its
   // own per-wallet throttle), so these two fields reach the proof server
   // without any chain-side change.
-  const r = await fetchMitWartezeit(API_BASE + '/prove', {
+  const r = await fetchMitWartezeit('/prove', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),

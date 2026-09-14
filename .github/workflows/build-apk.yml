@@ -68,6 +68,9 @@ jobs:
       # Weitere Coordinatoren, kommagetrennt -- der erste erreichbare gewinnt
       # (lib/config.ts, COORDINATOR_FALLBACKS). Leer = nur COORDINATOR_BASE.
       EXPO_PUBLIC_COORDINATOR_FALLBACKS: ${{ vars.EXPO_PUBLIC_COORDINATOR_FALLBACKS }}
+      # Ausweichknoten fuer API und RPC (proof2.aequitas.digital/api bzw. /rpc).
+      EXPO_PUBLIC_API_FALLBACKS: ${{ vars.EXPO_PUBLIC_API_FALLBACKS }}
+      EXPO_PUBLIC_RPC_FALLBACKS: ${{ vars.EXPO_PUBLIC_RPC_FALLBACKS }}
       # Fehlte hier, obwohl lib/config.ts es liest: ohne diese Zeile bleibt
       # BIOMETRIC_ENABLED im Bundle false, und der biometrische Weg ist in der
       # App nicht vorhanden -- selbst wenn COORDINATOR_BASE gesetzt ist. Beide

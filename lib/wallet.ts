@@ -2,7 +2,7 @@ import { AppState } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { ethers } from 'ethers';
-import { RPC_URL } from './config';
+import { RPC_FALLBACKS, RPC_URL } from './config';
 
 const WALLET_SECRET_KEY = 'aequitas_wallet_secret_v1';
 const WALLET_ADDRESS_KEY = 'aequitas_wallet_address_v1';
@@ -12,11 +12,25 @@ export type WalletInfo = { address: string; mnemonic?: string };
 type LocalSigner = ethers.Wallet | ethers.HDNodeWallet;
 
 let cachedSigner: LocalSigner | null = null;
-let sharedProvider: ethers.JsonRpcProvider | null = null;
+let sharedProvider: ethers.AbstractProvider | null = null;
 
-export function getProvider(): ethers.JsonRpcProvider {
+/** The chain over JSON-RPC. With RPC_FALLBACKS set, a FallbackProvider with
+ * quorum 1: the first node that answers wins, and a dead Contabo1 no longer
+ * takes the wallet down with it (see config.ts). Same network on every
+ * candidate -- staticNetwork keeps ethers from probing eth_chainId first. */
+export function getProvider(): ethers.AbstractProvider {
   if (!sharedProvider) {
-    sharedProvider = new ethers.JsonRpcProvider(RPC_URL, undefined, { staticNetwork: true });
+    const netz = ethers.Network.from(1926);
+    const einzel = (url: string) => new ethers.JsonRpcProvider(url, netz, { staticNetwork: netz });
+    if (RPC_FALLBACKS.length === 0) {
+      sharedProvider = einzel(RPC_URL);
+    } else {
+      sharedProvider = new ethers.FallbackProvider(
+        [RPC_URL, ...RPC_FALLBACKS].map((url, i) => ({ provider: einzel(url), priority: i + 1, weight: 1, stallTimeout: 4000 })),
+        netz,
+        { quorum: 1 }
+      );
+    }
   }
   return sharedProvider;
 }
