@@ -54,23 +54,73 @@ function apiWechsel(kaputt: string): string | null {
   return next;
 }
 
+// Welcher Knoten den letzten erfolgreichen /api/prove beantwortet hat.
+//
+// Die Klebrigkeit oben reicht dafuer NICHT. Sie sorgt dafuer, dass Aufrufe in
+// der Regel denselben Knoten treffen -- aber ein Netzfehler in einem
+// BELIEBIGEN anderen Aufruf (ein Kontostand, der im Hintergrund nachlaedt)
+// wechselt den aktiven Knoten, und die Registrierung ginge dann an einen
+// Knoten, der den Beweis nie gesehen hat. Die Kette lehnt sie ab, und der
+// Mensch darf die Gesichtsaufnahme wiederholen.
+//
+// Der Beweis ist an den Knoten gebunden, der ihn ausgestellt hat
+// (prove_provenance.go, nur im Arbeitsspeicher, 15 Minuten). Also wird er
+// hier festgehalten und die Registrierung genau dorthin geschickt.
+let proveKnoten: { base: string; since: number } | null = null;
+
+// Etwas kuerzer als die 15 Minuten der Kette: laeuft die Notiz dort ab,
+// waehrend wir noch auf sie zeigen, wuerde die Registrierung an einem Knoten
+// scheitern, den wir bewusst festgehalten haben. Nach Ablauf gilt wieder die
+// normale Auswahl -- der Beweis ist dann ohnehin wertlos.
+const PROVE_BINDUNG_MS = 14 * 60 * 1000;
+
+function proveKnotenGebunden(): string | null {
+  if (!proveKnoten) return null;
+  if (Date.now() - proveKnoten.since > PROVE_BINDUNG_MS) {
+    proveKnoten = null;
+    return null;
+  }
+  return proveKnoten.base;
+}
+
+/** Tests only. */
+export function _proveKnotenFuerTest(): string | null {
+  return proveKnoten?.base ?? null;
+}
+
 /** fetch against the active node; on a NETWORK failure (no response) switch
- * to the next node once and retry the same request there. */
-async function fetchApi(path: string, init?: RequestInit): Promise<Response> {
-  const base = apiBase();
+ * to the next node once and retry the same request there.
+ *
+ * `fest` bindet die Anfrage an einen Knoten. Dann wird bei einem Netzfehler
+ * EINMAL auf demselben Knoten wiederholt statt zu wechseln: fuer eine
+ * Registrierung ist der Wechsel kein Ausweg, sondern genau der Fehler --
+ * der andere Knoten kennt den Beweis nicht. Eine Wiederholung am selben
+ * Knoten ist dagegen die Rettung, die der Blip verlangt.
+ *
+ * Gibt auch zurueck, WELCHER Knoten geantwortet hat -- der Aufrufer von
+ * /prove muss sich das merken. */
+async function fetchApi(
+  path: string,
+  init?: RequestInit,
+  fest?: string | null,
+): Promise<{ res: Response; base: string }> {
+  const base = fest ?? apiBase();
   try {
-    return await fetch(base + path, init);
+    return { res: await fetch(base + path, init), base };
   } catch (e) {
+    if (fest) {
+      return { res: await fetch(base + path, init), base };
+    }
     const next = apiWechsel(base);
     if (!next) throw e;
-    return fetch(next + path, init);
+    return { res: await fetch(next + path, init), base: next };
   }
 }
 
 async function apiGet<T>(path: string): Promise<T> {
-  const r = await fetchApi(path);
-  if (!r.ok) throw new Error(r.statusText);
-  return r.json();
+  const { res } = await fetchApi(path);
+  if (!res.ok) throw new Error(res.statusText);
+  return res.json();
 }
 
 // A 429 from the node is "wait a moment", not "you failed". The node limits
@@ -80,22 +130,26 @@ async function apiGet<T>(path: string): Promise<T> {
 // into a few seconds of patience instead of a redone face capture.
 const RETRY_WAITS_MS = [4000, 8000, 12000];
 
-async function fetchMitWartezeit(path: string, init: RequestInit): Promise<Response> {
-  let r = await fetchApi(path, init);
+async function fetchMitWartezeit(
+  path: string,
+  init: RequestInit,
+  fest?: string | null,
+): Promise<{ res: Response; base: string }> {
+  let r = await fetchApi(path, init, fest);
   for (const wait of RETRY_WAITS_MS) {
-    if (r.status !== 429) break;
+    if (r.res.status !== 429) break;
     await new Promise((res) => setTimeout(res, wait));
-    r = await fetchApi(path, init);
+    r = await fetchApi(path, init, fest ?? r.base);
   }
   return r;
 }
 
-async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetchMitWartezeit(path, {
+async function apiPost<T>(path: string, body: unknown, fest?: string | null): Promise<T> {
+  const { res: r } = await fetchMitWartezeit(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  }, fest);
   // FIX (Monster Audit follow-up, 2026-07-12, P2): unlike apiGet, this never
   // checked anything before parsing — deliberately NOT an r.ok check, since
   // the chain server's own business-logic failures are well-formed JSON on
@@ -286,7 +340,7 @@ export async function requestProof(params: {
   // The proxy forwards the body verbatim (it only peeks at `wallet` for its
   // own per-wallet throttle), so these two fields reach the proof server
   // without any chain-side change.
-  const r = await fetchMitWartezeit('/prove', {
+  const { res: r, base } = await fetchMitWartezeit('/prove', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
@@ -295,6 +349,9 @@ export async function requestProof(params: {
     const e = await r.json().catch(() => ({}));
     throw new Error(e.error || r.statusText);
   }
+  // Ab hier ist die Registrierung an DIESEN Knoten gebunden -- er ist der
+  // einzige, der weiss, dass dieser Nullifier durch die Gesichtspruefung kam.
+  proveKnoten = { base, since: Date.now() };
   return r.json();
 }
 
@@ -318,7 +375,9 @@ export function postRegister(params: {
   circuitVersion: number;
   zkNullifier: string;
 }) {
-  return apiPost<RegisterResult>('/register', params);
+  // An den Knoten, der den Beweis ausgestellt hat. Kein Ausweichknoten:
+  // siehe proveKnoten.
+  return apiPost<RegisterResult>('/register', params, proveKnotenGebunden());
 }
 
 export interface RegistrationCheckResult {
