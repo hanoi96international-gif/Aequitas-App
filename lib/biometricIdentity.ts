@@ -33,6 +33,39 @@ const COORDINATOR_STICKY_MS = 5 * 60 * 1000;
 const COORDINATOR_PROBE_MS = 6000;
 let activeCoordinator: { base: string; since: number } | null = null;
 
+// Welcher Coordinator den aktuellen Challenge-Nonce ausgestellt hat.
+//
+// Die Klebrigkeit oben reicht dafuer NICHT, und zwar knapp: der Nonce lebt
+// beim Coordinator 5 Minuten (_CHALLENGE_TTL_SECONDS), die Klebrigkeit hier
+// ebenfalls 5 Minuten -- aber die App-Uhr startet SCHON BEIM AUSSUCHEN des
+// Coordinators, also einen Netzumlauf VOR der Ausstellung. Sie laeuft damit
+// immer zuerst ab. Danach sucht coordinatorBase() neu, und wenn beim
+// Ausstellen der erste Coordinator gerade nicht gesund war (der Nonce also
+// beim zweiten liegt), er inzwischen aber wieder antwortet, geht die
+// Aufnahme an den ersten -- der diesen Nonce nie gesehen hat.
+//
+// Der Mensch hat dann die Gesichtsaufnahme hinter sich und bekommt
+// nonce_ungueltig. Also wird nicht an eine Uhr gebunden, sondern an den
+// Nonce selbst: die Aufnahme geht dorthin, wo ihr Nonce herkommt. Ist er
+// dort abgelaufen, scheitert es aus dem richtigen Grund und mit der
+// richtigen Meldung -- nicht daran, dass wir an die falsche Tuer geklopft
+// haben.
+let challengeKnoten: { base: string; nonce: string } | null = null;
+
+/** Der Coordinator, der diesen Nonce ausgestellt hat -- sonst die normale
+ * Auswahl (eine Aufnahme ohne Challenge ist an nichts gebunden). */
+async function basisFuerNonce(nonce: string | undefined | null): Promise<string> {
+  if (nonce && challengeKnoten && challengeKnoten.nonce === nonce) {
+    return challengeKnoten.base;
+  }
+  return coordinatorBase();
+}
+
+/** Tests only. */
+export function _challengeKnotenFuerTest(): { base: string; nonce: string } | null {
+  return challengeKnoten;
+}
+
 /** Pure, so it can be tested without touching process.env: babel-preset-expo
  * inlines EXPO_PUBLIC_* at transform time, so a test that sets or deletes
  * those variables at runtime tests nothing (that is how the CI build of
@@ -50,7 +83,25 @@ export function coordinatorCandidatesFrom(base: string | undefined, fallbacks: r
   return out;
 }
 
+// Tests only: EXPO_PUBLIC_* wird zur Bauzeit eingebacken, ein Test kann die
+// Kandidaten also nicht ueber process.env steuern -- dieselbe Naht wie in
+// lib/api.ts (_setApiCandidatesForTest).
+let coordinatorCandidateOverride: string[] | null = null;
+
+/** Tests only. */
+export function _setCoordinatorCandidatesForTest(list: string[] | null): void {
+  coordinatorCandidateOverride = list;
+  activeCoordinator = null;
+  challengeKnoten = null;
+}
+
+/** Tests only: laesst die Klebrigkeit ablaufen, ohne die Uhr zu stellen. */
+export function _verwirfCoordinatorKlebrigkeitFuerTest(): void {
+  activeCoordinator = null;
+}
+
 export function coordinatorCandidates(): string[] {
+  if (coordinatorCandidateOverride) return coordinatorCandidateOverride;
   return coordinatorCandidatesFrom(COORDINATOR_BASE, COORDINATOR_FALLBACKS);
 }
 
@@ -217,6 +268,9 @@ export async function requestChallenge(): Promise<IssuedChallenge | null> {
     if (!resp.ok) return null;
     const body = await resp.json();
     if (!body?.nonce || !body?.challenge_type) return null;
+    // Ab hier ist die Aufnahme an DIESEN Coordinator gebunden -- nur er
+    // kennt den Nonce (_pending_challenges liegt im Arbeitsspeicher).
+    challengeKnoten = { base, nonce: body.nonce };
     const flashSequence: FlashColor[] = typeof body.flash_sequence === 'string' && body.flash_sequence
       ? body.flash_sequence.split(',').filter(Boolean)
       : [];
@@ -353,7 +407,7 @@ export async function registerBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<BiometricRegisterResult> {
-  const base = await coordinatorBase();
+  const base = await basisFuerNonce(capture.challengeNonce);
 
   try {
     const form = new FormData();
@@ -592,7 +646,7 @@ export async function nachziehenBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<NachziehenResult> {
-  const base = await coordinatorBase();
+  const base = await basisFuerNonce(capture.challengeNonce);
   try {
     if (!capture.challengeNonce) {
       throw new NachziehenNeedsChallenge();
