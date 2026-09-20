@@ -113,8 +113,29 @@ jobs:
             fi
           } > /tmp/notes.md
 
+          # DEN TAG AN DEN COMMIT HAENGEN, AUS DEM DIE APK WIRKLICH STAMMT.
+          #
+          # Ohne --target legt gh den Tag auf die Spitze des STANDARDZWEIGS
+          # (hier aequitas-app), voellig unabhaengig davon, woraus gebaut
+          # wurde. Solange Build und Standardzweig dieselben waren, fiel das
+          # nicht auf. Beim ersten Release aus einem anderen Zweig
+          # (app-v1.7.3, 20.09.2026) zeigte der Tag dann auf den Vorgaenger:
+          # die APK trug die zwei Registrierungsfixes, der Tag wies auf
+          # Quellcode ohne sie.
+          #
+          # Ein Release, dessen Tag nicht auf seine eigene Quelle zeigt, ist
+          # nicht pruefbar -- und Pruefbarkeit ist bei einer Wallet-App kein
+          # Beiwerk. Der Commit steht im Build-Lauf; von dort wird er geholt.
+          ziel="$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}" --jq .head_sha)"
+          if [ -z "$ziel" ]; then
+            echo "::error title=Kein Commit zum Build gefunden::Run ${{ inputs.run_id }} liefert keinen head_sha -- ohne ihn wuerde der Tag auf den Standardzweig zeigen statt auf die gebaute Quelle."
+            exit 1
+          fi
+          echo "Tag wird auf $ziel gesetzt (Commit des Build-Laufs ${{ inputs.run_id }})"
+
           gh release create "${{ inputs.tag }}" /tmp/app-release.apk \
             --repo "${{ github.repository }}" \
+            --target "$ziel" \
             --title "Aequitas App ${{ inputs.tag }}" \
             --notes-file /tmp/notes.md
 
