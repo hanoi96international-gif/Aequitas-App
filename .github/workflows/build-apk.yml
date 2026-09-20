@@ -106,7 +106,26 @@ jobs:
       # Das Android SDK ist auf ubuntu-latest vorinstalliert. Diese Action
       # setzt nur ANDROID_HOME und legt die Build-Tools in den PATH — sie
       # laedt kein SDK herunter, wenn schon eines da ist.
+      #
+      # packages: '' AUSDRUECKLICH, seit 20.09.2026. Ohne das installiert die
+      # Action ihre Voreinstellung "tools platform-tools" -- und 'tools' ist
+      # das laengst zurueckgezogene Alt-Paket, das es in der SDK-Quelle nicht
+      # mehr gibt. Solange das Runner-Image aeltere cmdline-tools mitbrachte,
+      # fiel das nicht auf; seit es auf 16.0 steht, bricht der Schritt nach
+      # fuenf Sekunden ab:
+      #
+      #   Warning: Failed to find package 'tools'
+      #   Error: The process '.../cmdline-tools/16.0/bin/sdkmanager' failed
+      #
+      # Diese Datei war dabei Byte fuer Byte dieselbe, mit der 1.7.2 am
+      # 14.09. noch durchlief -- geaendert hat sich allein die Aussenwelt,
+      # weil @v3 ein wandernder Tag auf einem wandernden Image ist. Mit einer
+      # leeren Paketliste ueberspringt die Action den sdkmanager-Aufruf
+      # ganz und tut genau das, was der Kommentar darueber ohnehin von ihr
+      # wollte. Was der Build wirklich braucht, zieht Gradle sich selbst.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
 
       # Vor allem anderen, weil ein hier uebersehener Fehler erst 25 Minuten
       # spaeter als fehlender Knopf in einer fertigen APK auffaellt -- und
