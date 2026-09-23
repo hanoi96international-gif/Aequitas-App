@@ -2,7 +2,7 @@
 // see aequitas-biometric-beta). Pushed from the Identity tab ONLY when
 // BIOMETRIC_ENABLED is set (see lib/config.ts) -- unreachable otherwise.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Linking, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,7 +23,9 @@ import {
   nachziehenBiometric,
   rememberNachgezogen,
   NachziehenNeedsChallenge,
+  widerspruchEinlegen,
   type NachziehenResult,
+  type WiderspruchResult,
   type BiometricRegisterResult,
   type ChallengeType,
   type ConsentDecision,
@@ -32,8 +34,67 @@ import {
   type IssuedChallenge,
   type VouchResult,
 } from '@/lib/biometricIdentity';
+import { WEBAPP } from '@/lib/config';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
+
+// Wie lange ein Vorgang ohne Widerspruch liegen bleibt
+// (coordinator/app/widerspruch.py, FRIST_OHNE_WIDERSPRUCH_TAGE). Steht hier
+// nur fuer den Satz auf dem Bildschirm -- geloescht wird dort, nicht hier.
+const WIDERSPRUCH_FRIST_TAGE = 90;
+
+/** Widerspruch gegen eine automatische Abweisung (Art. 22 Abs. 3 DSGVO).
+ *
+ * Bis 1.7.3 gab es das in der App nicht: der Coordinator schickte zu jeder
+ * Abweisung eine Kennung, die App warf sie weg. Wer faelschlich als Duplikat
+ * galt, hatte einen Widerspruchsweg, den er nicht finden konnte.
+ *
+ * Kein Freitextfeld. Was ein Mensch zu seinem Fall schreibt, gehoert in einen
+ * Kanal, den der pruefende Mensch privat lesen kann -- die Kontaktadresse im
+ * Impressum, mit der Kennung. Siehe widerspruchEinlegen(). */
+function WiderspruchKarte({ kennung, t }: { kennung: string; t: TFunc }) {
+  const [stand, setStand] = useState<'offen' | 'sendet' | WiderspruchResult['status']>('offen');
+  const [kopiert, setKopiert] = useState(false);
+
+  async function einlegen() {
+    setStand('sendet');
+    const r = await widerspruchEinlegen(kennung);
+    setStand(r.status);
+  }
+
+  async function kopieren() {
+    await Clipboard.setStringAsync(kennung);
+    setKopiert(true);
+    setTimeout(() => setKopiert(false), 2000);
+  }
+
+  return (
+    <View style={S.widerspruchBox}>
+      <Text style={S.widerspruchTitel}>{t('identity.widerspruchTitel')}</Text>
+      <Text style={S.body}>{t('identity.widerspruchText')}</Text>
+      <View style={S.vouchIdRow}>
+        <Text style={S.vouchIdText} selectable>{kennung}</Text>
+        <TouchableOpacity style={S.copyBtn} onPress={kopieren}>
+          <Text style={S.copyBtnText}>{kopiert ? t('common.copied') : t('identity.biometricCopyIdBtn')}</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={S.body}>{t('identity.widerspruchFrist', { tage: String(WIDERSPRUCH_FRIST_TAGE) })}</Text>
+      {stand === 'aufgenommen' ? (
+        <Text style={S.body}>{t('identity.widerspruchAufgenommen')}</Text>
+      ) : (
+        <>
+          <GradientButton label={t('identity.widerspruchBtn')} onPress={einlegen} disabled={stand === 'sendet'} />
+          {stand === 'sendet' ? <ActivityIndicator style={S.spinnerGap} color={theme.purple} /> : null}
+          {stand === 'unbekannt' ? <Text style={S.errorText}>{t('identity.widerspruchUnbekannt')}</Text> : null}
+          {stand === 'nicht_erreichbar' ? <Text style={S.errorText}>{t('identity.widerspruchNichtErreichbar')}</Text> : null}
+        </>
+      )}
+      <TouchableOpacity onPress={() => Linking.openURL(`${WEBAPP}/impressum`)} activeOpacity={0.8}>
+        <Text style={S.widerspruchLink}>{t('identity.widerspruchKontakt')}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 /** Maps the coordinator-issued challenge type (see biometricIdentity.ts's
  * requestChallenge()) to its instruction copy -- kept as a lookup rather
@@ -1430,6 +1491,14 @@ export default function BiometricCapture() {
                 ) : null}
               </>
             )}
+            {(() => {
+              // Immer dann, wenn der Coordinator eine Kennung ausgegeben hat --
+              // er entscheidet, was widerspruchsfaehig ist (duplicate_detected
+              // bei der Registrierung, bereits_in_galerie beim Nachziehen),
+              // nicht eine zweite Liste hier.
+              const kennung = nachziehen ? nachziehResult?.widerspruch_kennung : result?.widerspruch_kennung;
+              return !submitError && kennung ? <WiderspruchKarte kennung={kennung} t={t} /> : null;
+            })()}
             <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
           </View>
 
@@ -1528,6 +1597,14 @@ const S = StyleSheet.create({
   },
 
   vouchCard: { marginTop: 16 },
+  widerspruchBox: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.muted,
+    paddingTop: 16,
+    marginBottom: 16,
+  },
+  widerspruchTitel: { fontSize: 15, fontWeight: '800', color: theme.text, marginBottom: 8, textAlign: 'center' },
+  widerspruchLink: { color: theme.purple, fontSize: 12, textAlign: 'center', marginTop: 12, textDecorationLine: 'underline' },
   vouchLabel: { fontSize: 11, color: theme.muted, marginBottom: 6 },
   vouchIdRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   vouchIdText: {

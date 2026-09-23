@@ -329,6 +329,14 @@ export interface Translations {
     biometricVouchResultUnknown: string;
     biometricVouchResultSelf: string;
     biometricVouchResultFailed: string;
+    widerspruchTitel: string;
+    widerspruchText: string;
+    widerspruchFrist: string;
+    widerspruchBtn: string;
+    widerspruchAufgenommen: string;
+    widerspruchUnbekannt: string;
+    widerspruchNichtErreichbar: string;
+    widerspruchKontakt: string;
   };
   node: {
     title: string;
