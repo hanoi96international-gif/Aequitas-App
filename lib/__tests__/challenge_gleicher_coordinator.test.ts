@@ -38,7 +38,7 @@ describe('Challenge und Abgabe treffen denselben Coordinator', () => {
       return { ok: true, status: 200, json: async () => ({ status: 'ok', url }) } as any;
     });
 
-    await jest.isolateModules(async () => {
+    await jest.isolateModulesAsync(async () => {
       const bio = require('../biometricIdentity');
       bio._setCoordinatorCandidatesForTest([C1, C2]);
 
@@ -68,7 +68,7 @@ describe('Challenge und Abgabe treffen denselben Coordinator', () => {
       if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) } as any;
       return { ok: true, status: 200, json: async () => ({ status: 'ok', url }) } as any;
     });
-    await jest.isolateModules(async () => {
+    await jest.isolateModulesAsync(async () => {
       const bio = require('../biometricIdentity');
       bio._setCoordinatorCandidatesForTest([C1, C2]);
       await bio.registerBiometric(

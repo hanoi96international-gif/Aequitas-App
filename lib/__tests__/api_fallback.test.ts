@@ -17,7 +17,7 @@ describe('api fallback', () => {
       if (url.startsWith('https://a.example')) throw new TypeError('Network request failed');
       return { ok: true, status: 200, json: async () => ({ ok: true, url }) } as any;
     });
-    await jest.isolateModules(async () => {
+    await jest.isolateModulesAsync(async () => {
       const api = require('../api');
       expect(api.apiCandidatesFrom('https://a.example/api/', [' https://b.example/api ', 'https://a.example/api'])).toEqual(['https://a.example/api', 'https://b.example/api']);
       api._setApiCandidatesForTest(['https://a.example/api', 'https://b.example/api']);
@@ -37,7 +37,7 @@ describe('api fallback', () => {
       calls.push(url);
       return { ok: false, status: 500, statusText: 'boom', json: async () => ({}) } as any;
     });
-    await jest.isolateModules(async () => {
+    await jest.isolateModulesAsync(async () => {
       const api = require('../api');
       api._setApiCandidatesForTest(['https://a.example/api', 'https://b.example/api']);
       await expect(api.getBalance('0x00')).rejects.toThrow();

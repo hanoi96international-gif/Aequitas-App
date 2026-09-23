@@ -43,7 +43,7 @@ describe('prove und register treffen denselben Knoten', () => {
       return { ok: true, status: 200, json: async () => ({ success: true, zkNullifier: '0xabc', url }) } as any;
     });
 
-    await jest.isolateModules(async () => {
+    await jest.isolateModulesAsync(async () => {
       const api = require('../api');
       api._setApiCandidatesForTest([A, B]);
 
@@ -77,7 +77,7 @@ describe('prove und register treffen denselben Knoten', () => {
     // Die Zusicherungen gehoeren IN den Callback: jest.isolateModules wartet
     // nicht auf eine async-Funktion, ein Vergleich dahinter laeuft vor den
     // Aufrufen und sieht eine leere Liste.
-    await jest.isolateModules(async () => {
+    await jest.isolateModulesAsync(async () => {
       const api = require('../api');
       api._setApiCandidatesForTest([A, B]);
       await api.requestProof({ bio: 'b', salt: 's', wallet: '0x1' });

@@ -66,6 +66,59 @@ export function _challengeKnotenFuerTest(): { base: string; nonce: string } | nu
   return challengeKnoten;
 }
 
+// WER HAT ABGEWIESEN? Der Widerspruchsvorgang (Art. 22 Abs. 3 DSGVO) liegt nur
+// in der Datenbank des Coordinators, der die Abweisung ausgesprochen hat --
+// dieselbe Fehlerklasse wie beim Nonce oben. Gemerkt je Kennung, damit der
+// Widerspruch zuerst dorthin geht. Nach einem App-Neustart ist die Erinnerung
+// weg; dann probiert widerspruchEinlegen() alle durch (sicher, weil die
+// Kennung zufaellig ist und ein falscher Coordinator "unbekannt" sagt).
+const abweisungsKnoten = new Map<string, string>();
+
+function merkeAbweisung(kennung: string | null | undefined, base: string): void {
+  if (kennung) abweisungsKnoten.set(kennung, base);
+}
+
+export interface WiderspruchResult {
+  // aufgenommen      -- ein Mensch wird den Fall pruefen
+  // unbekannt        -- kein Coordinator kennt die Kennung (abgelaufen,
+  //                     schon entschieden, oder vertippt)
+  // nicht_erreichbar -- keiner kannte sie, aber mindestens einer war nicht
+  //                     erreichbar: vielleicht genau der richtige. Spaeter
+  //                     nochmal -- NICHT dasselbe wie "unbekannt".
+  status: 'aufgenommen' | 'unbekannt' | 'nicht_erreichbar';
+}
+
+/** Legt Widerspruch gegen eine automatische Abweisung ein.
+ *
+ * Bewusst OHNE Freitext: was ein Mensch zu seinem Fall schreibt, gehoert in
+ * einen Kanal, den der pruefende Mensch privat lesen kann (E-Mail aus dem
+ * Impressum, mit der Kennung). Die Werkzeuge, die auf die Box schauen, laufen
+ * in einem oeffentlichen Repository -- ein Standpunkt, den dort jemand
+ * ausliest, stuende in einem oeffentlichen Log. */
+export async function widerspruchEinlegen(kennung: string): Promise<WiderspruchResult> {
+  const k = (kennung ?? '').trim();
+  if (!k) return { status: 'unbekannt' };
+  const gemerkt = abweisungsKnoten.get(k);
+  const reihe = [...(gemerkt ? [gemerkt] : []), ...coordinatorCandidates()]
+    .filter((b, i, alle) => alle.indexOf(b) === i);
+  let einerFehlte = false;
+  for (const base of reihe) {
+    try {
+      const resp = await fetch(`${base}/widerspruch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kennung: k, standpunkt: '' }),
+      });
+      if (!resp.ok) { einerFehlte = true; continue; }
+      const body = await resp.json();
+      if (body?.status === 'aufgenommen') return { status: 'aufgenommen' };
+    } catch {
+      einerFehlte = true;
+    }
+  }
+  return { status: einerFehlte ? 'nicht_erreichbar' : 'unbekannt' };
+}
+
 /** Pure, so it can be tested without touching process.env: babel-preset-expo
  * inlines EXPO_PUBLIC_* at transform time, so a test that sets or deletes
  * those variables at runtime tests nothing (that is how the CI build of
@@ -329,6 +382,11 @@ export interface RegisterVote {
 
 export interface BiometricRegisterResult {
   decision: string; // duplicate_detected | new_enrollment | capture_failed | liveness_failed | quorum_failed | invalid_mode | missing_consent
+  // Kennung des Widerspruchsvorgangs (coordinator/app/widerspruch.py), nur bei
+  // einer Abweisung. Bis 1.7.3 fehlte das Feld hier ganz -- der Coordinator
+  // schickte sie, die App warf sie weg, und wer faelschlich als Duplikat galt,
+  // konnte nicht widersprechen. Siehe widerspruchEinlegen().
+  widerspruch_kennung?: string | null;
   bio_hash: string | null;
   quorum_size: number;
   validator_count: number;
@@ -457,7 +515,9 @@ export async function registerBiometric(
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
     }
-    return await resp.json();
+    const ergebnis: BiometricRegisterResult = await resp.json();
+    merkeAbweisung(ergebnis?.widerspruch_kennung, base);
+    return ergebnis;
   } finally {
     // SECURITY FIX (P1): raw palm/face/fingertip/ear photos and the
     // acoustic recording sat in app cache indefinitely after upload --
@@ -686,7 +746,9 @@ export async function nachziehenBiometric(
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
     }
-    return await resp.json();
+    const ergebnis: NachziehenResult = await resp.json();
+    merkeAbweisung(ergebnis?.widerspruch_kennung, base);
+    return ergebnis;
   } finally {
     await cleanupCaptureFiles(capture);
   }
