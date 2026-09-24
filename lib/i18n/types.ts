@@ -320,6 +320,18 @@ export interface Translations {
     nachziehenResultSignature: string;
     nachziehenResultNoChallenge: string;
     nachziehenResultChainDown: string;
+    staffelTitle: string;
+    staffelWartet: string;
+    staffelLaeuft: string;
+    erneuernBtn: string;
+    erneuernConsentTitle: string;
+    erneuernConsentBody: string;
+    erneuernResultDone: string;
+    erneuernResultTooEarly: string;
+    erneuernResultChainRejected: string;
+    erneuernResultOtherFace: string;
+    erneuernResultUnknownFace: string;
+    erneuernResultUnsure: string;
     biometricVouchTitle: string;
     biometricYourIdLabel: string;
     biometricCopyIdBtn: string;

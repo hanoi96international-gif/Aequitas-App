@@ -18,6 +18,7 @@ import * as SecureStore from 'expo-secure-store';
 import { getAttestationPayload } from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
+import { submitLivenessRenewal, type LivenessRenewal } from './api';
 
 // ---------------------------------------------------------------------------
 // Which coordinator. COORDINATOR_BASE first, then COORDINATOR_FALLBACKS in
@@ -772,4 +773,116 @@ export async function nachgezogenAt(): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Zweite Lebendigkeitspruefung (WP 3): wer bei der Registrierung "gelb"
+// eingestuft wurde, bekommt 200 AEQ sofort und 800 als Staffel, die erst
+// laeuft, wenn ab Tag 7 eine zweite Pruefung bestanden ist.
+//
+// Der Coordinator bescheinigt nur, wenn DASSELBE Gesicht vor der Kamera steht,
+// das diese Wallet registriert hat (coordinator/app/erneuerung.py) -- sonst
+// koennte eine Farm fuer tausend Kunstfiguren einen echten Menschen einmal
+// am Tag 7 vor die Kamera setzen. Die Bescheinigung geht danach unveraendert
+// an /api/liveness-renewal.
+//
+// Besitznachweis wie beim Nachziehen, eigene Domaene:
+//   aequitas-lebendigkeit-erneuern-v1|<wallet, lower-case>|<challenge nonce>
+// ---------------------------------------------------------------------------
+export const ERNEUERN_DOMAIN = 'aequitas-lebendigkeit-erneuern-v1';
+
+export function erneuernMessage(walletAddress: string, nonce: string): string {
+  return `${ERNEUERN_DOMAIN}|${walletAddress.trim().toLowerCase()}|${nonce}`;
+}
+
+export interface ErneuernResult {
+  // bescheinigt | zu_frueh | anderes_gesicht | unbekanntes_gesicht |
+  // lebendigkeit_unsicher | nicht_registriert | kette_nicht_erreichbar |
+  // signatur_ungueltig | nonce_ungueltig | kein_schluessel | capture_failed |
+  // liveness_failed | risk_blocked | quorum_failed
+  decision: string;
+  quorum_size: number;
+  validator_count: number;
+  votes: RegisterVote[];
+  challenge_type?: string | null;
+  frueh_ab?: number | null;
+  erneuerung?: LivenessRenewal | null;
+  // Set by the app after handing the attestation to the chain:
+  // 'angenommen' | 'zu_frueh' | 'abgelehnt' | 'nicht_erreichbar'.
+  kette?: string;
+  kette_fehler?: string | null;
+}
+
+/** What the chain said to the coordinator's attestation. Pure -- tested. */
+export function ketteAntwortDeuten(r: { ok?: boolean; error?: string; frueh_ab?: number } | null | undefined): {
+  kette: string;
+  frueh_ab?: number;
+  kette_fehler?: string | null;
+} {
+  if (r?.ok) return { kette: 'angenommen' };
+  if (typeof r?.frueh_ab === 'number' && r.frueh_ab > 0) return { kette: 'zu_frueh', frueh_ab: r.frueh_ab };
+  return { kette: 'abgelehnt', kette_fehler: r?.error ?? null };
+}
+
+export async function erneuernBiometric(
+  capture: BiometricCapture,
+  opts: {
+    deviceId: string;
+    walletAddress: string;
+    signer: AequitasSigner;
+  }
+): Promise<ErneuernResult> {
+  const base = await basisFuerNonce(capture.challengeNonce);
+  let ergebnis: ErneuernResult;
+  try {
+    if (!capture.challengeNonce) {
+      throw new NachziehenNeedsChallenge();
+    }
+    const signature = await opts.signer.signMessage(
+      erneuernMessage(opts.walletAddress, capture.challengeNonce)
+    );
+    const form = new FormData();
+    form.append('wallet_address', opts.walletAddress.toLowerCase());
+    form.append('wallet_signature', signature);
+    form.append('challenge_nonce', capture.challengeNonce);
+    form.append('device_id', opts.deviceId);
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    if (capture.faceBurstVideoUri) {
+      form.append(
+        'face_burst_video',
+        toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4')
+      );
+    }
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    const attestation = await getAttestationPayload();
+    if (attestation) {
+      form.append('attestation_platform', attestation.platform);
+      form.append('attestation_token', attestation.token);
+    }
+    const resp = await fetch(`${base}/erneuern`, { method: 'POST', body: form });
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    ergebnis = await resp.json();
+  } finally {
+    await cleanupCaptureFiles(capture);
+  }
+
+  if (ergebnis.decision === 'bescheinigt' && ergebnis.erneuerung) {
+    try {
+      Object.assign(ergebnis, ketteAntwortDeuten(await submitLivenessRenewal(ergebnis.erneuerung)));
+    } catch (e) {
+      // The attestation stays valid for 15 minutes on the chain side; the
+      // person is told to try again, not that they failed.
+      ergebnis.kette = 'nicht_erreichbar';
+      ergebnis.kette_fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+  return ergebnis;
 }

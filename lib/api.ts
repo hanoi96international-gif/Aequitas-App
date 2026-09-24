@@ -204,6 +204,36 @@ export interface BalanceResponse {
   tusd_balance: number;
   demurrage_active: boolean;
   is_human: boolean;
+  // Gestaffelter Zuschuss (grant_staffel.go in aequitas-chain). Fehlt, wenn
+  // das Konto keine Staffel hat -- also fast immer.
+  staffel?: Staffel | null;
+}
+
+export interface Staffel {
+  rest_aeq: number;
+  laeuft: boolean;
+  erneuert_am: number;
+  bis: number;
+  tagesrate_aeq: number;
+}
+
+// Was der Coordinator nach bestandener Zweitpruefung bescheinigt
+// (/erneuern -> erneuerung) -- unveraendert an die Kette weiterzureichen.
+export interface LivenessRenewal {
+  wallet: string;
+  issued_at: number;
+  signature: string;
+  public_key: string;
+}
+
+export interface LivenessRenewalResponse {
+  ok?: boolean;
+  error?: string;
+  frueh_ab?: number;
+}
+
+export function submitLivenessRenewal(renewal: LivenessRenewal) {
+  return apiPost<LivenessRenewalResponse>('/liveness-renewal', renewal);
 }
 
 export interface PricePoint {

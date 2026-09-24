@@ -385,6 +385,35 @@ export default function Identity() {
           </View>
         )}
 
+        {/* Gestaffelter Zuschuss (WP 2/3): part of the starting grant waits
+            for a second liveness check from day 7 -- with the SAME face
+            (coordinator /erneuern). Shown only when the chain reports a
+            stage for this wallet, i.e. almost never today. */}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && balance?.staffel && balance.staffel.rest_aeq > 0 && (() => {
+          const st = balance.staffel!;
+          // Registration = bis - 30 days; the check counts from day 7.
+          const ab = st.bis ? st.bis - 23 * 86400 : 0;
+          return (
+            <View style={S.nachziehCard}>
+              <Text style={S.nachziehTitle}>{t('identity.staffelTitle', { rest: formatBalance(st.rest_aeq) })}</Text>
+              {st.laeuft ? (
+                <Text style={S.nachziehDone}>{t('identity.staffelLaeuft', { rate: formatBalance(st.tagesrate_aeq) })}</Text>
+              ) : (
+                <>
+                  <Text style={S.deleteBody}>
+                    {t('identity.staffelWartet', { date: ab ? new Date(ab * 1000).toLocaleDateString() : '—' })}
+                  </Text>
+                  <TouchableOpacity onPress={() => router.push('/biometric-capture?zweck=erneuern')} activeOpacity={0.85}>
+                    <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                      <Text style={S.btnPrimaryText}>{t('identity.erneuernBtn')}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          );
+        })()}
+
         {bioHash && (
           <View style={S.deleteCard}>
             <Text style={S.deleteTitle}>{t('identity.deleteTitle')}</Text>
