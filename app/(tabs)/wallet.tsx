@@ -9,6 +9,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, isValidAddress, parseAEQToWei, shortWallet } from '@/lib/format';
 import { postFaucet } from '@/lib/api';
 import { withTimeout } from '@/lib/signer';
+import { gebuehrProzent, hoechsterBetrag, ueberweisungsGebuehr } from '@/lib/fee';
 import { theme, redTintBorder } from '@/constants/aequitas-theme';
 
 // FIX (Monster Audit follow-up, 2026-07-12, P1): matches trade.tsx's own
@@ -29,6 +30,21 @@ export default function Wallet() {
   const [faucetBusy, setFaucetBusy] = useState(false);
   const [faucetStatus, setFaucetStatus] = useState('');
 
+  // Die Gebühr zahlt der Absender obendrauf (lib/fee.ts). Sie steht vor dem
+  // Senden da, und wer mehr senden will, als Guthaben und Gebühr decken,
+  // erfährt es hier statt als "insufficient balance" der Kette.
+  const guthaben = Number(balance?.balance ?? 0);
+  const betragZahl = Number(sendAmount.trim());
+  const betragGueltig = /^\d+(\.\d*)?$/.test(sendAmount.trim()) && betragZahl > 0;
+  const gebuehr = betragGueltig ? ueberweisungsGebuehr(betragZahl, guthaben) : 0;
+  const gesamt = Math.round((betragZahl + gebuehr) * 1e6) / 1e6;
+  const fmt6 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 6 });
+
+  function setMax() {
+    const b = hoechsterBetrag(guthaben);
+    setSendAmount(b > 0 ? b.toFixed(6).replace(/\.?0+$/, '') : '');
+  }
+
   async function copyAddress() {
     if (!address) return;
     await Clipboard.setStringAsync(address);
@@ -44,6 +60,10 @@ export default function Wallet() {
     const amountWei = parseAEQToWei(sendAmount);
     if (amountWei === null || amountWei <= 0n) {
       setSendStatus(t('wallet.enterAmount'));
+      return;
+    }
+    if (balance && gesamt > guthaben + 1e-9) {
+      setSendStatus(t('wallet.notEnoughWithFee', { total: fmt6(gesamt) }));
       return;
     }
     setSendBusy(true);
@@ -161,14 +181,24 @@ export default function Wallet() {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <TextInput
-            style={S.input}
-            placeholder={t('wallet.amountPlaceholder')}
-            placeholderTextColor={theme.muted}
-            value={sendAmount}
-            onChangeText={setSendAmount}
-            keyboardType="decimal-pad"
-          />
+          <View style={S.amountRow}>
+            <TextInput
+              style={[S.input, S.amountInput]}
+              placeholder={t('wallet.amountPlaceholder')}
+              placeholderTextColor={theme.muted}
+              value={sendAmount}
+              onChangeText={setSendAmount}
+              keyboardType="decimal-pad"
+            />
+            <TouchableOpacity style={S.maxBtn} onPress={setMax} activeOpacity={0.8}>
+              <Text style={S.maxBtnText}>{t('wallet.max')}</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={S.feeText}>
+            {betragGueltig
+              ? t('wallet.feeLine', { fee: fmt6(gebuehr), pct: fmt6(gebuehrProzent(guthaben)), total: fmt6(gesamt) })
+              : t('wallet.feeHint', { pct: fmt6(gebuehrProzent(guthaben)) })}
+          </Text>
           {sendStatus ? <Text style={S.statusText}>{sendStatus}</Text> : null}
           <TouchableOpacity onPress={doSend} disabled={sendBusy} activeOpacity={0.85}>
             <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
@@ -213,6 +243,11 @@ const S = StyleSheet.create({
   fullAddress: { color: theme.muted, fontSize: 11, textAlign: 'center', marginTop: 14, fontFamily: theme.fontMono },
 
   input: { backgroundColor: theme.card2, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 14, color: theme.text, fontSize: 13, marginBottom: 10 },
+  amountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  amountInput: { flex: 1 },
+  maxBtn: { borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, paddingHorizontal: 14, paddingVertical: 14 },
+  maxBtnText: { color: theme.teal, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  feeText: { color: theme.muted, fontSize: 11, lineHeight: 16, marginBottom: 10 },
   btnPrimary: { borderRadius: theme.radiusSm, padding: 16, alignItems: 'center', marginTop: 4 },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },
 

@@ -91,6 +91,10 @@ export interface Translations {
     sendAeq: string;
     recipientPlaceholder: string;
     amountPlaceholder: string;
+    max: string;
+    feeLine: string;
+    feeHint: string;
+    notEnoughWithFee: string;
     send: string;
     invalidRecipient: string;
     enterAmount: string;
