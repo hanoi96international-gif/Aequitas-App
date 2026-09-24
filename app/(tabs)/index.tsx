@@ -45,8 +45,8 @@ export default function Home() {
   const POOLS = [
     { key: 'pool_validators', name: t('home.poolValidatorsName'), pct: '40%', color: theme.purple, desc: t('home.poolValidatorsDesc') },
     { key: 'pool_lp', name: t('home.poolLiquidityName'), pct: '30%', color: theme.teal, desc: t('home.poolLiquidityDesc') },
-    { key: 'pool_ubi', name: t('home.poolUbiName'), pct: '20%', color: theme.gold, desc: t('home.poolUbiDesc') },
-    { key: 'pool_treasury', name: t('home.poolTreasuryName'), pct: '10%', color: theme.blue, desc: t('home.poolTreasuryDesc') },
+    { key: 'pool_ubi', name: t('home.poolUbiName'), pct: '30%', color: theme.gold, desc: t('home.poolUbiDesc') },
+    { key: 'pool_treasury', name: t('home.poolTreasuryName'), pct: '0%', color: theme.blue, desc: t('home.poolTreasuryDesc') },
   ] as const;
 
   const loadBlocks = useCallback(async () => {
