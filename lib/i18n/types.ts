@@ -375,4 +375,27 @@ export interface Translations {
     guideBtn: string;
     railwayBtn: string;
   };
+  history: {
+    title: string;
+    empty: string;
+    error: string;
+    more: string;
+    note: string;
+    feeIncl: string;
+    art_transfer_ein: string;
+    art_transfer_aus: string;
+    art_ubi_distribution: string;
+    art_register_human: string;
+    art_grant_release: string;
+    art_umlauf: string;
+    art_kappung: string;
+    art_validator_distribution: string;
+    art_lp_distribution: string;
+    art_swap: string;
+    art_add_liquidity: string;
+    art_remove_liquidity: string;
+    art_faucet: string;
+    art_escrow_release: string;
+    art_other: string;
+  };
 }

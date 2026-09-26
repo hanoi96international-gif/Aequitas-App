@@ -12,6 +12,7 @@ import { getWirtschaftKonto, postFaucet } from '@/lib/api';
 import { betragText, fehlerArt, freierRest, gebuehrFuer, hoechstbetrag, type WirtschaftKonto } from '@/lib/ueberweisung';
 import { leseZahlungsziel } from '@/lib/zahlungslink';
 import { QrScanner } from '@/components/QrScanner';
+import { Verlauf } from '@/components/Verlauf';
 import { withTimeout } from '@/lib/signer';
 import { theme, redTintBorder, goldTint, goldTintBorder, purpleTint, purpleTintBorder } from '@/constants/aequitas-theme';
 
@@ -310,6 +311,8 @@ export default function Wallet() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
+
+        {address ? <Verlauf address={address} neuLaden={balance?.balance} /> : null}
 
         <TouchableOpacity style={S.btnDanger} onPress={confirmDisconnect} activeOpacity={0.8}>
           <Text style={S.btnDangerText}>{mode === 'local' ? t('wallet.removeWallet') : t('wallet.disconnect')}</Text>
