@@ -43,10 +43,14 @@ export default function Home() {
   ];
 
   const POOLS = [
-    { key: 'pool_validators', name: t('home.poolValidatorsName'), pct: '40%', color: theme.purple, desc: t('home.poolValidatorsDesc') },
-    { key: 'pool_lp', name: t('home.poolLiquidityName'), pct: '30%', color: theme.teal, desc: t('home.poolLiquidityDesc') },
-    { key: 'pool_ubi', name: t('home.poolUbiName'), pct: '20%', color: theme.gold, desc: t('home.poolUbiDesc') },
-    { key: 'pool_treasury', name: t('home.poolTreasuryName'), pct: '10%', color: theme.blue, desc: t('home.poolTreasuryDesc') },
+    // Anteile an der Swap-Gebuehr wie in der Kette (state.go,
+    // swapGebuehrAnteile: validatoren 40, lp 30, ubi 30). Ueberweisungs-
+    // gebuehren und alle Abgaben gehen zu 100 % ins Grundeinkommen
+    // (umverteilungAnteile); die Treasury bekommt seit 24.09.2026 nichts.
+    { key: 'pool_ubi', name: t('home.poolUbiName'), pct: '30 %', color: theme.gold, desc: t('home.poolUbiDesc') },
+    { key: 'pool_validators', name: t('home.poolValidatorsName'), pct: '40 %', color: theme.accent, desc: t('home.poolValidatorsDesc') },
+    { key: 'pool_lp', name: t('home.poolLiquidityName'), pct: '30 %', color: theme.neon, desc: t('home.poolLiquidityDesc') },
+    { key: 'pool_treasury', name: t('home.poolTreasuryName'), pct: '0 %', color: theme.muted, desc: t('home.poolTreasuryDesc') },
   ] as const;
 
   const loadBlocks = useCallback(async () => {
