@@ -9,7 +9,7 @@ type Path<T> = T extends string
   ? never
   : { [K in keyof T & string]: T[K] extends string ? K : `${K}.${Path<T[K]>}` }[keyof T & string];
 
-type TranslationKey = Path<Translations>;
+export type TranslationKey = Path<Translations>;
 
 function resolve(obj: any, path: string): string {
   return path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj) ?? path;

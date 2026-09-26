@@ -231,6 +231,12 @@ export async function getPriceHistory(): Promise<PricePoint[]> {
   return raw.map((p: any) => ({ t: p.t ?? p.timestamp ?? 0, p: p.p ?? p.price ?? 0 }));
 }
 
+/** Wirtschaftsregeln fuer ein Konto (gebuehrenfreier Monatsrest, Umlaufabgabe
+ *  ...) -- /api/wirtschaft/konto der Kette. Siehe lib/ueberweisung.ts. */
+export function getWirtschaftKonto(wallet: string) {
+  return apiGet<import('./ueberweisung').WirtschaftKonto>('/wirtschaft/konto?adresse=' + wallet);
+}
+
 export function getPool() {
   return apiGet<PoolResponse>('/pool');
 }

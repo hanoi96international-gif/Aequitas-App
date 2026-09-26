@@ -27,7 +27,7 @@ describe('translation resources', () => {
     'onboarding.subtitle',
     'trade.ammTitle',
     'trade.ammFormula',
-    'node.pdfGuideBtn',
+    'wallet.scanBtn',
   ]);
 
   // Deutsch ist die Standardsprache der App. Dort auf englischen Text
