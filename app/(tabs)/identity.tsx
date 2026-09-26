@@ -10,7 +10,7 @@ import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
 import { storedBioHash, deleteEnrollment, nachgezogenAt } from '@/lib/biometricIdentity';
 import { Alert } from 'react-native';
-import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
+import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, redTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
 type LogType = 'info' | 'success' | 'error';
@@ -292,7 +292,7 @@ export default function Identity() {
             <View style={S.loadingBox}>
               <Text style={S.slowText}>{t('identity.checkingSlow')}</Text>
               <TouchableOpacity onPress={retryChecking} activeOpacity={0.85} style={{ marginTop: 12 }}>
-                <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
                   <Text style={S.btnPrimaryText}>{t('identity.retryBtn')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -307,7 +307,7 @@ export default function Identity() {
 
           {status === 'idle' && (
             <TouchableOpacity onPress={proveHumanity} activeOpacity={0.85}>
-              <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+              <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
                 <Text style={S.btnPrimaryText}>{t('identity.proveHumanityBtn')}</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -323,7 +323,7 @@ export default function Identity() {
 
           {status === 'error' && (
             <TouchableOpacity onPress={proveHumanity} activeOpacity={0.85}>
-              <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+              <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
                 <Text style={S.btnPrimaryText}>{t('identity.retryBtn')}</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -373,7 +373,7 @@ export default function Identity() {
             <Text style={S.nachziehTitle}>{t('identity.nachziehenTitle')}</Text>
             <Text style={S.deleteBody}>{t('identity.nachziehenBody')}</Text>
             <TouchableOpacity onPress={() => router.push('/biometric-capture?zweck=nachziehen')} activeOpacity={0.85}>
-              <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+              <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
                 <Text style={S.btnPrimaryText}>{t('identity.nachziehenBtn')}</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -434,23 +434,23 @@ const S = StyleSheet.create({
   privBadge: { marginHorizontal: 20, backgroundColor: neonTint, borderWidth: 1, borderColor: neonTintBorder, borderRadius: theme.radiusSm, padding: 11, marginBottom: 16 },
   privBadgeText: { color: theme.neon, fontSize: 11, lineHeight: 16, textAlign: 'center' },
 
-  phase0Banner: { backgroundColor: 'rgba(240,180,41,0.12)', borderWidth: 1, borderColor: 'rgba(240,180,41,0.35)', borderRadius: theme.radiusSm, padding: 12, marginTop: 8 },
+  phase0Banner: { backgroundColor: 'rgba(245,165,36,0.12)', borderWidth: 1, borderColor: 'rgba(245,165,36,0.35)', borderRadius: theme.radiusSm, padding: 12, marginTop: 8 },
   phase0BannerText: { color: theme.gold, fontSize: 11, lineHeight: 16, textAlign: 'center' },
 
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 22, borderWidth: 1, borderColor: theme.border },
 
-  deleteCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, borderWidth: 1, borderColor: '#e5484d55' },
+  deleteCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, borderWidth: 1, borderColor: redTintBorder },
   nachziehCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, borderWidth: 1, borderColor: theme.purple + '66' },
   nachziehTitle: { fontSize: 14, fontWeight: '800', color: theme.purple, marginBottom: 8 },
   nachziehDone: { fontSize: 12, color: theme.muted, lineHeight: 18 },
-  deleteTitle: { fontSize: 14, fontWeight: '800', color: '#e5484d', marginBottom: 8 },
+  deleteTitle: { fontSize: 14, fontWeight: '800', color: theme.red, marginBottom: 8 },
   deleteBody: { fontSize: 12, color: theme.muted, lineHeight: 18, marginBottom: 10 },
   deleteNote: { fontSize: 11, color: theme.muted, lineHeight: 16, fontStyle: 'italic', marginBottom: 14 },
-  deleteBtn: { borderWidth: 1, borderColor: '#e5484d', borderRadius: theme.radiusSm, paddingVertical: 13, alignItems: 'center' },
-  deleteBtnText: { color: '#e5484d', fontSize: 13, fontWeight: '700' },
+  deleteBtn: { borderWidth: 1, borderColor: theme.red, borderRadius: theme.radiusSm, paddingVertical: 13, alignItems: 'center' },
+  deleteBtnText: { color: theme.red, fontSize: 13, fontWeight: '700' },
   deleteMsg: { fontSize: 12, lineHeight: 18, marginBottom: 12 },
   deleteMsgOk: { color: theme.neon },
-  deleteMsgErr: { color: '#e5484d' },
+  deleteMsgErr: { color: theme.red },
 
   step: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, gap: 12 },
   stepCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
@@ -467,10 +467,10 @@ const S = StyleSheet.create({
   loadingText: { color: theme.purple, marginTop: 14, fontSize: 13, letterSpacing: 1 },
   slowText: { color: theme.muted, marginTop: 10, fontSize: 11.5, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
 
-  btnPrimary: { borderRadius: theme.radiusSm, padding: 18, alignItems: 'center', marginTop: 16 },
-  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },
+  btnPrimary: { borderRadius: theme.radiusPill, padding: 18, alignItems: 'center', marginTop: 16 },
+  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.8 },
 
-  alreadyBox: { backgroundColor: theme.card2, borderWidth: 1, borderColor: 'rgba(240,180,41,0.27)', borderRadius: theme.radiusSm, padding: 20, alignItems: 'center', marginTop: 16 },
+  alreadyBox: { backgroundColor: theme.card2, borderWidth: 1, borderColor: 'rgba(245,165,36,0.27)', borderRadius: theme.radiusSm, padding: 20, alignItems: 'center', marginTop: 16 },
   alreadyTitle: { color: theme.gold, fontSize: 16, fontWeight: 'bold' },
   alreadySub: { color: theme.muted, fontSize: 12, marginTop: 6, textAlign: 'center' },
   successBox: { backgroundColor: neonTint, borderWidth: 1, borderColor: neonTintBorder, borderRadius: theme.radiusSm, padding: 20, alignItems: 'center', marginTop: 16 },

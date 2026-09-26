@@ -313,7 +313,7 @@ function GradientButton({ label, onPress, disabled }: { label: string; onPress: 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} disabled={disabled}>
       <LinearGradient
-        colors={theme.gradient}
+        colors={theme.buttonGradient}
         start={theme.gradientAngle.start}
         end={theme.gradientAngle.end}
         style={[S.btnPrimary, disabled && S.btnPrimaryDisabled]}
@@ -1624,8 +1624,8 @@ const S = StyleSheet.create({
   },
   btnPrimaryDisabled: { opacity: 0.45 },
 
-  btnPrimary: { borderRadius: theme.radiusSm, padding: 16, alignItems: 'center', marginTop: 12 },
-  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1 },
+  btnPrimary: { borderRadius: theme.radiusPill, padding: 16, alignItems: 'center', marginTop: 12 },
+  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.8 },
   btnGhost: { padding: 12, alignItems: 'center', marginTop: 8 },
   btnGhostText: { color: theme.muted, fontSize: 12 },
 
@@ -1634,7 +1634,7 @@ const S = StyleSheet.create({
   flashOverlay: { ...StyleSheet.absoluteFillObject },
   overlayBox: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(12,14,22,0.92)', padding: 16, alignItems: 'center',
+    backgroundColor: 'rgba(11,13,20,0.92)', padding: 16, alignItems: 'center',
   },
   // Real-user feedback round 1 ("groSSe Anleitungen, nicht klein als Text
   // unten"): the instruction telling someone what to do right now used to
@@ -1685,7 +1685,7 @@ const S = StyleSheet.create({
   faceOvalOk: { borderColor: theme.neon, borderStyle: 'solid' },
   guideHint: {
     color: theme.text, fontSize: 15, fontWeight: '800', letterSpacing: 0.3,
-    backgroundColor: 'rgba(12,14,22,0.75)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radiusSm,
+    backgroundColor: 'rgba(11,13,20,0.75)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radiusSm,
     maxWidth: '90%', textAlign: 'center', lineHeight: 19,
   },
   guideHintOk: { color: theme.neon },

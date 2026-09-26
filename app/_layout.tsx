@@ -1,11 +1,11 @@
 import '@/lib/globalErrorHandler';
 import 'react-native-get-random-values';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider, type Theme } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { theme } from '@/constants/aequitas-theme';
 import { WalletProvider, useWallet } from '@/contexts/WalletContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { appKit } from '@/lib/walletconnect';
@@ -41,10 +41,25 @@ function Navigation() {
   );
 }
 
+// Immer dunkel, in den Farben der Website (aequitas.digital). Vorher hing das
+// am Systemmodus: im hellen Modus lag der weisse Navigations-Hintergrund
+// zwischen den dunklen Bildschirmen und blitzte bei jedem Wechsel auf.
+const navTheme: Theme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: theme.accent,
+    background: theme.bg,
+    card: theme.bg,
+    text: theme.text,
+    border: theme.border,
+    notification: theme.red,
+  },
+};
+
 function AppShell() {
-  const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navTheme}>
       <Navigation />
       <NetworkSetupOverlay />
       <StatusBar style="light" />

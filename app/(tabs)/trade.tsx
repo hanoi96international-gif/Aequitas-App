@@ -386,7 +386,7 @@ export default function Trade() {
           {status ? <Text style={S.statusText}>{status}</Text> : null}
 
           <TouchableOpacity onPress={doSwap} disabled={busy || !hasLiquidity} activeOpacity={0.85}>
-            <LinearGradient colors={[theme.gold, '#E67E00']} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={[S.btnSwap, (busy || !hasLiquidity) && S.btnDisabled]}>
+            <LinearGradient colors={[theme.gold, '#D98A0B']} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={[S.btnSwap, (busy || !hasLiquidity) && S.btnDisabled]}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={S.btnSwapText}>{t('trade.swapBtn')}</Text>}
             </LinearGradient>
           </TouchableOpacity>
@@ -436,7 +436,7 @@ export default function Trade() {
                 {removeStatus ? <Text style={S.statusText}>{removeStatus}</Text> : null}
 
                 <TouchableOpacity onPress={doRemoveLiquidity} disabled={removeBusy} activeOpacity={0.85}>
-                  <LinearGradient colors={[theme.red, '#B91C1C']} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={[S.btnSwap, removeBusy && S.btnDisabled]}>
+                  <LinearGradient colors={[theme.red, '#E04848']} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={[S.btnSwap, removeBusy && S.btnDisabled]}>
                     {removeBusy ? <ActivityIndicator color="#fff" /> : <Text style={S.btnSwapText}>{t('trade.removeLiquidityBtn')}</Text>}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -513,7 +513,7 @@ export default function Trade() {
               {addStatus ? <Text style={S.statusText}>{addStatus}</Text> : null}
 
               <TouchableOpacity onPress={doAddLiquidity} disabled={addBusy} activeOpacity={0.85}>
-                <LinearGradient colors={[theme.gold, '#E67E00']} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={[S.btnSwap, addBusy && S.btnDisabled]}>
+                <LinearGradient colors={[theme.gold, '#D98A0B']} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={[S.btnSwap, addBusy && S.btnDisabled]}>
                   {addBusy ? <ActivityIndicator color="#fff" /> : <Text style={S.btnSwapText}>{t('trade.addLiquidityBtn')}</Text>}
                 </LinearGradient>
               </TouchableOpacity>
@@ -597,7 +597,7 @@ const S = StyleSheet.create({
   tokenPillPurple: { backgroundColor: purpleTint, borderWidth: 1, borderColor: purpleTintBorder, borderRadius: theme.radiusSm, paddingHorizontal: 14, paddingVertical: 10, minWidth: 78, alignItems: 'center' },
   tokenPillTeal: { backgroundColor: tealTint, borderWidth: 1, borderColor: tealTintBorder, borderRadius: theme.radiusSm, paddingHorizontal: 14, paddingVertical: 10, minWidth: 78, alignItems: 'center' },
   tokenPillText: { color: theme.text, fontWeight: '700', fontSize: 13 },
-  dexInput: { flex: 1, backgroundColor: '#0A0C16', borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 12, color: theme.text, fontSize: 16 },
+  dexInput: { flex: 1, backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 12, color: theme.text, fontSize: 16 },
   dexOutput: { flex: 1, backgroundColor: 'rgba(0,0,0,0.15)', borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 12 },
   dexOutputText: { color: theme.neon, fontSize: 16, fontFamily: theme.fontMono },
   pctRow: { flexDirection: 'row', gap: 5, marginTop: 10 },
@@ -621,12 +621,12 @@ const S = StyleSheet.create({
 
   statusText: { color: theme.muted, fontSize: 11, textAlign: 'center', marginTop: 12 },
 
-  btnSwap: { borderRadius: theme.radiusSm, padding: 16, alignItems: 'center', marginTop: 16 },
-  btnSwapText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },
+  btnSwap: { borderRadius: theme.radiusPill, padding: 16, alignItems: 'center', marginTop: 16 },
+  btnSwapText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.8 },
   btnDisabled: { opacity: 0.4 },
 
   faucetDesc: { color: theme.muted, fontSize: 12, marginBottom: 4 },
-  btnFaucet: { borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 15, alignItems: 'center', marginTop: 10, backgroundColor: theme.card2 },
+  btnFaucet: { borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusPill, padding: 15, alignItems: 'center', marginTop: 10, backgroundColor: theme.card2 },
   btnFaucetText: { color: theme.text, fontWeight: '700', fontSize: 12, letterSpacing: 1 },
 
   poolLine: { color: theme.muted, fontSize: 13 },
@@ -639,7 +639,7 @@ const S = StyleSheet.create({
 
   ammBox: { backgroundColor: purpleTint, borderWidth: 1, borderColor: purpleTintBorder, borderRadius: theme.radiusSm, padding: 14, marginTop: 14 },
   ammTitle: { fontSize: 10, color: theme.purple, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 },
-  ammFormulaBox: { backgroundColor: 'rgba(155,114,246,0.09)', borderWidth: 1, borderColor: purpleTintBorder, borderRadius: 6, padding: 10, marginBottom: 8 },
+  ammFormulaBox: { backgroundColor: 'rgba(91,140,255,0.09)', borderWidth: 1, borderColor: purpleTintBorder, borderRadius: 6, padding: 10, marginBottom: 8 },
   ammFormula: { color: theme.purple, fontSize: 12, textAlign: 'center', fontFamily: theme.fontMono },
   ammText: { color: theme.muted, fontSize: 11, lineHeight: 17 },
 });

@@ -94,7 +94,7 @@ export default function Onboarding() {
             <Text style={S.cardDesc}>{t('onboarding.welcomeDesc')}</Text>
 
             <TouchableOpacity onPress={startCreate} activeOpacity={0.85}>
-              <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+              <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
                 <Text style={S.btnPrimaryText}>{t('onboarding.createWallet')}</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -169,7 +169,7 @@ export default function Onboarding() {
 
             <TouchableOpacity disabled={!confirmed || busy} onPress={confirmCreate} activeOpacity={0.85}>
               <LinearGradient
-                colors={theme.gradient}
+                colors={theme.buttonGradient}
                 start={theme.gradientAngle.start}
                 end={theme.gradientAngle.end}
                 style={[S.btnPrimary, !confirmed && S.btnDisabled]}>
@@ -204,7 +204,7 @@ export default function Onboarding() {
 
             <TouchableOpacity disabled={!importValue.trim() || busy} onPress={doImport} activeOpacity={0.85}>
               <LinearGradient
-                colors={theme.gradient}
+                colors={theme.buttonGradient}
                 start={theme.gradientAngle.start}
                 end={theme.gradientAngle.end}
                 style={[S.btnPrimary, !importValue.trim() && S.btnDisabled]}>
@@ -240,17 +240,17 @@ const S = StyleSheet.create({
   cardTitle: { fontSize: 11, color: theme.muted, letterSpacing: 3, marginBottom: 10, fontWeight: '600' },
   cardDesc: { color: theme.text, fontSize: 14, lineHeight: 21, marginBottom: 20 },
 
-  btnPrimary: { borderRadius: theme.radiusSm, padding: 17, alignItems: 'center', marginTop: 6 },
-  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },
+  btnPrimary: { borderRadius: theme.radiusPill, padding: 17, alignItems: 'center', marginTop: 6 },
+  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.8 },
   btnDisabled: { opacity: 0.4 },
-  btnSecondary: { borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 15, alignItems: 'center', marginTop: 12 },
+  btnSecondary: { borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusPill, padding: 15, alignItems: 'center', marginTop: 12 },
   btnSecondaryText: { color: theme.text, fontSize: 12, letterSpacing: 1.5 },
-  btnWC: { backgroundColor: theme.card2, borderWidth: 1, borderColor: theme.borderStrong, borderRadius: theme.radiusSm, padding: 15, alignItems: 'center', marginTop: 12 },
+  btnWC: { backgroundColor: theme.card2, borderWidth: 1, borderColor: theme.borderStrong, borderRadius: theme.radiusPill, padding: 15, alignItems: 'center', marginTop: 12 },
   btnWCText: { color: theme.teal, fontWeight: '700', fontSize: 12, letterSpacing: 1 },
   btnGhost: { padding: 12, alignItems: 'center', marginTop: 4 },
   btnGhostText: { color: theme.muted, fontSize: 11, letterSpacing: 1.5 },
 
-  warnBadge: { backgroundColor: 'rgba(240,180,41,0.06)', borderWidth: 1, borderColor: 'rgba(240,180,41,0.2)', borderRadius: theme.radiusSm, padding: 12, marginBottom: 16 },
+  warnBadge: { backgroundColor: 'rgba(245,165,36,0.06)', borderWidth: 1, borderColor: 'rgba(245,165,36,0.2)', borderRadius: theme.radiusSm, padding: 12, marginBottom: 16 },
   warnText: { color: theme.gold, fontSize: 12, lineHeight: 18 },
 
   mnemonicBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
