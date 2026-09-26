@@ -11,11 +11,14 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: theme.purple,
+        tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.muted,
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarStyle: { backgroundColor: theme.card2, borderTopColor: theme.border },
+        // Wie die Navigationsleiste der Website: Seitenhintergrund, feine
+        // Trennlinie, Akzent Blau fuer den aktiven Reiter.
+        tabBarStyle: { backgroundColor: theme.bg, borderTopColor: theme.border, borderTopWidth: 1 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
       }}>
       <Tabs.Screen
         name="index"

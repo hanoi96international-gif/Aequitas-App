@@ -106,7 +106,9 @@ export default function Home() {
         contentContainerStyle={S.content}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.purple} />}>
-        {/* Header — like website: logo icon + wordmark + LIVE/GHOSTDAG badges */}
+        {/* Header — like website: logo icon + wordmark + LIVE/GHOSTDAG badges,
+            with the site's 2px blue-to-green strip above the navigation. */}
+        <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={S.topStrip} />
         <View style={S.header}>
           <View style={S.logoRow}>
             <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.logoIcon}>
@@ -298,6 +300,7 @@ const S = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.bg },
   content: { paddingBottom: 32 },
 
+  topStrip: { height: 2, opacity: 0.85 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 18, paddingHorizontal: 20 },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logoIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
@@ -318,10 +321,10 @@ const S = StyleSheet.create({
   statValue: { fontSize: 21, fontWeight: '900', marginTop: 6 },
   statSub: { color: theme.muted, fontSize: 9, marginTop: 4, lineHeight: 13 },
 
-  ubiHero: { marginHorizontal: 20, backgroundColor: 'rgba(240,180,41,0.07)', borderWidth: 1, borderColor: 'rgba(240,180,41,0.3)', borderRadius: theme.radius, padding: 20, marginBottom: 14, alignItems: 'center', overflow: 'hidden' },
+  ubiHero: { marginHorizontal: 20, backgroundColor: 'rgba(245,165,36,0.07)', borderWidth: 1, borderColor: 'rgba(245,165,36,0.3)', borderRadius: theme.radius, padding: 20, marginBottom: 14, alignItems: 'center', overflow: 'hidden' },
   ubiHeroLabel: { color: theme.muted, fontSize: 10, letterSpacing: 2, fontWeight: '600' },
   ubiTime: { color: theme.gold, fontSize: 34, fontWeight: '900', letterSpacing: 3, marginVertical: 8, fontFamily: theme.fontMono },
-  progressTrack: { height: 7, backgroundColor: 'rgba(240,180,41,0.1)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(240,180,41,0.18)', width: '100%' },
+  progressTrack: { height: 7, backgroundColor: 'rgba(245,165,36,0.1)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(245,165,36,0.18)', width: '100%' },
   progressFill: { height: 7, borderRadius: 4 },
   ubiHeroSub: { color: theme.muted, fontSize: 10, marginTop: 8 },
   ubiPoolBalLbl: { color: theme.muted, fontSize: 10, marginTop: 4, letterSpacing: 0.5 },

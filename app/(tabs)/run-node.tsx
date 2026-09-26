@@ -181,7 +181,7 @@ const S = StyleSheet.create({
   privBarText: { fontSize: 11, color: theme.gold, textAlign: 'center', lineHeight: 16 },
 
   pdfBtn: { marginHorizontal: 20, marginTop: 14, backgroundColor: theme.gold, borderRadius: theme.radiusSm, padding: 15, alignItems: 'center' },
-  pdfBtnText: { color: '#06091A', fontWeight: '700', fontSize: 13, letterSpacing: 0.5 },
+  pdfBtnText: { color: theme.bg, fontWeight: '700', fontSize: 13, letterSpacing: 0.5 },
 
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, marginTop: 16, borderWidth: 1, borderColor: theme.border },
   cardTitle: { fontSize: 11, color: theme.muted, letterSpacing: 3, marginBottom: 14, fontWeight: '600' },
@@ -199,7 +199,7 @@ const S = StyleSheet.create({
 
   showCmdBtn: { borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 15, alignItems: 'center', marginTop: 10, backgroundColor: theme.card2 },
   showCmdBtnText: { color: theme.text, fontWeight: '700', fontSize: 12, letterSpacing: 1 },
-  codeBlock: { backgroundColor: '#0A0C16', borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 12, marginTop: 10 },
+  codeBlock: { backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 12, marginTop: 10 },
   copyBtn: { alignSelf: 'flex-end', borderWidth: 1, borderColor: theme.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 8 },
   copyBtnText: { color: theme.muted, fontSize: 10 },
   codeText: { color: theme.neon, fontSize: 10, fontFamily: theme.fontMono, lineHeight: 15 },

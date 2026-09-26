@@ -171,7 +171,7 @@ export default function Wallet() {
           />
           {sendStatus ? <Text style={S.statusText}>{sendStatus}</Text> : null}
           <TouchableOpacity onPress={doSend} disabled={sendBusy} activeOpacity={0.85}>
-            <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+            <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
               {sendBusy ? <ActivityIndicator color="#fff" /> : <Text style={S.btnPrimaryText}>{t('wallet.send')}</Text>}
             </LinearGradient>
           </TouchableOpacity>
@@ -199,7 +199,7 @@ const S = StyleSheet.create({
   balanceValue: { color: theme.gold, fontSize: 38, fontWeight: '900', marginTop: 4 },
   balanceValueSmall: { color: theme.text, fontSize: 20, fontWeight: '700', marginTop: 4 },
   divider: { height: 1, backgroundColor: theme.border, width: '100%', marginVertical: 16 },
-  demurrageWarn: { marginTop: 14, backgroundColor: 'rgba(240,180,41,0.06)', borderWidth: 1, borderColor: 'rgba(240,180,41,0.2)', borderRadius: 8, padding: 10 },
+  demurrageWarn: { marginTop: 14, backgroundColor: 'rgba(245,165,36,0.06)', borderWidth: 1, borderColor: 'rgba(245,165,36,0.2)', borderRadius: 8, padding: 10 },
   demurrageText: { color: theme.gold, fontSize: 11, textAlign: 'center' },
 
   actionsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 8 },
@@ -213,9 +213,9 @@ const S = StyleSheet.create({
   fullAddress: { color: theme.muted, fontSize: 11, textAlign: 'center', marginTop: 14, fontFamily: theme.fontMono },
 
   input: { backgroundColor: theme.card2, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 14, color: theme.text, fontSize: 13, marginBottom: 10 },
-  btnPrimary: { borderRadius: theme.radiusSm, padding: 16, alignItems: 'center', marginTop: 4 },
-  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },
+  btnPrimary: { borderRadius: theme.radiusPill, padding: 16, alignItems: 'center', marginTop: 4 },
+  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.8 },
 
-  btnDanger: { marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: redTintBorder, borderRadius: theme.radiusSm, padding: 14, alignItems: 'center' },
+  btnDanger: { marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: redTintBorder, borderRadius: theme.radiusPill, padding: 14, alignItems: 'center' },
   btnDangerText: { color: theme.red, fontSize: 11, letterSpacing: 1.5 },
 });

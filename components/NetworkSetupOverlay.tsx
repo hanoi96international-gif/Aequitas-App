@@ -53,7 +53,7 @@ export default function NetworkSetupOverlay() {
               {networkError ? <Text style={S.desc}>{networkError}</Text> : null}
               <TouchableOpacity onPress={retryNetworkSetup} activeOpacity={0.85} style={S.fullWidth}>
                 <LinearGradient
-                  colors={theme.gradient}
+                  colors={theme.buttonGradient}
                   start={theme.gradientAngle.start}
                   end={theme.gradientAngle.end}
                   style={S.btnPrimary}>
@@ -79,7 +79,7 @@ export default function NetworkSetupOverlay() {
 }
 
 const S = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(12,14,22,0.88)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(11,13,20,0.88)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: {
     width: '100%',
     maxWidth: 360,
@@ -94,8 +94,8 @@ const S = StyleSheet.create({
   title: { color: theme.text, fontSize: 15, fontWeight: '700', letterSpacing: 1, textAlign: 'center', marginTop: 14 },
   desc: { color: theme.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 8, marginBottom: 18 },
   slowDesc: { color: theme.muted, fontSize: 11.5, lineHeight: 17, textAlign: 'center', marginTop: -10, marginBottom: 18, opacity: 0.8 },
-  btnPrimary: { borderRadius: theme.radiusSm, paddingVertical: 15, alignItems: 'center', width: '100%' },
-  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 1.5 },
+  btnPrimary: { borderRadius: theme.radiusPill, paddingVertical: 15, alignItems: 'center', width: '100%' },
+  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.8 },
   btnDanger: { marginTop: 12, padding: 10, alignItems: 'center' },
   btnDangerText: { color: theme.red, fontSize: 11, letterSpacing: 1.5 },
 });
