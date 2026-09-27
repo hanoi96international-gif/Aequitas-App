@@ -237,6 +237,26 @@ export function getWirtschaftKonto(wallet: string) {
   return apiGet<import('./ueberweisung').WirtschaftKonto>('/wirtschaft/konto?adresse=' + wallet);
 }
 
+export interface VerlaufEintrag {
+  hoehe: number;
+  tx_index: number;
+  richtung: 'ein' | 'aus' | 'neutral';
+  art: string;
+  gegenpartei?: string;
+  betrag: number;
+  gebuehr?: number;
+  zeit: number;
+  tx_hash?: string;
+}
+
+/** Kontoverlauf, neueste zuerst (/api/verlauf der Kette). vor: nur Eintraege
+ *  aus Bloecken unterhalb dieser Hoehe -- zum Nachladen. */
+export function getVerlauf(wallet: string, vor = 0, limit = 30) {
+  return apiGet<{ adresse: string; eintraege: VerlaufEintrag[] }>(
+    '/verlauf?adresse=' + wallet + '&limit=' + limit + (vor > 0 ? '&vor=' + vor : '')
+  );
+}
+
 export function getPool() {
   return apiGet<PoolResponse>('/pool');
 }
