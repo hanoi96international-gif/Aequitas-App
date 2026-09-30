@@ -1,8 +1,9 @@
 import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
-import { walletConnectSigner, type AequitasSigner } from './signer';
+import { AEQUITAS_CAIP, NETZ_NICHT_FREIGEGEBEN, sitzungsKetten, walletConnectSigner, type AequitasSigner } from './signer';
 import type { AppKitNetwork, Storage } from '@reown/appkit-react-native';
 
 type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
+
 
 export const aequitasNetwork: AppKitNetwork = {
   id: CHAIN_ID_DEC,
@@ -267,21 +268,32 @@ export function useWalletConnect() {
   const { address, isConnected } = useAccount();
   const { provider } = useProvider();
 
-  // Defaults every call's routing chainId to anchorNetwork (see its own
-  // comment above) unless a caller explicitly overrides it -- so every
-  // existing request() call site (ensureAequitasChain, walletConnectSigner's
-  // personal_sign/eth_sendTransaction) gets a validly-routable request
-  // without each one needing to know or repeat this anchor.
+  // Routing-Kette jeder Anfrage ohne eigene Vorgabe: die Aequitas-Kette,
+  // sobald die Wallet sie fuer die Sitzung freigegeben hat, sonst
+  // anchorNetwork (siehe dessen Kommentar) -- damit ensureAequitasChain und
+  // personal_sign auch vor der Freigabe gueltig geleitet werden. MetaMask
+  // Mobile nimmt die Routing-Kette als aktives Netz; ueber den Anker
+  // bliebe die Wallet auf Ethereum. Kettengebundene Anfragen legen die
+  // Aequitas-Kette selbst fest (walletConnectSigner).
+  const ketten = () => sitzungsKetten(provider);
   const rawRequest: WcRequest | null = provider
-    ? (args, chainId) => provider.request(args, chainId ?? anchorNetwork.caipNetworkId)
+    ? (args, chainId) =>
+        provider.request(args, chainId ?? (ketten().includes(AEQUITAS_CAIP) ? AEQUITAS_CAIP : anchorNetwork.caipNetworkId))
     : null;
 
   const signer: AequitasSigner | null =
-    isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest) : null;
+    isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest, ketten) : null;
 
   const ensureNetwork = async () => {
     if (!rawRequest) throw new Error('No active WalletConnect provider');
     await ensureAequitasChain(rawRequest);
+    // Die Wallet meldet eine neu hinzugefuegte Kette per session_update; das
+    // kann einen Moment dauern. Hoechstens 5 s warten. Fehlt die Kette
+    // danach, jetzt sagen -- nicht erst beim Unterschreiben.
+    for (let i = 0; i < 10 && !ketten().includes(AEQUITAS_CAIP); i++) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!ketten().includes(AEQUITAS_CAIP)) throw new Error(NETZ_NICHT_FREIGEGEBEN);
   };
 
   return { open, close, disconnect, address, isConnected, signer, ensureNetwork };
