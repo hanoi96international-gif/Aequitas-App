@@ -1,5 +1,34 @@
 import { ethers } from 'ethers';
+import { CHAIN_ID_DEC, CHAIN_ID_HEX } from './config';
 import * as wallet from './wallet';
+
+/** CAIP-2-Kennung der Aequitas-Kette, unter der WalletConnect Anfragen leitet. */
+export const AEQUITAS_CAIP = `eip155:${CHAIN_ID_DEC}`;
+
+export const NETZ_NICHT_FREIGEGEBEN =
+  'Deine Wallet hat das Aequitas-Netz für diese Verbindung nicht freigegeben. Bitte die Wallet trennen, neu verbinden und dabei „Aequitas Chain“ bestätigen.';
+
+type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
+
+/**
+ * Ketten, die die Wallet fuer diese Sitzung freigegeben hat (CAIP-2), aus
+ * `session.namespaces.eip155` des UniversalProvider -- aus `chains` und aus
+ * den Konten (`eip155:<kette>:<adresse>`). Liest bei jedem Aufruf neu: Fuegt
+ * die Wallet nach wallet_addEthereumChain die Kette per session_update
+ * hinzu, steht sie hier. Unbekannte Form -> leere Liste.
+ */
+export function sitzungsKetten(provider: unknown): string[] {
+  const ns = (provider as any)?.session?.namespaces?.eip155;
+  const ketten = new Set<string>();
+  for (const k of Array.isArray(ns?.chains) ? ns.chains : []) {
+    if (typeof k === 'string' && /^eip155:[0-9]+$/.test(k)) ketten.add(k);
+  }
+  for (const a of Array.isArray(ns?.accounts) ? ns.accounts : []) {
+    const m = typeof a === 'string' ? /^(eip155:[0-9]+):0x[0-9a-fA-F]{40}$/.exec(a) : null;
+    if (m) ketten.add(m[1]);
+  }
+  return [...ketten];
+}
 
 /**
  * Uniform signing interface so screens don't care whether the active wallet
@@ -26,10 +55,30 @@ export function localWalletSigner(address: string): AequitasSigner {
   };
 }
 
+/**
+ * `freigegebeneKetten` liefert die Ketten, die die Wallet fuer diese Sitzung
+ * freigegeben hat (WalletConnect-Namespaces, live -- ein session_update der
+ * Wallet landet dort).
+ *
+ * Kettengebundene Anfragen (EIP-712 mit chainId, Ueberweisung) gehen
+ * ausdruecklich ueber die Aequitas-Kette. Vorher liefen alle Anfragen ueber
+ * den Routing-Anker eip155:1 (walletconnect.ts); MetaMask Mobile nimmt diese
+ * Routing-Kette als aktives Netz und lehnte die V8-Unterschrift ab ("active
+ * chainId is different than the one provided") -- und eine Ueberweisung
+ * haette es auf Ethereum statt auf Aequitas ausgefuehrt. Fehlt die
+ * Aequitas-Kette in der Sitzung, wird nichts gesendet (fail-closed).
+ */
 export function walletConnectSigner(
   address: string,
-  request: (args: { method: string; params: unknown[] }) => Promise<any>
+  request: WcRequest,
+  freigegebeneKetten: () => readonly string[]
 ): AequitasSigner {
+  const aufAequitas = (args: { method: string; params: unknown[] }) => {
+    if (!freigegebeneKetten().includes(AEQUITAS_CAIP)) {
+      return Promise.reject(new Error(NETZ_NICHT_FREIGEGEBEN));
+    }
+    return request(args, AEQUITAS_CAIP);
+  };
   return {
     address,
     kind: 'walletconnect',
@@ -55,15 +104,28 @@ export function walletConnectSigner(
     },
     // getPayload fuegt EIP712Domain hinzu und schreibt bigints als
     // Dezimaltext -- genau das JSON, das eth_signTypedData_v4 erwartet.
-    signTypedData: (domain, types, message) => {
+    // Die App unterschreibt nur Domaenen der Aequitas-Kette; eine andere
+    // chainId ist ein Fehler im Aufrufer und geht nicht an die Wallet.
+    signTypedData: async (domain, types, message) => {
+      let kette: bigint | null = null;
+      try {
+        kette = domain.chainId === undefined || domain.chainId === null ? null : BigInt(domain.chainId);
+      } catch {
+        kette = null;
+      }
+      if (kette !== BigInt(CHAIN_ID_DEC)) {
+        throw new Error(`EIP-712-Domaene muss chainId ${CHAIN_ID_DEC} tragen`);
+      }
       const payload = ethers.TypedDataEncoder.getPayload(domain, types as any, message);
-      return request({ method: 'eth_signTypedData_v4', params: [address, JSON.stringify(payload)] });
+      return aufAequitas({ method: 'eth_signTypedData_v4', params: [address, JSON.stringify(payload)] });
     },
+    // chainId im Auftrag: steht die Wallet trotzdem auf einem anderen Netz,
+    // lehnt sie ab, statt dort zu senden.
     sendTransaction: async ({ to, value }) => {
       const hexValue = '0x' + value.toString(16);
-      return request({
+      return aufAequitas({
         method: 'eth_sendTransaction',
-        params: [{ from: address, to, value: hexValue }],
+        params: [{ from: address, to, value: hexValue, chainId: CHAIN_ID_HEX }],
       });
     },
   };
