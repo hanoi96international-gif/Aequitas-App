@@ -197,6 +197,16 @@ export async function signMessage(message: string): Promise<string> {
   return wallet.signMessage(isHex ? ethers.getBytes(message) : message);
 }
 
+/** EIP-712-Unterschrift mit dem App-Schluessel (v 27/28, niedriges s). */
+export async function signTypedData(
+  domain: ethers.TypedDataDomain,
+  types: Record<string, readonly ethers.TypedDataField[]>,
+  message: Record<string, unknown>,
+): Promise<string> {
+  const wallet = await unlockWallet();
+  return wallet.signTypedData(domain, types as Record<string, ethers.TypedDataField[]>, message);
+}
+
 export async function sendAEQ(to: string, amountWei: bigint): Promise<string> {
   const wallet = await unlockWallet();
   const tx = await wallet.sendTransaction({ to, value: amountWei });

@@ -10,6 +10,8 @@ export interface AequitasSigner {
   kind: 'local' | 'walletconnect';
   /** MetaMask-personal_sign-compatible: plain text -> UTF-8, "0x..." hex -> raw bytes. */
   signMessage(message: string): Promise<string>;
+  /** EIP-712 (eth_signTypedData_v4). `types` ohne EIP712Domain; Werte duerfen bigint sein. */
+  signTypedData(domain: ethers.TypedDataDomain, types: Record<string, readonly ethers.TypedDataField[]>, message: Record<string, unknown>): Promise<string>;
   /** Sends a native AEQ transfer, returns the tx hash. */
   sendTransaction(params: { to: string; value: bigint }): Promise<string>;
 }
@@ -19,6 +21,7 @@ export function localWalletSigner(address: string): AequitasSigner {
     address,
     kind: 'local',
     signMessage: (message: string) => wallet.signMessage(message),
+    signTypedData: (domain, types, message) => wallet.signTypedData(domain, types, message),
     sendTransaction: ({ to, value }) => wallet.sendAEQ(to, value),
   };
 }
@@ -49,6 +52,12 @@ export function walletConnectSigner(
       const isHex = /^0x[0-9a-fA-F]+$/.test(message);
       const hexMessage = isHex ? message : ethers.hexlify(ethers.toUtf8Bytes(message));
       return request({ method: 'personal_sign', params: [hexMessage, address] });
+    },
+    // getPayload fuegt EIP712Domain hinzu und schreibt bigints als
+    // Dezimaltext -- genau das JSON, das eth_signTypedData_v4 erwartet.
+    signTypedData: (domain, types, message) => {
+      const payload = ethers.TypedDataEncoder.getPayload(domain, types as any, message);
+      return request({ method: 'eth_signTypedData_v4', params: [address, JSON.stringify(payload)] });
     },
     sendTransaction: async ({ to, value }) => {
       const hexValue = '0x' + value.toString(16);

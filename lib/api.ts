@@ -182,6 +182,11 @@ export interface ChainStatus {
   ubi_next_payout_secs: number;
   block_time?: number;
   latest_hash?: string;
+  chain_evm_id?: number;
+  /** "aequitas-<chainID>-<genesis-unix>", nur neuere Knoten (src/api/netz.ts). */
+  netz_kennung?: string;
+  /** "v7" oder "v8": welche Registrierungs-Unterschrift der Knoten verlangt. */
+  register_vertrag?: string;
 }
 
 export interface CanonicalBlock {
@@ -400,6 +405,8 @@ export function postRegister(params: {
   nullifier: string;
   circuitVersion: number;
   zkNullifier: string;
+  /** Nur V8: Frist der EIP-712-Unterschrift (Unix-Sekunden). */
+  deadline?: number;
 }) {
   // An den Knoten, der den Beweis ausgestellt hat. Kein Ausweichknoten:
   // siehe proveKnoten.
