@@ -1,7 +1,15 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { ethers } from 'ethers';
-import { requestProof, postRegister, checkRegistrationByBioHash } from './api';
+import { requestProof, postRegister, checkRegistrationByBioHash, getStatus } from './api';
+import { pruefeNetz, signierenErlaubt } from '@/src/api/netz';
+import {
+  registerV8Frist,
+  registerV8Nachricht,
+  registerV8Signatur,
+  registerV8TypedData,
+  registerVertrag,
+} from '@/src/domain/registerV8';
 import { CHAIN_ID_DEC, V7_CONTRACT } from './config';
 import { withTimeout, type AequitasSigner } from './signer';
 
@@ -105,8 +113,30 @@ export async function proveAndRegister(
   // Forwarded verbatim to the proof server when the identity came from the
   // biometric coordinator. Absent for the device-secret flow, which has no
   // coordinator to attest for it.
-  attestation?: { signature: string | null; issuedAt: number | null; grantClass?: string | null; grantClassSignature?: string | null }
+  attestation?: { signature: string | null; issuedAt: number | null; grantClass?: string | null; grantClassSignature?: string | null },
+  // Die zuletzt bestaetigte Netzkennung (NetzProvider). Weicht der Knoten
+  // davon ab, wird nicht unterschrieben: eine V8-Unterschrift ist an das Netz
+  // gebunden, und ein Neustart der Kette muss erst bestaetigt sein.
+  gespeicherteKennung: string | null = null
 ) {
+  // Vor dem Beweis klaeren, welche Unterschrift der Knoten verlangt -- sonst
+  // wuerde eine unklare Lage erst nach der Gesichtsaufnahme sichtbar.
+  // Fail-closed: unbekannter Vertrag, fremde Kette, ungueltige oder
+  // gewechselte Kennung -> keine Unterschrift.
+  const status = await getStatus();
+  const vertrag = registerVertrag(status);
+  if (!vertrag) {
+    throw new Error('Der Knoten verlangt eine unbekannte Registrierung — bitte die App aktualisieren');
+  }
+  const netz = pruefeNetz(status, gespeicherteKennung);
+  if (!signierenErlaubt(netz)) {
+    throw new Error('Netz nicht bestätigt (andere Kette oder Neustart) — Registrierung nicht unterschrieben');
+  }
+  const kennung = netz.art === 'ok' || netz.art === 'erstmals' ? netz.kennung : null;
+  if (vertrag === 'v8' && !kennung) {
+    throw new Error('Knoten liefert keine Netzkennung — V8-Registrierung nicht möglich');
+  }
+
   const proof = await requestProof({
     bio: identity.bio,
     salt: identity.salt,
@@ -133,11 +163,34 @@ export async function proveAndRegister(
 
   const commitment = pubSignals[0];
   const nullifier = BigInt(zkNullifier).toString(16).padStart(64, '0');
-  const messageHash = ethers.solidityPackedKeccak256(
-    ['uint256', 'address', 'string', 'uint256', 'bytes32'],
-    [CHAIN_ID_DEC, V7_CONTRACT, 'register', commitment, '0x' + nullifier]
-  );
-  const signature = await withTimeout(signer.signMessage(messageHash), SIGN_TIMEOUT_MS, timeoutMessage);
+
+  let signature: string;
+  let deadline: number | undefined;
+  if (vertrag === 'v8') {
+    // EIP-712 (src/domain/registerV8.ts). Der V8-Vertrag nimmt den
+    // Nullifier nur aus pubSignals[1]; ein abweichender zkNullifier hiesse,
+    // dass wir etwas anderes unterschreiben, als der Knoten registriert.
+    if (!pubSignals[1] || BigInt(pubSignals[1]) !== BigInt(zkNullifier)) {
+      throw new Error('Nullifier des Beweises passt nicht zu seinen öffentlichen Signalen — bitte erneut versuchen');
+    }
+    deadline = registerV8Frist();
+    const nachricht = registerV8Nachricht(signer.address, pubSignals, deadline);
+    const td = registerV8TypedData(kennung!, nachricht);
+    const roh = await withTimeout(
+      signer.signTypedData(td.domain, td.types, td.message as unknown as Record<string, unknown>),
+      SIGN_TIMEOUT_MS,
+      timeoutMessage,
+    );
+    // Pruefen, bevor es rausgeht: v angleichen, hohes s und fremder
+    // Unterzeichner schliessen ab (dieselbe Pruefung wie am Knoten).
+    signature = registerV8Signatur(kennung!, nachricht, roh);
+  } else {
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['uint256', 'address', 'string', 'uint256', 'bytes32'],
+      [CHAIN_ID_DEC, V7_CONTRACT, 'register', commitment, '0x' + nullifier]
+    );
+    signature = await withTimeout(signer.signMessage(messageHash), SIGN_TIMEOUT_MS, timeoutMessage);
+  }
 
   return postRegister({
     wallet: signer.address,
@@ -151,5 +204,6 @@ export async function proveAndRegister(
     nullifier,
     circuitVersion: circuitVersion || 2,
     zkNullifier,
+    ...(deadline !== undefined ? { deadline } : {}),
   });
 }

@@ -65,6 +65,20 @@ describe('walletConnectSigner', () => {
     });
   });
 
+  it('sends eth_signTypedData_v4 with EIP712Domain and bigints as decimal text', async () => {
+    const request = jest.fn().mockResolvedValue('0xsignature');
+    const signer = walletConnectSigner('0xABC', request);
+    const domain = { name: 'Aequitas', version: '8', chainId: 1926, verifyingContract: '0x20D271028f32577FCd07b4583A8e0E4eBBdB4F78', salt: '0x' + '11'.repeat(32) };
+    await signer.signTypedData(domain, { Register: [{ name: 'nonce', type: 'uint256' }] }, { nonce: 0n });
+    const [{ method, params }] = request.mock.calls[0];
+    expect(method).toBe('eth_signTypedData_v4');
+    expect(params[0]).toBe('0xABC');
+    const payload = JSON.parse(params[1]);
+    expect(payload.primaryType).toBe('Register');
+    expect(payload.types.EIP712Domain.map((f: any) => f.name)).toEqual(['name', 'version', 'chainId', 'verifyingContract', 'salt']);
+    expect(payload.message).toEqual({ nonce: '0' });
+  });
+
   it('reports kind: "walletconnect"', () => {
     const signer = walletConnectSigner('0xABC', jest.fn());
     expect(signer.kind).toBe('walletconnect');
