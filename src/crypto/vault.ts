@@ -3,6 +3,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 
 import { normalizePhrase } from './mnemonic';
+import { withSystemPrompt } from './promptGuard';
 
 // Schluesseltresor (Neubau, docs/NEUBAU_ANALYSE.md 3.7).
 //
@@ -28,6 +29,8 @@ import { normalizePhrase } from './mnemonic';
 // WIE ER BENUTZT WIRD
 //   withSigner() entschluesselt fuer genau EINEN Vorgang und verwirft den
 //   Schluessel danach. Es gibt keinen dauerhaft entsperrten Signer im Speicher.
+//   verifyAccess() prueft nur, dass der Mensch den Tresor oeffnen kann
+//   (Sperrbildschirm) -- ohne etwas herauszugeben.
 
 export type Protection = 'biometric' | 'device' | 'pin';
 export type SecretKind = 'phrase' | 'privateKey';
@@ -41,9 +44,20 @@ export interface VaultMeta {
   createdAt: number;
 }
 
+export type VaultErrorReason =
+  | 'noVault'
+  | 'cancelled'
+  | 'pinRequired'
+  | 'pinWrong'
+  | 'pinLocked'
+  | 'pinWeak'
+  | 'invalidSecret'
+  | 'mismatch'
+  | 'exists';
+
 export class VaultError extends Error {
   constructor(
-    readonly reason: 'noVault' | 'cancelled' | 'pinRequired' | 'pinWrong' | 'pinLocked' | 'pinWeak' | 'invalidSecret' | 'exists',
+    readonly reason: VaultErrorReason,
     readonly waitMs?: number,
   ) {
     super(reason);
@@ -54,6 +68,8 @@ export class VaultError extends Error {
 const META_KEY = 'aequitas.vault.v2.meta';
 const SECRET_KEY = 'aequitas.vault.v2.secret';
 const PIN_STATE_KEY = 'aequitas.vault.v2.pinstate';
+// Speicher der alten App (lib/wallet.ts): nur Private Key, keine Phrase.
+const LEGACY_SECRET_KEY = 'aequitas_wallet_secret_v1';
 const LEGACY_ADDRESS_KEY = 'aequitas_wallet_address_v1';
 
 export const DERIVATION_BASE = "m/44'/60'/0'/0";
@@ -76,14 +92,17 @@ interface Deps {
   now(): number;
 }
 
+// Alles, was eine Systemabfrage oeffnen kann, laeuft ueber withSystemPrompt
+// (promptGuard.ts): sonst sperrt sich die Sitzung auf iOS beim Entsperren.
 const realDeps: Deps = {
-  getItem: (k, o) => SecureStore.getItemAsync(k, o),
-  setItem: (k, v, o) => SecureStore.setItemAsync(k, v, o),
+  getItem: (k, o) => (o?.requireAuthentication ? withSystemPrompt(() => SecureStore.getItemAsync(k, o)) : SecureStore.getItemAsync(k, o)),
+  setItem: (k, v, o) =>
+    o?.requireAuthentication ? withSystemPrompt(() => SecureStore.setItemAsync(k, v, o)) : SecureStore.setItemAsync(k, v, o),
   deleteItem: (k) => SecureStore.deleteItemAsync(k),
   canUseBiometric: () => SecureStore.canUseBiometricAuthentication(),
   enrolledLevel: () => LocalAuthentication.getEnrolledLevelAsync(),
-  authenticate: async (prompt) =>
-    (await LocalAuthentication.authenticateAsync({ promptMessage: prompt, disableDeviceFallback: false })).success,
+  authenticate: (prompt) =>
+    withSystemPrompt(async () => (await LocalAuthentication.authenticateAsync({ promptMessage: prompt, disableDeviceFallback: false })).success),
   now: () => Date.now(),
 };
 
@@ -149,12 +168,26 @@ export async function createVault(input: { phrase: string } | { privateKey: stri
     if (!Mnemonic.isValidMnemonic(secret)) throw new VaultError('invalidSecret');
   } else {
     kind = 'privateKey';
-    const k = input.privateKey.trim();
-    secret = k.startsWith('0x') ? k : `0x${k}`;
-    if (!/^0x[0-9a-fA-F]{64}$/.test(secret)) throw new VaultError('invalidSecret');
+    secret = normalizeKey(input.privateKey);
   }
+  return storeVault(kind, secret, await availableProtection(), opts, false);
+}
+
+function normalizeKey(input: string): string {
+  const k = input.trim();
+  const secret = k.startsWith('0x') ? k : `0x${k}`;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(secret)) throw new VaultError('invalidSecret');
+  return secret;
+}
+
+async function storeVault(
+  kind: SecretKind,
+  secret: string,
+  protection: Protection,
+  opts: { pin?: string; backedUp?: boolean },
+  userJustAuthenticated: boolean,
+): Promise<VaultMeta> {
   const wallet = walletFrom(kind, secret);
-  const protection = await availableProtection();
 
   if (protection === 'pin') {
     if (!opts.pin) throw new VaultError('pinRequired');
@@ -170,7 +203,9 @@ export async function createVault(input: { phrase: string } | { privateKey: stri
     );
     await deps.setItem(SECRET_KEY, json, BASE_OPTS);
   } else {
-    if (protection === 'device' && !(await deps.authenticate('Aequitas-Wallet sichern'))) throw new VaultError('cancelled');
+    if (protection === 'device' && !userJustAuthenticated && !(await deps.authenticate('Aequitas-Wallet sichern'))) {
+      throw new VaultError('cancelled');
+    }
     await deps.setItem(SECRET_KEY, `${kind}:${secret}`, {
       ...BASE_OPTS,
       requireAuthentication: protection === 'biometric',
@@ -187,6 +222,45 @@ export async function createVault(input: { phrase: string } | { privateKey: stri
     createdAt: deps.now(),
   };
   await deps.setItem(META_KEY, JSON.stringify(meta), BASE_OPTS);
+  return meta;
+}
+
+/**
+ * Uebernimmt die Wallet der alten App in den Tresor (kind 'privateKey', ohne
+ * Phrase -- ein Backup ist dafuer nicht moeglich). Gelesen wird genau wie in
+ * lib/wallet.ts:unlockWallet, also nur nach Biometrie bzw. Geraete-PIN. Erst
+ * wenn der neue Tresor steht, wird der alte Speicher geloescht -- dort lag der
+ * Schluessel auf Geraeten ohne Bildschirmsperre ungeschuetzt.
+ */
+export async function importLegacy(prompt: string, opts: { pin?: string } = {}): Promise<VaultMeta> {
+  if (await getMeta()) throw new VaultError('exists');
+  const address = await legacyAddress();
+  if (!address) throw new VaultError('noVault');
+  const protection = await availableProtection();
+  // Erst die PIN pruefen, dann den alten Schluessel anfassen.
+  if (protection === 'pin') {
+    if (!opts.pin) throw new VaultError('pinRequired');
+    if (!validPin(opts.pin)) throw new VaultError('pinWeak');
+  }
+  if (protection === 'device' && !(await deps.authenticate(prompt))) throw new VaultError('cancelled');
+  let raw: string | null;
+  try {
+    raw = await deps.getItem(LEGACY_SECRET_KEY, {
+      requireAuthentication: protection === 'biometric',
+      authenticationPrompt: prompt,
+    });
+  } catch {
+    throw new VaultError('cancelled');
+  }
+  if (!raw) throw new VaultError('noVault');
+  const secret = normalizeKey(raw);
+  if (new Wallet(secret).address.toLowerCase() !== address.toLowerCase()) {
+    // Alter Speicher passt nicht zu seiner Adresse -- nichts uebernehmen.
+    throw new VaultError('invalidSecret');
+  }
+  const meta = await storeVault('privateKey', secret, protection, opts, true);
+  await deps.deleteItem(LEGACY_SECRET_KEY);
+  await deps.deleteItem(LEGACY_ADDRESS_KEY);
   return meta;
 }
 
@@ -209,9 +283,19 @@ async function pinState(): Promise<PinState> {
     const s = raw ? (JSON.parse(raw) as PinState) : null;
     return s && Number.isFinite(s.fails) ? s : { fails: 0, lockedUntil: 0 };
   } catch {
-    // Beschaedigter Zaehler zaehlt NICHT als Null -- sicherheitshalber gesperrt.
-    return { fails: PIN_FREE_ATTEMPTS, lockedUntil: deps.now() + 30_000 };
+    // Beschaedigter Zaehler zaehlt NICHT als Null -- sicherheitshalber
+    // gesperrt. Der Ersatz wird gespeichert: sonst begaenne die Wartezeit bei
+    // jedem Lesen neu, und die PIN liesse sich nie wieder eingeben.
+    const s = { fails: PIN_FREE_ATTEMPTS, lockedUntil: deps.now() + pinWaitMs(PIN_FREE_ATTEMPTS) };
+    await deps.setItem(PIN_STATE_KEY, JSON.stringify(s), BASE_OPTS);
+    return s;
   }
+}
+
+/** Verbleibende Wartezeit nach falschen PINs (0 = Eingabe moeglich). */
+export async function pinLockRemaining(): Promise<number> {
+  const st = await pinState();
+  return Math.max(0, st.lockedUntil - deps.now());
 }
 
 /** Wartezeit nach n Fehlversuchen: 5 frei, dann 30 s, 60 s, ... bis 1 h. */
@@ -268,12 +352,29 @@ export async function withSigner<T>(prompt: string, fn: (w: HDNodeWallet | Walle
   const meta = await getMeta();
   if (!meta) throw new VaultError('noVault');
   const { kind, secret } = await readSecret(meta, prompt, opts.pin);
-  const w = walletFrom(kind, secret, opts.index ?? 0);
-  if (w.address.toLowerCase() !== meta.address.toLowerCase() && (opts.index ?? 0) === 0) {
-    // Speicher und Metadaten passen nicht zusammen -- lieber nicht signieren.
-    throw new VaultError('invalidSecret');
-  }
-  return fn(w);
+  const main = matchingMain(meta, kind, secret);
+  const index = opts.index ?? 0;
+  return fn(index === 0 ? main : walletFrom(kind, secret, index));
+}
+
+/** Hauptschluessel -- nur wenn Speicher und Metadaten zusammenpassen, sonst lieber nicht signieren. */
+function matchingMain(meta: VaultMeta, kind: SecretKind, secret: string): HDNodeWallet | Wallet {
+  const w = walletFrom(kind, secret, 0);
+  if (w.address.toLowerCase() !== meta.address.toLowerCase()) throw new VaultError('invalidSecret');
+  return w;
+}
+
+/**
+ * Entsperren: dieselbe Pruefung wie vor einer Signatur (Biometrie, Geraete-PIN
+ * oder App-PIN, samt Wartezeit nach Fehlversuchen), aber es verlaesst nichts
+ * den Tresor. Gibt die Metadaten zurueck.
+ */
+export async function verifyAccess(prompt: string, opts: { pin?: string } = {}): Promise<VaultMeta> {
+  const meta = await getMeta();
+  if (!meta) throw new VaultError('noVault');
+  const { kind, secret } = await readSecret(meta, prompt, opts.pin);
+  matchingMain(meta, kind, secret);
+  return meta;
 }
 
 /** Phrase zur Anzeige (Backup ansehen) -- nur fuer kind 'phrase'. */
@@ -281,7 +382,43 @@ export async function revealPhrase(prompt: string, opts: { pin?: string } = {}):
   const meta = await getMeta();
   if (!meta) throw new VaultError('noVault');
   if (meta.kind !== 'phrase') throw new VaultError('invalidSecret');
-  return (await readSecret(meta, prompt, opts.pin)).secret;
+  const { kind, secret } = await readSecret(meta, prompt, opts.pin);
+  // Nie eine Phrase als Sicherung zeigen, die nicht zu DIESEM Konto gehoert --
+  // wer sie aufschreibt, haette sonst ein wertloses Backup.
+  matchingMain(meta, kind, secret);
+  return secret;
+}
+
+/**
+ * Tresor neu einrichten, wenn er sich nicht mehr oeffnen laesst (App-PIN
+ * vergessen; iOS macht Biometrie-Elemente ungueltig, sobald ein Gesicht oder
+ * Finger dazukommt). Nur mit dem Geheimnis, das zur GESPEICHERTEN Adresse
+ * gehoert -- wer es hat, koennte die Wallet ohnehin auf jedem Geraet
+ * wiederherstellen. Ein fremdes Geheimnis ersetzt nichts. Alles wird vor dem
+ * Loeschen geprueft, damit ein Abbruch den alten Tresor nicht kostet.
+ */
+export async function recoverVault(input: { phrase: string } | { privateKey: string }, opts: { pin?: string } = {}): Promise<VaultMeta> {
+  const meta = await getMeta();
+  if (!meta) throw new VaultError('noVault');
+  let kind: SecretKind;
+  let secret: string;
+  if ('phrase' in input) {
+    kind = 'phrase';
+    secret = normalizePhrase(input.phrase);
+    if (!Mnemonic.isValidMnemonic(secret)) throw new VaultError('invalidSecret');
+  } else {
+    kind = 'privateKey';
+    secret = normalizeKey(input.privateKey);
+  }
+  if (walletFrom(kind, secret).address.toLowerCase() !== meta.address.toLowerCase()) throw new VaultError('mismatch');
+  const protection = await availableProtection();
+  if (protection === 'pin') {
+    if (!opts.pin) throw new VaultError('pinRequired');
+    if (!validPin(opts.pin)) throw new VaultError('pinWeak');
+  }
+  if (protection === 'device' && !(await deps.authenticate('Aequitas-Wallet sichern'))) throw new VaultError('cancelled');
+  await wipe();
+  return storeVault(kind, secret, protection, { pin: opts.pin, backedUp: kind === 'phrase' }, true);
 }
 
 /** Entfernt den Tresor von diesem Geraet. Die UI verlangt vorher Backup-Bestaetigung. */

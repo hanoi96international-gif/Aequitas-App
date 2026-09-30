@@ -22,6 +22,7 @@ const MAPPING = {
   'arrow.left.arrow.right': 'swap-horiz',
   'checkmark.seal.fill': 'verified-user',
   'server.rack': 'dns',
+  'ellipsis.circle.fill': 'more-horiz',
 } as IconMapping;
 
 /**

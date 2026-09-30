@@ -553,3 +553,38 @@ Der Neubau passiert im selben Repo auf einem eigenen Zweig. Paket `digital.aequi
 - Gerätegeheimnis-Registrierung entfällt.
 - Neubau auf dem Zweig `claude/app-neubau`, in Etappen nach Abschnitt 5; Paketname und Signierschlüssel bleiben.
 - Backend-Lücken aus Abschnitt 2 werden in der Kette parallel geschlossen (Netzkennung und Serverzeit in `/api/status`, `Retry-After`, Fehlercodes, Aktivitäts-/Treuhandstatus, EIP-712-Aufträge mit V8).
+
+---
+
+## 7. Stand der Etappen
+
+| Etappe | Stand | Wo |
+|---|---|---|
+| 1 Fundament | fertig | `src/ui`, `src/api/http.ts`, `src/domain/amount.ts`, `src/i18n`, `src/query` |
+| 2a Schlüsseltresor | fertig | `src/crypto/vault.ts`, `src/crypto/mnemonic.ts` |
+| 2b Sitzung, Sperre, Onboarding, Sicherheit | fertig | siehe unten |
+| 3 Wallet | offen | nächster Schritt: Übersicht mit Guthaben, Senden, Empfangen, Verlauf |
+
+**2b im Einzelnen:**
+
+- **Sitzung** (`src/crypto/session.ts`, reine Zustandsmaschine; `src/features/security/SessionProvider.tsx`):
+  - Ein vorhandener Tresor startet gesperrt.
+  - Sperre bei `background` immer, bei `inactive` außer während einer eigenen Systemabfrage (`src/crypto/promptGuard.ts`, sonst sperrt Face ID die App), nach 60 s ohne Berührung (monotone Uhr).
+  - „Entsperrt“ nur direkt nach einem gelungenen Tresor-Vorgang: `verifyAccess`, `createVault`, `importLegacy`, `recoverVault`. Bildschirme können die Sitzung nicht selbst öffnen.
+  - Endet eine Abfrage erst im Hintergrund, bleibt die App gesperrt.
+- **Tresor-Ergänzungen** (`src/crypto/vault.ts`):
+  - `verifyAccess`: entsperrt, ohne etwas herauszugeben.
+  - `importLegacy`: übernimmt den Schlüssel der alten App und löscht danach den alten, teils ungeschützten Speicher.
+  - `recoverVault`: Neueinrichtung bei vergessener PIN oder neu eingerichteter Biometrie. Geht nur mit dem Geheimnis der gespeicherten Adresse.
+  - `revealPhrase` zeigt nur eine Phrase, die zur Adresse passt.
+  - Ein beschädigter PIN-Zähler sperrt nicht mehr für immer.
+- **Netzabgleich** (`src/api/netz.ts`, `src/features/network/NetzProvider.tsx`):
+  - Prüft `chain_evm_id` und `netz_kennung` aus `/api/status` (Kette: `api_app_grundlagen.go`).
+  - Fremde Kette oder verformte Kennung: nichts signieren.
+  - Neustart bei null: Hinweis. Nach Bestätigung werden nur Kettenkopien verworfen, nie ein Schlüssel.
+- **Routen:**
+  - `app/_layout.tsx`: drei Guards, `(onboarding)` / `lock` + `recover` / `(app)`, dazu ErrorBoundary.
+  - Onboarding: `welcome`, `create` (Phrase ohne Bildschirmfoto, Prüfung von drei Wörtern), `restore`, `legacy`, `language`, App-PIN bei Geräten ohne Sperre.
+  - App: vier Reiter (Übersicht, Zahlen, Tausch, Mehr), `security`, `backup`, `remove` (Bestätigung, Wort eintippen, erneute Prüfung), `settings/language`.
+  - Die alten Bildschirme sind entfernt; sie liegen in der Git-Geschichte, `lib/` bleibt als Quelle für Etappe 3 bis 6.
+- **Offen für Etappe 3:** Guthabenwarnung beim Entfernen; Reiter „Zahlen“ und „Tausch“ sind noch Platzhalter.

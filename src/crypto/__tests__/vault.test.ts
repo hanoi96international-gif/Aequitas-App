@@ -7,11 +7,15 @@ import {
   availableProtection,
   createVault,
   getMeta,
+  importLegacy,
   markBackedUp,
+  pinLockRemaining,
   pinWaitMs,
+  recoverVault,
   revealPhrase,
   validPin,
   VaultError,
+  verifyAccess,
   wipe,
   withSigner,
 } from '../vault';
@@ -176,5 +180,133 @@ describe('Integritaet', () => {
     await expect(createVault({ phrase: 'foo bar' })).rejects.toMatchObject({ reason: 'invalidSecret' });
     await expect(createVault({ privateKey: '0x1234' })).rejects.toMatchObject({ reason: 'invalidSecret' });
     expect(await getMeta()).toBeNull();
+  });
+});
+
+describe('Entsperren (verifyAccess)', () => {
+  it('prueft wie vor einer Signatur, gibt aber nur die Metadaten heraus', async () => {
+    geraet({});
+    await createVault({ phrase: PHRASE }, { pin: '482915' });
+    await expect(verifyAccess('x', { pin: '482915' })).resolves.toMatchObject({ address: ADDR });
+    await expect(verifyAccess('x')).rejects.toMatchObject({ reason: 'pinRequired' });
+    await expect(verifyAccess('x', { pin: '000001' })).rejects.toMatchObject({ reason: 'pinWrong' });
+  });
+  it('Missbrauch: falsche PINs beim Entsperren zaehlen wie beim Signieren', async () => {
+    geraet({});
+    await createVault({ phrase: PHRASE }, { pin: '482915' });
+    for (let i = 0; i < 4; i++) await expect(verifyAccess('x', { pin: '000001' })).rejects.toMatchObject({ reason: 'pinWrong' });
+    await expect(withSigner('x', async () => 1, { pin: '000001' })).rejects.toMatchObject({ reason: 'pinLocked' });
+    expect(await pinLockRemaining()).toBe(30_000);
+  });
+  it('Missbrauch: abgebrochene Geraeteabfrage entsperrt nicht', async () => {
+    const g = geraet({ level: LocalAuthentication.SecurityLevel.SECRET });
+    await createVault({ phrase: PHRASE });
+    _setDepsForTest({
+      getItem: async (k) => g.store.get(k) ?? null,
+      enrolledLevel: async () => LocalAuthentication.SecurityLevel.SECRET,
+      canUseBiometric: () => false,
+      authenticate: async () => false,
+    });
+    await expect(verifyAccess('x')).rejects.toMatchObject({ reason: 'cancelled' });
+  });
+  it('Missbrauch: ausgetauschte Phrase wird nie als Sicherung angezeigt', async () => {
+    const g = geraet({ biometric: true });
+    await createVault({ phrase: PHRASE });
+    g.store.set('aequitas.vault.v2.secret', `phrase:${newPhrase()}`);
+    await expect(revealPhrase('x')).rejects.toMatchObject({ reason: 'invalidSecret' });
+  });
+  it('Missbrauch: ausgetauschtes Geheimnis entsperrt nicht', async () => {
+    const g = geraet({ biometric: true });
+    await createVault({ phrase: PHRASE });
+    g.store.set('aequitas.vault.v2.secret', `phrase:${newPhrase()}`);
+    await expect(verifyAccess('x')).rejects.toMatchObject({ reason: 'invalidSecret' });
+  });
+  it('beschaedigter Zaehler: gesperrt, aber nach der Wartezeit wieder benutzbar (nicht fuer immer)', async () => {
+    const g = geraet({});
+    await createVault({ phrase: PHRASE }, { pin: '482915' });
+    g.store.set('aequitas.vault.v2.pinstate', '{kaputt');
+    await expect(verifyAccess('x', { pin: '482915' })).rejects.toMatchObject({ reason: 'pinLocked' });
+    g.vorspulen(30_001);
+    await expect(verifyAccess('x', { pin: '482915' })).resolves.toMatchObject({ address: ADDR });
+  });
+});
+
+describe('Alte Wallet uebernehmen (importLegacy)', () => {
+  const alt = new Wallet('0x' + '11'.repeat(32));
+  function altGeraet(opts: Parameters<typeof geraet>[0]) {
+    const g = geraet(opts);
+    g.store.set('aequitas_wallet_secret_v1', alt.privateKey);
+    g.store.set('aequitas_wallet_address_v1', alt.address);
+    return g;
+  }
+  it('uebernimmt den Schluessel und raeumt den alten, ungeschuetzten Speicher', async () => {
+    const g = altGeraet({});
+    const meta = await importLegacy('x', { pin: '482915' });
+    expect(meta).toMatchObject({ address: alt.address, kind: 'privateKey', protection: 'pin', backedUp: false });
+    expect(g.store.has('aequitas_wallet_secret_v1')).toBe(false);
+    expect(g.store.has('aequitas_wallet_address_v1')).toBe(false);
+    expect(g.store.get('aequitas.vault.v2.secret')).not.toContain(alt.privateKey.slice(2));
+    await expect(withSigner('x', async (w) => w.address, { pin: '482915' })).resolves.toBe(alt.address);
+  });
+  it('Missbrauch: ohne gueltige PIN wird der alte Schluessel gar nicht erst gelesen', async () => {
+    const g = altGeraet({});
+    const gelesen: string[] = [];
+    const get = async (k: string) => {
+      gelesen.push(k);
+      return g.store.get(k) ?? null;
+    };
+    _setDepsForTest({ getItem: get, setItem: async (k, v) => void g.store.set(k, v), enrolledLevel: async () => LocalAuthentication.SecurityLevel.NONE, canUseBiometric: () => false });
+    await expect(importLegacy('x', { pin: '123456' })).rejects.toMatchObject({ reason: 'pinWeak' });
+    expect(gelesen).not.toContain('aequitas_wallet_secret_v1');
+    expect(g.store.has('aequitas_wallet_secret_v1')).toBe(true);
+  });
+  it('Missbrauch: alter Schluessel passt nicht zur alten Adresse -> nichts uebernehmen, nichts loeschen', async () => {
+    const g = altGeraet({ biometric: true });
+    g.store.set('aequitas_wallet_address_v1', ADDR);
+    await expect(importLegacy('x')).rejects.toMatchObject({ reason: 'invalidSecret' });
+    expect(await getMeta()).toBeNull();
+    expect(g.store.has('aequitas_wallet_secret_v1')).toBe(true);
+  });
+  it('Geraete-PIN: fragt genau einmal; Abbruch gibt nichts heraus', async () => {
+    const g = altGeraet({ level: LocalAuthentication.SecurityLevel.SECRET });
+    await importLegacy('x');
+    expect(g.auths).toHaveLength(1);
+    const g2 = altGeraet({ level: LocalAuthentication.SecurityLevel.SECRET, authOk: false });
+    await expect(importLegacy('x')).rejects.toMatchObject({ reason: 'cancelled' });
+    expect(g2.store.has('aequitas.vault.v2.secret')).toBe(false);
+  });
+  it('ueberschreibt keinen bestehenden Tresor', async () => {
+    altGeraet({ biometric: true });
+    await createVault({ phrase: PHRASE });
+    await expect(importLegacy('x')).rejects.toMatchObject({ reason: 'exists' });
+  });
+});
+
+describe('Neu einrichten mit der Phrase (recoverVault)', () => {
+  it('PIN vergessen: richtige Phrase setzt eine neue PIN, die alte gilt nicht mehr', async () => {
+    geraet({});
+    await createVault({ phrase: PHRASE }, { pin: '482915' });
+    const meta = await recoverVault({ phrase: PHRASE.toUpperCase() }, { pin: '739104' });
+    expect(meta).toMatchObject({ address: ADDR, backedUp: true });
+    await expect(verifyAccess('x', { pin: '482915' })).rejects.toMatchObject({ reason: 'pinWrong' });
+    await expect(verifyAccess('x', { pin: '739104' })).resolves.toMatchObject({ address: ADDR });
+  });
+  it('Missbrauch: eine fremde (gueltige) Phrase ersetzt den Tresor NICHT', async () => {
+    const g = geraet({});
+    await createVault({ phrase: PHRASE }, { pin: '482915' });
+    const vorher = g.store.get('aequitas.vault.v2.secret');
+    await expect(recoverVault({ phrase: newPhrase() }, { pin: '739104' })).rejects.toMatchObject({ reason: 'mismatch' });
+    expect(g.store.get('aequitas.vault.v2.secret')).toBe(vorher);
+    await expect(verifyAccess('x', { pin: '482915' })).resolves.toMatchObject({ address: ADDR });
+  });
+  it('Missbrauch: schwache neue PIN -> alter Tresor bleibt', async () => {
+    geraet({});
+    await createVault({ phrase: PHRASE }, { pin: '482915' });
+    await expect(recoverVault({ phrase: PHRASE }, { pin: '111111' })).rejects.toMatchObject({ reason: 'pinWeak' });
+    await expect(verifyAccess('x', { pin: '482915' })).resolves.toMatchObject({ address: ADDR });
+  });
+  it('ohne Tresor gibt es nichts neu einzurichten', async () => {
+    geraet({ biometric: true });
+    await expect(recoverVault({ phrase: PHRASE })).rejects.toMatchObject({ reason: 'noVault' });
   });
 });

@@ -34,6 +34,25 @@ export function checkPhrase(input: string): { problem: PhraseProblem; word?: str
   return null;
 }
 
+/** Eingabe beim Neueinrichten: 64 Hex-Zeichen sind ein privater Schluessel, alles andere eine Phrase. */
+export function secretFromInput(input: string): { phrase: string } | { privateKey: string } {
+  const k = input.trim();
+  return /^(0x)?[0-9a-fA-F]{64}$/.test(k) ? { privateKey: k } : { phrase: input };
+}
+
+/** Das Wort, an dem gerade getippt wird (fuer Vorschlaege), oder '' nach einem Leerzeichen. */
+export function currentWord(input: string): string {
+  if (/\s$/.test(input)) return '';
+  const parts = input.trim().split(/\s+/);
+  return (parts[parts.length - 1] ?? '').toLowerCase();
+}
+
+/** Ersetzt das angefangene Wort durch den Vorschlag und haengt ein Leerzeichen an. */
+export function completeWord(input: string, word: string): string {
+  const head = input.replace(/\S*$/, '');
+  return `${head}${word} `;
+}
+
 /** Wortvorschlaege fuer die Eingabe beim Wiederherstellen (hoechstens 4). */
 export function suggestWords(prefix: string, max = 4): string[] {
   const p = prefix.trim().toLowerCase();
