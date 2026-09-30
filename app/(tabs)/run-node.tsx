@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Alert, Linking, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import { QrScanner } from '@/components/QrScanner';
+import { leseKnotenbindung } from '@/lib/knotenBindung';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -8,21 +11,21 @@ import { theme, purpleTint, purpleTintBorder, goldTint, goldTintBorder, neonTint
 
 const GITHUB_URL = 'https://github.com/hanoi96international-gif/Aequitas';
 // Die Anleitungen liegen im Repo und sind damit immer auf dem Stand des Codes
-// (docs/VALIDATOR_EINRICHTEN.md, docs/VALIDATOR_RAILWAY.md). Das PDF vom Juni
-// 2026 beschrieb noch einzelne docker-run-Befehle ohne ANNAHME_ROLLE.
+// (docs/VALIDATOR_EINRICHTEN.md, docs/VERIFIER_EINRICHTEN.md).
 const GUIDE_URL = GITHUB_URL + '/blob/main/docs/VALIDATOR_EINRICHTEN.md';
-const RAILWAY_URL = GITHUB_URL + '/blob/main/docs/VALIDATOR_RAILWAY.md';
 
-// Dieselben Schritte wie docs/VALIDATOR_EINRICHTEN.md: die fertige
-// Compose-Vorlage aus deploy/validator. Sie setzt ANNAHME_ROLLE=nur_lesend --
-// ohne das naehme ein neuer Knoten Ueberweisungen an, und zwei Annehmende
-// bringen die Kontostaende auseinander.
-const SETUP_CMD = `git clone https://github.com/hanoi96international-gif/Aequitas.git
-cd Aequitas/deploy/validator
-cp .env.example .env
-nano .env   # POSTGRES_PASSWORD, SELF_URL, NODE_OPERATOR_WALLET
-docker compose up -d --build
-docker compose logs -f node`;
+// Ein Befehl, zwei Fragen (docs/VALIDATOR_EINRICHTEN.md): die erste Zeile
+// installiert Docker, die zweite holt Aequitas, die dritte richtet alles ein
+// und zeigt am Ende den QR-Code, den dieser Tab scannt.
+const SETUP_CMD = `curl -fsSL https://get.docker.com | sh
+git clone https://github.com/hanoi96international-gif/Aequitas.git
+cd Aequitas/deploy/validator && bash einrichten.sh`;
+
+// Dasselbe fuer den Vergleichsdienst (docs/VERIFIER_EINRICHTEN.md).
+const VERIFIER_CMD = `curl -fsSL https://get.docker.com | sh
+git clone https://github.com/hanoi96international-gif/Aequitas.git
+cd Aequitas/deploy/verifier && bash einrichten.sh`;
+const VERIFIER_GUIDE_URL = GITHUB_URL + '/blob/main/docs/VERIFIER_EINRICHTEN.md';
 
 const CHECK_CMD = `curl -s http://localhost:8080/api/status | grep -oE '"height":[0-9]+'
 curl -s https://aequitas.digital/api/status | grep -oE '"height":[0-9]+'`;
@@ -45,12 +48,17 @@ function CodeBlock({ code, copyBtnLabel, copiedTitle, copiedMsg }: { code: strin
 export default function RunNode() {
   const { t } = useLanguage();
 
-  const ENV_VARS: { key: string; desc: string }[] = [
-    { key: 'POSTGRES_PASSWORD', desc: t('node.envPostgres') },
-    { key: 'SELF_URL', desc: t('node.envSelfUrl') },
-    { key: 'NODE_OPERATOR_WALLET', desc: t('node.envNodeOperator') },
-    { key: 'ANNAHME_ROLLE=nur_lesend', desc: t('node.envAnnahmeRolle') },
-  ];
+  const [scanOffen, setScanOffen] = useState(false);
+
+  function gescannt(roh: string) {
+    setScanOffen(false);
+    const b = leseKnotenbindung(roh);
+    if (!b) {
+      Alert.alert(t('node.bindTitle'), t('node.bindInvalid'));
+      return;
+    }
+    router.push({ pathname: '/knoten-binden', params: { adresse: b.adresse, wallet: b.wallet, beweis: b.beweis } });
+  }
 
   return (
     <SafeAreaView style={S.safe} edges={['top']}>
@@ -85,13 +93,16 @@ export default function RunNode() {
         </View>
 
         <View style={S.card}>
-          <Text style={S.cardTitle}>{t('node.envVarsTitle')}</Text>
-          {ENV_VARS.map((v) => (
-            <View key={v.key} style={S.envRow}>
-              <Text style={S.envKey}>{v.key}</Text>
-              <Text style={S.envDesc}>{v.desc}</Text>
-            </View>
-          ))}
+          <Text style={S.cardTitle}>{t('node.bindTitle')}</Text>
+          <Text style={S.faucetDesc}>{t('node.bindDesc')}</Text>
+          <TouchableOpacity style={S.scanBtn} onPress={() => setScanOffen(true)} activeOpacity={0.85}>
+            <Text style={S.pdfBtnText}>{t('node.bindBtn')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={S.card}>
+          <Text style={S.cardTitle}>{t('node.admissionTitle')}</Text>
+          <Text style={S.faucetDesc}>{t('node.admissionDesc')}</Text>
         </View>
 
         <View style={S.card}>
@@ -103,9 +114,16 @@ export default function RunNode() {
         <TouchableOpacity style={S.pdfBtn} onPress={() => Linking.openURL(GUIDE_URL)} activeOpacity={0.85}>
           <Text style={S.pdfBtnText}>{t('node.guideBtn')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={S.githubBtn} onPress={() => Linking.openURL(RAILWAY_URL)} activeOpacity={0.8}>
-          <Text style={S.githubBtnText}>{t('node.railwayBtn')}</Text>
-        </TouchableOpacity>
+
+        <View style={S.card}>
+          <Text style={S.cardTitle}>{t('node.verifierTitle')}</Text>
+          <Text style={S.faucetDesc}>{t('node.verifierDesc')}</Text>
+          <CodeBlock code={VERIFIER_CMD} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
+          <Text style={S.portNote}>{t('node.verifierNote')}</Text>
+          <TouchableOpacity style={S.githubBtn} onPress={() => Linking.openURL(VERIFIER_GUIDE_URL)} activeOpacity={0.8}>
+            <Text style={S.githubBtnText}>{t('node.verifierGuideBtn')}</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={S.card}>
           <Text style={S.cardTitle}>{t('node.rpcTitle')}</Text>
@@ -116,6 +134,7 @@ export default function RunNode() {
           <DetailRow label={t('node.decimals')} value="18" last />
         </View>
       </ScrollView>
+      <QrScanner visible={scanOffen} onScanned={gescannt} onClose={() => setScanOffen(false)} />
     </SafeAreaView>
   );
 }
@@ -142,6 +161,7 @@ const S = StyleSheet.create({
 
   pdfBtn: { marginHorizontal: 20, marginTop: 20, backgroundColor: theme.accent, borderRadius: theme.radiusPill, padding: 15, alignItems: 'center' },
   pdfBtnText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.3 },
+  scanBtn: { marginTop: 12, backgroundColor: theme.accent, borderRadius: theme.radiusPill, padding: 15, alignItems: 'center' },
 
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, marginTop: 16, borderWidth: 1, borderColor: theme.border },
   cardTitle: { fontSize: 11, color: theme.muted, letterSpacing: 3, marginBottom: 14, fontWeight: '600' },
@@ -151,9 +171,6 @@ const S = StyleSheet.create({
   checkMark: { color: theme.neon, fontSize: 13, fontWeight: '700' },
   checkText: { color: theme.text, fontSize: 12, flex: 1, lineHeight: 17 },
 
-  envRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
-  envKey: { color: theme.accent, fontSize: 12, fontFamily: theme.fontMono, fontWeight: '700', marginBottom: 4 },
-  envDesc: { color: theme.muted, fontSize: 11, lineHeight: 16 },
 
   codeBlock: { backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 12, marginTop: 10 },
   copyBtn: { alignSelf: 'flex-end', borderWidth: 1, borderColor: theme.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 8 },
