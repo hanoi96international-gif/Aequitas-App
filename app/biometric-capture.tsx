@@ -17,6 +17,8 @@ import { theme } from '@/constants/aequitas-theme';
 import {
   registerBiometric,
   rememberBioHash,
+  storedBioHash,
+  deleteEnrollment,
   requestChallenge,
   getOrCreateDeviceId,
   voucherFor,
@@ -35,6 +37,7 @@ import {
   type VouchResult,
 } from '@/lib/biometricIdentity';
 import { WEBAPP } from '@/lib/config';
+import { raeumeVerwaisteEinschreibungAuf } from '@/lib/verwaist';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
 
@@ -113,6 +116,7 @@ function challengeInstruction(type: ChallengeType, t: TFunc): string {
   }
 }
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister } from '@/lib/identity';
+
 import { withTimeout } from '@/lib/signer';
 
 // The face, and nothing else.
@@ -1181,6 +1185,16 @@ export default function BiometricCapture() {
         setStep('result');
         return;
       }
+      // Eine Einschreibung von einem frueheren Versuch, deren Schritt auf der
+      // Kette gescheitert ist, wuerde diesen Versuch als Duplikat abweisen.
+      // Kennt die Kette sie nicht, wird sie hier zuerst geloescht
+      // (lib/verwaist.ts; fail-closed).
+      await raeumeVerwaisteEinschreibungAuf({
+        gespeicherteKennung: storedBioHash,
+        pruefe: (bio) => checkAlreadyRegistered(bio),
+        bioAus: (k) => identityFromBioHash(k).bio,
+        loesche: deleteEnrollment,
+      });
       const res = await registerBiometric(
         {
           faceUri: finalFaceUri,
