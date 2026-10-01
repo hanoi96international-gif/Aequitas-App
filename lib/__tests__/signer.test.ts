@@ -198,13 +198,13 @@ describe('walletConnectSigner: Wallet auf falschem Netz (Vorfall 01.10.2026)', (
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it('ohne freigegebene Aequitas-Kette: weder Anfrage noch Wechsel', async () => {
+  it('ohne freigegebene Aequitas-Kette: einmal wechseln, bleibt sie aus, keine Anfrage', async () => {
     const request = jest.fn();
     const wechseln = jest.fn(async () => {});
     const s = walletConnectSigner('0xABC', request, NUR_ETHEREUM, wechseln);
     await expect(unterschreibe(s)).rejects.toThrow(NETZ_NICHT_FREIGEGEBEN);
     expect(request).not.toHaveBeenCalled();
-    expect(wechseln).not.toHaveBeenCalled();
+    expect(wechseln).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -243,5 +243,38 @@ describe('walletAufAequitasSchalten (Netz fehlt in MetaMask, 01.10.2026)', () =>
     const wege = Array.from({ length: 20 }, (_, i) => `eip155:${i + 1}`);
     await expect(walletAufAequitasSchalten(senden, wege, KETTE)).rejects.toThrow(NETZ_FEHLT_IN_WALLET);
     expect(senden).toHaveBeenCalledTimes(8);
+  });
+});
+
+describe('Netz noch nicht freigegeben (neue Verbindung, 01.10.2026)', () => {
+  const unterschreibe = (s: ReturnType<typeof walletConnectSigner>) =>
+    s.signTypedData(V8_DOMAIN as any, { Register: [{ name: 'x', type: 'uint256' }] }, { x: 1n });
+
+  it('bringt die Wallet erst auf Aequitas, dann wird unterschrieben', async () => {
+    let ketten = ['eip155:1'];
+    const request = jest.fn(async (_a: unknown, _k?: string) => '0xsig');
+    const wechseln = jest.fn(async () => { ketten = ['eip155:1', AEQUITAS_CAIP]; });
+    const s = walletConnectSigner('0xABC', request, () => ketten, wechseln);
+    await expect(unterschreibe(s)).resolves.toBe('0xsig');
+    expect(wechseln).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0][1]).toBe(AEQUITAS_CAIP);
+  });
+
+  it('gibt die Wallet das Netz nicht frei: keine Unterschrift', async () => {
+    const request = jest.fn();
+    const wechseln = jest.fn(async () => {});
+    const s = walletConnectSigner('0xABC', request, NUR_ETHEREUM, wechseln);
+    await expect(unterschreibe(s)).rejects.toThrow(NETZ_NICHT_FREIGEGEBEN);
+    expect(request).not.toHaveBeenCalled();
+  });
+});
+
+describe('walletAufAequitasSchalten: Wallet antwortet nicht', () => {
+  const { walletAufAequitasSchalten, WALLET_ANTWORTET_NICHT } = require('../signer');
+  it('bricht ab statt weitere Anfragen zu stapeln', async () => {
+    const senden = jest.fn(() => new Promise(() => {}));
+    await expect(walletAufAequitasSchalten(senden, ['eip155:1', AEQUITAS_CAIP], { chainId: '0x786', chainName: 'A', nativeCurrency: {}, rpcUrls: [], blockExplorerUrls: [] }, 20))
+      .rejects.toThrow(WALLET_ANTWORTET_NICHT);
+    expect(senden).toHaveBeenCalledTimes(1);
   });
 });

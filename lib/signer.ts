@@ -61,20 +61,35 @@ type Senden = (method: string, params: unknown[], weg: string) => Promise<unknow
  * Leitweg -> naechster. Ablehnung durch den Menschen -> sofort Schluss.
  * Hoechstens 8 Leitwege, je hoechstens 2 Anfragen.
  */
+export const WALLET_ANTWORTET_NICHT =
+  'Deine Wallet antwortet nicht. Bitte MetaMask öffnen, offene Anfragen bestätigen oder ablehnen und dann erneut versuchen.';
+
 export async function walletAufAequitasSchalten(senden: Senden, wege: readonly string[], kette: {
   chainId: string; chainName: string; nativeCurrency: unknown; rpcUrls: string[]; blockExplorerUrls: string[];
-}): Promise<void> {
+}, zeitJeAnfrageMs = 90_000): Promise<void> {
   // EINE Anfrage je Leitweg: wallet_addEthereumChain. Kennt die Wallet das
   // Netz nicht, legt sie es an und wechselt; kennt sie es, bietet sie nur
   // den Wechsel an (EIP-3085, MetaMask). Vorher erst ein Wechsel und dann
   // ein Hinzufuegen -- doppelt so viele Spruenge in die Wallet, und jeder
   // offene Sprung blockiert dort den naechsten.
+  //
+  // Zeitgrenze je Anfrage: Antwortet die Wallet gar nicht, liegt die Anfrage
+  // dort noch offen -- dann KEINE weitere schicken (die wuerde nur hinten
+  // anstehen, "previous request is still active"), sondern abbrechen und es
+  // sagen.
   for (const weg of wege.slice(0, 8)) {
+    let zeitUm = false;
     try {
-      await senden('wallet_addEthereumChain', [kette], weg);
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => { zeitUm = true; reject(new Error(WALLET_ANTWORTET_NICHT)); }, zeitJeAnfrageMs);
+        senden('wallet_addEthereumChain', [kette], weg).then(
+          () => { clearTimeout(t); resolve(); },
+          (e) => { clearTimeout(t); reject(e); },
+        );
+      });
       return;
     } catch (e) {
-      if (istAbgelehnt(e)) throw e;
+      if (zeitUm || istAbgelehnt(e)) throw e;
       // Falscher Leitweg (Wallet steht auf einem anderen Netz) oder
       // Ablehnung der Methode: naechster Leitweg.
     }
@@ -137,7 +152,12 @@ export function walletConnectSigner(
 ): AequitasSigner {
   const aufAequitas = async (args: { method: string; params: unknown[] }) => {
     if (!freigegebeneKetten().includes(AEQUITAS_CAIP)) {
-      throw new Error(NETZ_NICHT_FREIGEGEBEN);
+      // Noch nicht freigegeben (Vorfall 01.10.2026: neue Verbindung, Netz in
+      // MetaMask unbekannt): erst die Wallet auf Aequitas bringen -- das
+      // wartet auch auf ihre Freigabe --, dann neu pruefen. Fail-closed.
+      if (walletWechseln) await walletWechseln();
+      if (!freigegebeneKetten().includes(AEQUITAS_CAIP)) throw new Error(NETZ_NICHT_FREIGEGEBEN);
+      return request(args, AEQUITAS_CAIP);
     }
     try {
       return await request(args, AEQUITAS_CAIP);
