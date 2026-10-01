@@ -89,16 +89,16 @@ jobs:
       EXPO_PUBLIC_RPC_URL: ${{ vars.EXPO_PUBLIC_RPC_URL }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
 
       # Expo 54 / React Native 0.81 setzen JDK 17 voraus. Die Runner haben
       # mehrere JDKs; ohne explizite Wahl greift Gradle irgendeines.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -430,7 +430,7 @@ jobs:
             echo "| Signatur | ${{ steps.sign.outputs.signed }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: aequitas-${{ inputs.variant || 'release' }}-apk
           path: ${{ steps.apk.outputs.path }}
