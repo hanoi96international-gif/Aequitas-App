@@ -41,7 +41,9 @@ jobs:
     # Der Build laedt das halbe Android-Oekosystem; das Standard-Timeout von
     # 360 Minuten ist unnoetig grosszuegig, 45 reichen und decken einen
     # haengenden Gradle-Daemon auf, statt eine Stunde Runner-Zeit zu verheizen.
-    timeout-minutes: 45
+    # Gradle braucht meist ~40 min, an langsamen Tagen mehr (01.10.2026:
+    # nach 45 min abgebrochen, kurz vor dem Ende).
+    timeout-minutes: 75
 
     env:
       # Bei einem Push gibt es keine inputs; ohne diesen Fallback waere die

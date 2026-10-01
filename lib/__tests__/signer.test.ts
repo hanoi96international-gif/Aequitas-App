@@ -198,13 +198,13 @@ describe('walletConnectSigner: Wallet auf falschem Netz (Vorfall 01.10.2026)', (
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it('ohne freigegebene Aequitas-Kette: weder Anfrage noch Wechsel', async () => {
+  it('ohne freigegebene Aequitas-Kette: einmal wechseln, bleibt sie aus, keine Anfrage', async () => {
     const request = jest.fn();
     const wechseln = jest.fn(async () => {});
     const s = walletConnectSigner('0xABC', request, NUR_ETHEREUM, wechseln);
     await expect(unterschreibe(s)).rejects.toThrow(NETZ_NICHT_FREIGEGEBEN);
     expect(request).not.toHaveBeenCalled();
-    expect(wechseln).not.toHaveBeenCalled();
+    expect(wechseln).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -213,42 +213,68 @@ describe('walletAufAequitasSchalten (Netz fehlt in MetaMask, 01.10.2026)', () =>
   const KETTE = { chainId: '0x786', chainName: 'Aequitas Chain', nativeCurrency: {}, rpcUrls: ['https://aequitas.digital/rpc'], blockExplorerUrls: ['https://aequitas.digital'] };
   const fehler = (message: string, code?: number) => Object.assign(new Error(message), code ? { code } : {});
 
-  it('Wallet auf Ethereum, Aequitas unbekannt: falscher Leitweg -> naechster, dort hinzufuegen', async () => {
+  it('eine einzige Anfrage, wenn die Wallet auf dem ersten Leitweg steht', async () => {
+    const senden = jest.fn(async (_m: string, _p: unknown[], _w: string) => null);
+    await walletAufAequitasSchalten(senden, ['eip155:1', AEQUITAS_CAIP], KETTE);
+    expect(senden).toHaveBeenCalledTimes(1);
+    expect(senden.mock.calls[0][0]).toBe('wallet_addEthereumChain');
+    expect(senden.mock.calls[0][1]).toEqual([KETTE]);
+  });
+
+  it('falscher Leitweg -> naechster, dort hinzufuegen', async () => {
     const aufrufe: string[] = [];
     const senden = jest.fn(async (m: string, _p: unknown[], weg: string) => {
       aufrufe.push(`${m}@${weg}`);
-      if (weg !== 'eip155:1') throw fehler('Invalid chainId');
-      if (m === 'wallet_switchEthereumChain') throw fehler('Unrecognized chain ID "0x786". Try adding the chain using wallet_addEthereumChain first.', 4902);
+      if (weg !== AEQUITAS_CAIP) throw fehler('Invalid chainId');
       return null;
     });
-    await walletAufAequitasSchalten(senden, [AEQUITAS_CAIP, 'eip155:1'], KETTE);
-    expect(aufrufe).toEqual([
-      `wallet_switchEthereumChain@${AEQUITAS_CAIP}`,
-      'wallet_switchEthereumChain@eip155:1',
-      'wallet_addEthereumChain@eip155:1',
-    ]);
-    expect(senden.mock.calls[2][1]).toEqual([KETTE]);
+    await walletAufAequitasSchalten(senden, ['eip155:1', AEQUITAS_CAIP], KETTE);
+    expect(aufrufe).toEqual(['wallet_addEthereumChain@eip155:1', `wallet_addEthereumChain@${AEQUITAS_CAIP}`]);
   });
 
-  it('Netz bekannt: ein Wechsel reicht', async () => {
-    const senden = jest.fn(async () => null);
-    await walletAufAequitasSchalten(senden, [AEQUITAS_CAIP, 'eip155:1'], KETTE);
+  it('Ablehnung beendet sofort', async () => {
+    const senden = jest.fn(async () => { throw fehler('User rejected the request.', 4001); });
+    await expect(walletAufAequitasSchalten(senden, ['eip155:1', AEQUITAS_CAIP], KETTE)).rejects.toThrow('User rejected');
     expect(senden).toHaveBeenCalledTimes(1);
   });
 
-  it('Ablehnung beim Hinzufuegen beendet sofort', async () => {
-    const senden = jest.fn(async (m: string) => {
-      if (m === 'wallet_switchEthereumChain') throw fehler('Unrecognized chain ID', 4902);
-      throw fehler('User rejected the request.', 4001);
-    });
-    await expect(walletAufAequitasSchalten(senden, [AEQUITAS_CAIP, 'eip155:1'], KETTE)).rejects.toThrow('User rejected');
-    expect(senden).toHaveBeenCalledTimes(2);
-  });
-
-  it('nichts klappt: klare Meldung, hoechstens 8 Leitwege x 2 Anfragen', async () => {
+  it('nichts klappt: klare Meldung, hoechstens 8 Anfragen', async () => {
     const senden = jest.fn(async () => { throw fehler('internal error'); });
     const wege = Array.from({ length: 20 }, (_, i) => `eip155:${i + 1}`);
     await expect(walletAufAequitasSchalten(senden, wege, KETTE)).rejects.toThrow(NETZ_FEHLT_IN_WALLET);
-    expect(senden.mock.calls.length).toBeLessThanOrEqual(16);
+    expect(senden).toHaveBeenCalledTimes(8);
+  });
+});
+
+describe('Netz noch nicht freigegeben (neue Verbindung, 01.10.2026)', () => {
+  const unterschreibe = (s: ReturnType<typeof walletConnectSigner>) =>
+    s.signTypedData(V8_DOMAIN as any, { Register: [{ name: 'x', type: 'uint256' }] }, { x: 1n });
+
+  it('bringt die Wallet erst auf Aequitas, dann wird unterschrieben', async () => {
+    let ketten = ['eip155:1'];
+    const request = jest.fn(async (_a: unknown, _k?: string) => '0xsig');
+    const wechseln = jest.fn(async () => { ketten = ['eip155:1', AEQUITAS_CAIP]; });
+    const s = walletConnectSigner('0xABC', request, () => ketten, wechseln);
+    await expect(unterschreibe(s)).resolves.toBe('0xsig');
+    expect(wechseln).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0][1]).toBe(AEQUITAS_CAIP);
+  });
+
+  it('gibt die Wallet das Netz nicht frei: keine Unterschrift', async () => {
+    const request = jest.fn();
+    const wechseln = jest.fn(async () => {});
+    const s = walletConnectSigner('0xABC', request, NUR_ETHEREUM, wechseln);
+    await expect(unterschreibe(s)).rejects.toThrow(NETZ_NICHT_FREIGEGEBEN);
+    expect(request).not.toHaveBeenCalled();
+  });
+});
+
+describe('walletAufAequitasSchalten: Wallet antwortet nicht', () => {
+  const { walletAufAequitasSchalten, WALLET_ANTWORTET_NICHT } = require('../signer');
+  it('bricht ab statt weitere Anfragen zu stapeln', async () => {
+    const senden = jest.fn(() => new Promise(() => {}));
+    await expect(walletAufAequitasSchalten(senden, ['eip155:1', AEQUITAS_CAIP], { chainId: '0x786', chainName: 'A', nativeCurrency: {}, rpcUrls: [], blockExplorerUrls: [] }, 20))
+      .rejects.toThrow(WALLET_ANTWORTET_NICHT);
+    expect(senden).toHaveBeenCalledTimes(1);
   });
 });

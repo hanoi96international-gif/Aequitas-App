@@ -163,105 +163,6 @@ export async function resetWalletConnectStorage(): Promise<void> {
   await AsyncStorage.clear();
 }
 
-/**
- * Gets the connected wallet onto the Aequitas chain, for wallets (MetaMask
- * foremost) that have never heard of it before.
- *
- * Root cause this works around (confirmed by reading the installed SDK's own
- * source, `@reown/appkit-ethers-react-native/src/adapter.ts`): AppKit's
- * built-in network-switch flow — the screen that appears when you tap
- * "Aequitas Chain" in its connect modal — ONLY ever sends
- * `wallet_switchEthereumChain`. It has no fallback to
- * `wallet_addEthereumChain`. Per EIP-3326, a wallet that has never seen a
- * chainId rejects `wallet_switchEthereumChain` for it INSTANTLY with error
- * 4902 and — critically — without ever showing the user any prompt at all.
- * That is exactly "got redirected to MetaMask, then nothing happened": there
- * was nothing for MetaMask to show, and the app has no code path that tries
- * anything else, so it just loops on the same "network not supported"
- * screen forever.
- *
- * `wallet_addEthereumChain` (EIP-3085) is the one request a wallet CAN act
- * on for a totally unknown chain — MetaMask (both extension and mobile, the
- * latter over WalletConnect exactly like this) shows its native "Add this
- * network" approval screen for it. Both methods are already declared in
- * this app's WalletConnect session namespace (AppKit's own
- * `DEFAULT_METHODS.eip155` includes both), so sending `wallet_addEthereumChain`
- * ourselves needs no session/pairing changes — only this explicit call,
- * which nothing in the SDK makes on its own.
- */
-// Persisted once wallet_addEthereumChain has ever succeeded, so a returning
-// connection can be recognized without guessing from wallet state alone.
-const CHAIN_SETUP_DONE_KEY = 'aequitas_chain_setup_done_v1';
-
-export async function ensureAequitasChain(request: WcRequest): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- bewusst spaet geladen (siehe Kommentar ueber appKit)
-  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-  const setUpBefore = (await AsyncStorage.getItem(CHAIN_SETUP_DONE_KEY)) === '1';
-
-  // Real-device report: even a RETURNING connection (wallet already has the
-  // chain added and active) re-ran the full switch/add/switch dance below
-  // every single time, each step its own round trip to the external wallet
-  // app — this is the "have to select the Aequitas chain again" complaint.
-  // eth_chainId is a read-only EIP-1193 query wallets answer immediately
-  // with no approval prompt, so checking it first turns the already-set-up
-  // case into a single cheap call instead of up to three round trips. Only
-  // worth trying once this flow has actually completed successfully before
-  // — on a genuine first-ever connection it's guaranteed to mismatch, so
-  // skipping it entirely below saves that wasted round trip on the
-  // already-friction-heaviest path.
-  if (setUpBefore) {
-    try {
-      const current = await request({ method: 'eth_chainId', params: [] });
-      if (typeof current === 'string' && current.toLowerCase() === CHAIN_ID_HEX.toLowerCase()) {
-        return;
-      }
-    } catch {
-      // Some wallets/relays may not answer this either — fall through to
-      // the normal switch/add flow below, same as any other failure here.
-    }
-
-    try {
-      await request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] });
-      return;
-    } catch {
-      // The wallet apparently lost the chain since last time (reset,
-      // reinstalled, different account) — fall through and add it again,
-      // same as a genuine first-ever connection below.
-    }
-  }
-
-  // Real-device report: "when connecting for the first time, everything
-  // must complete in one go" — not the repeated app <-> MetaMask
-  // round-tripping this flow used to do. On a genuine first connection the
-  // wallet cannot possibly already have this custom chain, so trying
-  // wallet_switchEthereumChain first (as AppKit's own broken flow does, and
-  // as this function used to unconditionally do too) is a guaranteed,
-  // wasted round trip: per EIP-3326 a wallet that's never heard of a
-  // chainId rejects it instantly (see this function's top comment).
-  // wallet_addEthereumChain is the ONE request that can actually succeed
-  // here, and MetaMask (the wallet this flow is built and tested against)
-  // switches to the newly added chain automatically as part of approving
-  // it — so this single call, and the single approval screen it shows, is
-  // the entire first-time setup. No follow-up confirmatory switch call: on
-  // a wallet that doesn't auto-switch after adding, that call would just be
-  // yet another app-switch round trip the user would experience as more of
-  // exactly the back-and-forth being fixed here.
-  await request({
-    method: 'wallet_addEthereumChain',
-    params: [
-      {
-        chainId: CHAIN_ID_HEX,
-        chainName: 'Aequitas Chain',
-        nativeCurrency: NATIVE_CURRENCY,
-        rpcUrls: [RPC_URL],
-        blockExplorerUrls: [WEBAPP],
-      },
-    ],
-  });
-
-  await AsyncStorage.setItem(CHAIN_SETUP_DONE_KEY, '1');
-}
-
 export function useWalletConnect() {
   // Only ever rendered from WalletConnectBridge, itself only mounted when
   // appKit is truthy (see WalletContext.tsx) — by that point this require()
@@ -312,31 +213,55 @@ export function useWalletConnect() {
     const senden = p?.client?.request && topic
       ? (method: string, params: unknown[], weg: string) => p.client.request({ topic, chainId: weg, request: { method, params } })
       : (method: string, params: unknown[], weg: string) => rawRequest!({ method, params }, weg);
-    const wege = [AEQUITAS_CAIP, ...ketten().filter((k) => k !== AEQUITAS_CAIP)];
+    // MetaMask nimmt eine Anfrage nur ueber das Netz an, das sie gerade
+    // ausgewaehlt hat. Am wahrscheinlichsten: Hat sie Aequitas fuer die
+    // Verbindung freigegeben, steht sie auch darauf; sonst steht sie auf
+    // Ethereum (dem Anker). Diesen Leitweg zuerst, die uebrigen danach.
+    const alle = ketten();
+    const zuerst = alle.includes(AEQUITAS_CAIP) ? AEQUITAS_CAIP : anchorNetwork.caipNetworkId;
+    const wege = [zuerst, ...alle.filter((k) => k !== zuerst)];
     await walletAufAequitasSchalten(senden, wege, kette);
+    // MetaMask gibt das neue Netz der Verbindung per session_update frei;
+    // das kann einen Moment dauern. Hoechstens 10 s warten.
+    for (let i = 0; i < 20 && !ketten().includes(AEQUITAS_CAIP); i++) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
   };
 
   const signer: AequitasSigner | null =
     isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest, ketten, walletAufAequitas) : null;
 
+  // Beim Verbinden: IMMER direkt an die Wallet (walletAufAequitas). Frueher
+  // fragte der Weg fuer "noch nicht freigegeben" zuerst eth_chainId und
+  // wechselte dann nur -- beides beantwortet bzw. leitet der Provider selbst,
+  // und eine Wallet ohne Aequitas-Netz lehnte den Wechsel ab ("Switch
+  // declined", Vorfall 01.10.2026). Kennt die Wallet das Netz schon und steht
+  // darauf, kommt keine Abfrage.
+  //
+  // Pro Verbindung (Sitzungs-Topic) nur einmal: sonst spraenge MetaMask bei
+  // jedem App-Start auf. Steht die Wallet spaeter doch auf einem anderen
+  // Netz, holt das der Unterschriftsweg nach (walletConnectSigner).
   const ensureNetwork = async () => {
     if (!rawRequest) throw new Error('No active WalletConnect provider');
-    // Ist die Kette schon fuer die Sitzung freigegeben, beantwortet der
-    // Provider eth_chainId und den Wechsel selbst (siehe walletAufAequitas) --
-    // ensureAequitasChain wuerde dann "fertig" melden, ohne dass die Wallet
-    // das Netz kennt. In dem Fall direkt an die Wallet.
-    if (ketten().includes(AEQUITAS_CAIP)) {
-      await walletAufAequitas();
-      return;
+    const topic: string | undefined = (provider as any)?.session?.topic;
+    const merker = topic && /^[0-9a-f]{64}$/.test(topic) ? `aequitas_netz_ok_${topic}` : null;
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default; // eslint-disable-line @typescript-eslint/no-require-imports
+    if (merker && ketten().includes(AEQUITAS_CAIP)) {
+      try {
+        if ((await AsyncStorage.getItem(merker)) === '1') return;
+      } catch {
+        // ohne Merker einfach einrichten
+      }
     }
-    await ensureAequitasChain(rawRequest);
-    // Die Wallet meldet eine neu hinzugefuegte Kette per session_update; das
-    // kann einen Moment dauern. Hoechstens 5 s warten. Fehlt die Kette
-    // danach, jetzt sagen -- nicht erst beim Unterschreiben.
-    for (let i = 0; i < 10 && !ketten().includes(AEQUITAS_CAIP); i++) {
-      await new Promise((r) => setTimeout(r, 500));
-    }
+    await walletAufAequitas();
     if (!ketten().includes(AEQUITAS_CAIP)) throw new Error(NETZ_NICHT_FREIGEGEBEN);
+    if (merker) {
+      try {
+        await AsyncStorage.setItem(merker, '1');
+      } catch {
+        // nur Bequemlichkeit
+      }
+    }
   };
 
   return { open, close, disconnect, address, isConnected, signer, ensureNetwork };

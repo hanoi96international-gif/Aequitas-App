@@ -84,6 +84,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // fresh attempt while an old one (from before the app backgrounded) is
   // still technically in flight.
   const setupGenRef = useRef(0);
+  // Laeuft gerade eine Einrichtung? (Vorfall 01.10.2026: jede Rueckkehr aus
+  // MetaMask startete eine NEUE, waehrend die alte noch auf die Wallet
+  // wartete -- die Anfragen stapelten sich, MetaMask meldete "previous
+  // request is still active" und lehnte alles ab.)
+  const setupLaeuftRef = useRef(false);
 
   const runNetworkSetup = useCallback(async (wc: WCState) => {
     const gen = ++setupGenRef.current;
@@ -119,6 +124,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }, 400);
     setNetworkStatus('pending');
     setNetworkError(null);
+    setupLaeuftRef.current = true;
     try {
       await withTimeout(wc.ensureNetwork(), 60_000, t('trade.signTimeout'));
       if (gen !== setupGenRef.current) return;
@@ -127,6 +133,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (gen !== setupGenRef.current) return;
       setNetworkStatus('error');
       setNetworkError(e?.message ?? t('identity.logUnknownError'));
+    } finally {
+      if (gen === setupGenRef.current) setupLaeuftRef.current = false;
     }
   }, [t]);
 
@@ -170,7 +178,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // the need for the user to notice the error and tap the button themselves.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && wcState && (networkStatus === 'pending' || networkStatus === 'error')) {
+      // Nur nach einem Fehler neu anstossen -- nie, solange eine Anfrage
+      // noch bei der Wallet liegt (siehe setupLaeuftRef).
+      if (state === 'active' && wcState && networkStatus === 'error' && !setupLaeuftRef.current) {
         runNetworkSetup(wcState);
       }
     });
