@@ -36,6 +36,52 @@ export function istFalscheKette(e: unknown): boolean {
   return /invalid chain ?id|chainid is different|chain mismatch|must match the active chainid/i.test(text);
 }
 
+export const NETZ_FEHLT_IN_WALLET =
+  'Deine Wallet konnte nicht auf das Aequitas-Netz wechseln. Bitte in der Wallet das Netz hinzufügen (Name: Aequitas Chain, RPC: https://aequitas.digital/rpc, Chain-ID: 1926, Symbol: AEQ), auswählen und erneut versuchen.';
+
+/** Kennt die Wallet die Kette nicht? (EIP-3326: 4902) */
+export function istUnbekannteKette(e: unknown): boolean {
+  const code = (e as any)?.code ?? (e as any)?.data?.originalError?.code;
+  const text = String((e as any)?.message ?? e ?? '');
+  return code === 4902 || /unrecognized chain|unknown chain|not been added|try adding the chain|4902/i.test(text);
+}
+
+type Senden = (method: string, params: unknown[], weg: string) => Promise<unknown>;
+
+/**
+ * Bringt die Wallet auf die Aequitas-Kette -- und legt sie dort an, wenn die
+ * Wallet sie nicht kennt.
+ *
+ * Vorfall 01.10.2026: In MetaMask fehlte das Aequitas-Netz ganz. Ein reiner
+ * Wechsel scheitert dann (4902), und MetaMask nimmt jede Anfrage nur fuer
+ * das gerade ausgewaehlte Netz an ("Invalid chainId" fuer jeden anderen
+ * Leitweg). Darum: je Leitweg (freigegebene Ketten der Sitzung, Aequitas
+ * zuerst) erst wechseln; meldet die Wallet "Kette unbekannt", auf demselben
+ * Leitweg hinzufuegen (MetaMask wechselt danach selbst). Ein falscher
+ * Leitweg -> naechster. Ablehnung durch den Menschen -> sofort Schluss.
+ * Hoechstens 8 Leitwege, je hoechstens 2 Anfragen.
+ */
+export async function walletAufAequitasSchalten(senden: Senden, wege: readonly string[], kette: {
+  chainId: string; chainName: string; nativeCurrency: unknown; rpcUrls: string[]; blockExplorerUrls: string[];
+}): Promise<void> {
+  for (const weg of wege.slice(0, 8)) {
+    try {
+      await senden('wallet_switchEthereumChain', [{ chainId: kette.chainId }], weg);
+      return;
+    } catch (e) {
+      if (istAbgelehnt(e)) throw e;
+      if (istFalscheKette(e) && !istUnbekannteKette(e)) continue;
+    }
+    try {
+      await senden('wallet_addEthereumChain', [kette], weg);
+      return;
+    } catch (e) {
+      if (istAbgelehnt(e)) throw e;
+    }
+  }
+  throw new Error(NETZ_FEHLT_IN_WALLET);
+}
+
 /** Hat der Mensch in der Wallet abgelehnt? (EIP-1193 4001) */
 export function istAbgelehnt(e: unknown): boolean {
   const code = (e as any)?.code;
