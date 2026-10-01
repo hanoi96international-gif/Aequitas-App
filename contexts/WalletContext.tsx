@@ -17,6 +17,7 @@ interface WCState {
   isConnected: boolean;
   signer: AequitasSigner | null;
   ensureNetwork: () => Promise<void>;
+  topic?: string;
 }
 
 interface WalletContextValue {
@@ -41,10 +42,13 @@ const WalletContext = createContext<WalletContextValue | null>(null);
 
 function WalletConnectBridge({ onChange }: { onChange: (s: WCState) => void }) {
   const wc = useWalletConnect();
+  // Signer und Netzeinrichtung lesen die Sitzung selbst live (Refs in
+  // useWalletConnect); neu weitergeben nur, wenn sich Konto, Verbindung oder
+  // Sitzung aendern.
   useEffect(() => {
     onChange(wc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wc.address, wc.isConnected]);
+  }, [wc.address, wc.isConnected, wc.topic]);
   return null;
 }
 
@@ -126,7 +130,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setNetworkError(null);
     setupLaeuftRef.current = true;
     try {
-      await withTimeout(wc.ensureNetwork(), 60_000, t('trade.signTimeout'));
+      // Jeder Schritt hat seine eigene Zeitgrenze (aequitasNetzEinrichten:
+      // je Anfrage 90 s, je Freigabe 15 s); dies ist nur das Sicherheitsnetz
+      // darueber. Frueher 60 s -- kuerzer als eine einzige Wallet-Anfrage,
+      // wer in MetaMask laenger brauchte, bekam einen Fehler.
+      await withTimeout(wc.ensureNetwork(), 240_000, t('trade.signTimeout'));
       if (gen !== setupGenRef.current) return;
       setNetworkStatus('ready');
     } catch (e: any) {
@@ -159,7 +167,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wcState?.isConnected, wcState?.address]);
+  }, [wcState?.isConnected, wcState?.address, wcState?.topic]);
 
   const retryNetworkSetup = useCallback(() => {
     if (wcState) runNetworkSetup(wcState);

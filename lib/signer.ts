@@ -6,7 +6,7 @@ import * as wallet from './wallet';
 export const AEQUITAS_CAIP = `eip155:${CHAIN_ID_DEC}`;
 
 export const NETZ_NICHT_FREIGEGEBEN =
-  'Deine Wallet hat das Aequitas-Netz für diese Verbindung nicht freigegeben. Bitte die Wallet trennen, neu verbinden und dabei „Aequitas Chain“ bestätigen.';
+  'Deine Wallet kennt das Aequitas-Netz jetzt, hat es aber noch nicht für diese Verbindung freigegeben. Bitte „Erneut versuchen“ tippen und in der Wallet bestätigen.';
 
 type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
 
@@ -18,7 +18,12 @@ type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string)
  * hinzu, steht sie hier. Unbekannte Form -> leere Liste.
  */
 export function sitzungsKetten(provider: unknown): string[] {
-  const ns = (provider as any)?.session?.namespaces?.eip155;
+  return kettenDerSitzung((provider as any)?.session);
+}
+
+/** Wie sitzungsKetten, aber direkt aus einer Sitzung (SignClient-Store). */
+export function kettenDerSitzung(sitzung: unknown): string[] {
+  const ns = (sitzung as any)?.namespaces?.eip155;
   const ketten = new Set<string>();
   for (const k of Array.isArray(ns?.chains) ? ns.chains : []) {
     if (typeof k === 'string' && /^eip155:[0-9]+$/.test(k)) ketten.add(k);
@@ -30,6 +35,31 @@ export function sitzungsKetten(provider: unknown): string[] {
   return [...ketten];
 }
 
+/**
+ * Adresse des verbundenen Kontos aus der Sitzung (erstes gueltiges
+ * eip155-Konto, mit Pruefsumme), sonst null.
+ *
+ * Vorfall 01.10.2026 (1.8.8 am Geraet): AppKit meldet eine Adresse nur fuer
+ * das Konto auf SEINER aktiven Kette -- das ist die Aequitas-Kette
+ * (defaultNetwork). Kennt MetaMask das Netz noch nicht, gibt sie es bei der
+ * Verbindung nicht frei; AppKit hat dann keine Adresse, die App hielt die
+ * Wallet fuer nicht verbunden und startete die Netzeinrichtung nie. Die
+ * Sitzung selbst traegt das Konto aber auf jeder freigegebenen Kette.
+ */
+export function adresseDerSitzung(sitzung: unknown): string | null {
+  const konten = (sitzung as any)?.namespaces?.eip155?.accounts;
+  for (const a of Array.isArray(konten) ? konten : []) {
+    const m = typeof a === 'string' ? /^eip155:[0-9]+:(0x[0-9a-fA-F]{40})$/.exec(a) : null;
+    if (!m) continue;
+    try {
+      return ethers.getAddress(m[1].toLowerCase());
+    } catch {
+      // ungueltig -> naechstes Konto
+    }
+  }
+  return null;
+}
+
 /** Lehnt die Wallet ab, weil in ihr ein anderes Netz ausgewaehlt ist? */
 export function istFalscheKette(e: unknown): boolean {
   const text = String((e as any)?.message ?? e ?? '');
@@ -37,7 +67,7 @@ export function istFalscheKette(e: unknown): boolean {
 }
 
 export const NETZ_FEHLT_IN_WALLET =
-  'Deine Wallet konnte nicht auf das Aequitas-Netz wechseln. Bitte in der Wallet das Netz hinzufügen (Name: Aequitas Chain, RPC: https://aequitas.digital/rpc, Chain-ID: 1926, Symbol: AEQ), auswählen und erneut versuchen.';
+  'Deine Wallet hat das Aequitas-Netz nicht angelegt. Bitte „Erneut versuchen“ tippen und in der Wallet „Netzwerk hinzufügen“ bestätigen.';
 
 /** Kennt die Wallet die Kette nicht? (EIP-3326: 4902) */
 export function istUnbekannteKette(e: unknown): boolean {
@@ -48,53 +78,143 @@ export function istUnbekannteKette(e: unknown): boolean {
 
 type Senden = (method: string, params: unknown[], weg: string) => Promise<unknown>;
 
-/**
- * Bringt die Wallet auf die Aequitas-Kette -- und legt sie dort an, wenn die
- * Wallet sie nicht kennt.
- *
- * Vorfall 01.10.2026: In MetaMask fehlte das Aequitas-Netz ganz. Ein reiner
- * Wechsel scheitert dann (4902), und MetaMask nimmt jede Anfrage nur fuer
- * das gerade ausgewaehlte Netz an ("Invalid chainId" fuer jeden anderen
- * Leitweg). Darum: je Leitweg (freigegebene Ketten der Sitzung, Aequitas
- * zuerst) erst wechseln; meldet die Wallet "Kette unbekannt", auf demselben
- * Leitweg hinzufuegen (MetaMask wechselt danach selbst). Ein falscher
- * Leitweg -> naechster. Ablehnung durch den Menschen -> sofort Schluss.
- * Hoechstens 8 Leitwege, je hoechstens 2 Anfragen.
- */
+export type KettenAngaben = {
+  chainId: string; chainName: string; nativeCurrency: unknown; rpcUrls: string[]; blockExplorerUrls: string[];
+};
+
 export const WALLET_ANTWORTET_NICHT =
   'Deine Wallet antwortet nicht. Bitte MetaMask öffnen, offene Anfragen bestätigen oder ablehnen und dann erneut versuchen.';
 
-export async function walletAufAequitasSchalten(senden: Senden, wege: readonly string[], kette: {
-  chainId: string; chainName: string; nativeCurrency: unknown; rpcUrls: string[]; blockExplorerUrls: string[];
-}, zeitJeAnfrageMs = 90_000): Promise<void> {
-  // EINE Anfrage je Leitweg: wallet_addEthereumChain. Kennt die Wallet das
-  // Netz nicht, legt sie es an und wechselt; kennt sie es, bietet sie nur
-  // den Wechsel an (EIP-3085, MetaMask). Vorher erst ein Wechsel und dann
-  // ein Hinzufuegen -- doppelt so viele Spruenge in die Wallet, und jeder
-  // offene Sprung blockiert dort den naechsten.
-  //
-  // Zeitgrenze je Anfrage: Antwortet die Wallet gar nicht, liegt die Anfrage
-  // dort noch offen -- dann KEINE weitere schicken (die wuerde nur hinten
-  // anstehen, "previous request is still active"), sondern abbrechen und es
-  // sagen.
+/** Kurzer, sicherer Auszug einer Wallet-Fehlermeldung fuer die Anzeige. */
+function walletMeldung(e: unknown): string {
+  const text = String((e as any)?.message ?? e ?? '').replace(/\s+/g, ' ').trim();
+  return text.length > 160 ? text.slice(0, 160) + '…' : text;
+}
+
+/**
+ * Schickt wallet_addEthereumChain an die Wallet -- je Leitweg eine Anfrage,
+ * bis eine gelingt.
+ *
+ * Leitweg = die Kette, ueber die WalletConnect die Anfrage zustellt. Sie muss
+ * in der Sitzung freigegeben sein (der SignClient prueft das vor dem Senden).
+ * MetaMask Mobile (WalletConnect2Session.handleRequest) schaltet bei einer
+ * freigegebenen Leitweg-Kette selbst dorthin und reicht die Anfrage an
+ * wallet_addEthereumChain weiter: fehlt das Netz, zeigt sie "Netzwerk
+ * hinzufuegen", legt es an, wechselt und gibt es fuer die Verbindung frei
+ * (session_update). Kennt sie das Netz schon, bietet sie den Wechsel an.
+ * Aeltere Fassungen nehmen nur den gerade gewaehlten Leitweg an ("Invalid
+ * chainId") -- dann der naechste Leitweg.
+ *
+ * `fertig`: meldet die Sitzung die Aequitas-Kette schon, waehrend die Antwort
+ * noch aussteht (Antwort ging beim Wechsel zwischen den Apps verloren), gilt
+ * die Einrichtung als gelungen.
+ *
+ * Grenzen: hoechstens 8 Leitwege, je Anfrage hoechstens `zeitJeAnfrageMs`.
+ * Antwortet die Wallet nicht, KEINE weitere Anfrage (sie stuende dort nur
+ * hinten an, "previous request is still active"). Ablehnung durch den
+ * Menschen -> sofort Schluss.
+ */
+export async function walletAufAequitasSchalten(
+  senden: Senden,
+  wege: readonly string[],
+  kette: KettenAngaben,
+  zeitJeAnfrageMs = 90_000,
+  fertig?: () => boolean,
+): Promise<void> {
+  let letzterFehler: unknown = null;
   for (const weg of wege.slice(0, 8)) {
     let zeitUm = false;
     try {
       await new Promise<void>((resolve, reject) => {
-        const t = setTimeout(() => { zeitUm = true; reject(new Error(WALLET_ANTWORTET_NICHT)); }, zeitJeAnfrageMs);
+        let erledigt = false;
+        const ende = (f: () => void) => {
+          if (erledigt) return;
+          erledigt = true;
+          clearTimeout(t);
+          if (pruefer) clearInterval(pruefer);
+          f();
+        };
+        const t = setTimeout(() => ende(() => { zeitUm = true; reject(new Error(WALLET_ANTWORTET_NICHT)); }), zeitJeAnfrageMs);
+        const pruefer = fertig ? setInterval(() => { if (fertig()) ende(resolve); }, 500) : null;
         senden('wallet_addEthereumChain', [kette], weg).then(
-          () => { clearTimeout(t); resolve(); },
-          (e) => { clearTimeout(t); reject(e); },
+          () => ende(resolve),
+          (e) => ende(() => reject(e)),
         );
       });
       return;
     } catch (e) {
       if (zeitUm || istAbgelehnt(e)) throw e;
-      // Falscher Leitweg (Wallet steht auf einem anderen Netz) oder
-      // Ablehnung der Methode: naechster Leitweg.
+      // Falscher Leitweg oder Fehler der Wallet: naechster Leitweg.
+      letzterFehler = e;
     }
   }
-  throw new Error(NETZ_FEHLT_IN_WALLET);
+  const grund = letzterFehler ? walletMeldung(letzterFehler) : '';
+  throw new Error(grund ? `${NETZ_FEHLT_IN_WALLET} (Wallet: ${grund})` : NETZ_FEHLT_IN_WALLET);
+}
+
+/** Wartet hoechstens `ms`, bis `bedingung()` wahr ist. */
+async function warteBis(bedingung: () => boolean, ms: number, schrittMs = 250): Promise<boolean> {
+  const ende = Date.now() + ms;
+  while (!bedingung()) {
+    if (Date.now() >= ende) return false;
+    await new Promise((r) => setTimeout(r, schrittMs));
+  }
+  return true;
+}
+
+export const KEINE_KETTE_IN_SITZUNG =
+  'Die Wallet-Verbindung enthält kein Netz. Bitte die Wallet trennen und neu verbinden.';
+
+/**
+ * Richtet das Aequitas-Netz in der verbundenen Wallet ein -- automatisch,
+ * ohne Handarbeit des Menschen ausser dem Bestaetigen in der Wallet.
+ *
+ * 1. Ist die Aequitas-Kette in der Sitzung freigegeben: fertig, keine Anfrage
+ *    (die Wallet kennt das Netz; kettengebundene Anfragen gehen ueber 1926,
+ *    MetaMask schaltet dafuer selbst um).
+ * 2. Sonst wallet_addEthereumChain ueber die freigegebenen Ketten (zuerst die,
+ *    die die Wallet zuletzt als aktiv gemeldet hat).
+ * 3. Auf die Freigabe in der Sitzung warten (session_update der Wallet).
+ * 4. Bleibt sie aus: einmal wallet_switchEthereumChain (die Wallet kennt das
+ *    Netz jetzt), wieder warten. Danach fail-closed mit klarer Meldung.
+ *
+ * `ketten` muss die LIVE-Sitzung lesen (SignClient-Store), keine Kopie.
+ */
+export async function aequitasNetzEinrichten(o: {
+  senden: Senden;
+  ketten: () => readonly string[];
+  walletKette?: () => string | null;
+  kette: KettenAngaben;
+  zeitJeAnfrageMs?: number;
+  freigabeWarteMs?: number;
+}): Promise<void> {
+  const da = () => o.ketten().includes(AEQUITAS_CAIP);
+  if (da()) return;
+  const alle = o.ketten();
+  if (alle.length === 0) throw new Error(KEINE_KETTE_IN_SITZUNG);
+  const aktiv = o.walletKette?.() ?? null;
+  const wege = aktiv && alle.includes(aktiv) ? [aktiv, ...alle.filter((k) => k !== aktiv)] : [...alle];
+  const zeit = o.zeitJeAnfrageMs ?? 90_000;
+  const warte = o.freigabeWarteMs ?? 15_000;
+
+  await walletAufAequitasSchalten(o.senden, wege, o.kette, zeit, da);
+  if (await warteBis(da, warte)) return;
+
+  // Netz angelegt, aber (noch) nicht fuer die Verbindung freigegeben.
+  let letzterFehler: unknown = null;
+  for (const weg of wege.slice(0, 8)) {
+    try {
+      await withTimeout(o.senden('wallet_switchEthereumChain', [{ chainId: o.kette.chainId }], weg), zeit, WALLET_ANTWORTET_NICHT);
+      letzterFehler = null;
+      break;
+    } catch (e) {
+      if (istAbgelehnt(e) || (e as any)?.message === WALLET_ANTWORTET_NICHT) throw e;
+      letzterFehler = e;
+    }
+  }
+  if (await warteBis(da, warte)) return;
+  const grund = letzterFehler ? walletMeldung(letzterFehler) : '';
+  throw new Error(grund ? `${NETZ_NICHT_FREIGEGEBEN} (Wallet: ${grund})` : NETZ_NICHT_FREIGEGEBEN);
 }
 
 /** Hat der Mensch in der Wallet abgelehnt? (EIP-1193 4001) */
@@ -146,10 +266,15 @@ export function walletConnectSigner(
   address: string,
   request: WcRequest,
   freigegebeneKetten: () => readonly string[],
-  // Schaltet die Wallet SELBST auf die Aequitas-Kette (walletconnect.ts,
-  // walletAufAequitas). Fehlt sie, wird nicht nachgeholfen.
-  walletWechseln?: () => Promise<void>
+  // Richtet das Aequitas-Netz in der Wallet ein (walletconnect.ts,
+  // aequitasNetzEinrichten). Fehlt sie, wird nicht nachgeholfen.
+  walletWechseln?: () => Promise<void>,
+  // Schaltet eine Wallet, die das Netz schon freigegeben hat, aber auf
+  // einem anderen steht, dorthin um (wallet_switchEthereumChain). Ohne
+  // Angabe: walletWechseln.
+  walletUmschalten?: () => Promise<void>
 ): AequitasSigner {
+  const umschalten = walletUmschalten ?? walletWechseln;
   const aufAequitas = async (args: { method: string; params: unknown[] }) => {
     if (!freigegebeneKetten().includes(AEQUITAS_CAIP)) {
       // Noch nicht freigegeben (Vorfall 01.10.2026: neue Verbindung, Netz in
@@ -166,8 +291,8 @@ export function walletConnectSigner(
       // ist fuer die Sitzung freigegeben, aber in MetaMask ist ein anderes
       // Netz ausgewaehlt; MetaMask lehnt dann jede Anfrage fuer 1926 ab.
       // Einmal wechseln, einmal wiederholen -- nicht mehr.
-      if (!walletWechseln || !istFalscheKette(e)) throw e;
-      await walletWechseln();
+      if (!umschalten || !istFalscheKette(e)) throw e;
+      await umschalten();
       return request(args, AEQUITAS_CAIP);
     }
   };
