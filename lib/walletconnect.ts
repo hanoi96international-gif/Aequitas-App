@@ -1,5 +1,5 @@
 import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
-import { AEQUITAS_CAIP, NETZ_NICHT_FREIGEGEBEN, sitzungsKetten, walletConnectSigner, type AequitasSigner } from './signer';
+import { AEQUITAS_CAIP, NETZ_NICHT_FREIGEGEBEN, istAbgelehnt, sitzungsKetten, walletConnectSigner, type AequitasSigner } from './signer';
 import type { AppKitNetwork, Storage } from '@reown/appkit-react-native';
 
 type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
@@ -281,8 +281,47 @@ export function useWalletConnect() {
         provider.request(args, chainId ?? (ketten().includes(AEQUITAS_CAIP) ? AEQUITAS_CAIP : anchorNetwork.caipNetworkId))
     : null;
 
+  // wallet_switchEthereumChain DIREKT an die Wallet.
+  //
+  // Vorfall 01.10.2026: Der UniversalProvider (@walletconnect/universal-
+  // provider, handleSwitchChain) beantwortet einen Wechsel auf eine Kette,
+  // die in der Sitzung freigegeben ist, SELBST -- er setzt nur seine eigene
+  // Standardkette, die Anfrage erreicht MetaMask nie. Ebenso eth_chainId: das
+  // ist die Standardkette des Providers, nicht das Netz in der Wallet.
+  // MetaMask blieb so auf Ethereum und lehnte die Unterschrift fuer 1926 mit
+  // "Invalid chainId" ab. Hier geht der Wechsel ueber den SignClient an die
+  // Wallet. Geleitet wird er nacheinander ueber jede freigegebene Kette
+  // (zuerst Aequitas), denn MetaMask nimmt Anfragen nur fuer das gerade
+  // ausgewaehlte Netz an -- und welches das ist, laesst sich vorher nicht
+  // erfragen. Hoechstens so viele Versuche, wie die Sitzung Ketten hat;
+  // lehnt der Mensch ab, sofort Schluss.
+  const walletAufAequitas = async () => {
+    const p: any = provider;
+    const topic = p?.session?.topic;
+    if (!p?.client?.request || !topic) {
+      await rawRequest?.({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] }, AEQUITAS_CAIP);
+      return;
+    }
+    const wege = [AEQUITAS_CAIP, ...ketten().filter((k) => k !== AEQUITAS_CAIP)].slice(0, 8);
+    let letzter: unknown = new Error(NETZ_NICHT_FREIGEGEBEN);
+    for (const weg of wege) {
+      try {
+        await p.client.request({
+          topic,
+          chainId: weg,
+          request: { method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] },
+        });
+        return;
+      } catch (e) {
+        if (istAbgelehnt(e)) throw e;
+        letzter = e;
+      }
+    }
+    throw letzter;
+  };
+
   const signer: AequitasSigner | null =
-    isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest, ketten) : null;
+    isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest, ketten, walletAufAequitas) : null;
 
   const ensureNetwork = async () => {
     if (!rawRequest) throw new Error('No active WalletConnect provider');
