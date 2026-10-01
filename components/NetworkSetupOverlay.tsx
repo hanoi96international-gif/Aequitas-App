@@ -15,8 +15,8 @@ const SETUP_SLOW_MS = 8_000;
 
 /**
  * Shown whenever a WalletConnect session is live but the connected wallet
- * hasn't confirmed the Aequitas chain yet. See ensureAequitasChain's own
- * comment (lib/walletconnect.ts) for why: AppKit's built-in "switch network"
+ * hasn't confirmed the Aequitas chain yet. See aequitasNetzEinrichten
+ * (lib/signer.ts) and useWalletConnect (lib/walletconnect.ts) for why: AppKit's built-in "switch network"
  * screen only ever sends wallet_switchEthereumChain, which a wallet that has
  * never added this chain rejects instantly with no prompt at all — from the
  * user's side that looks exactly like "got redirected to the wallet, then
