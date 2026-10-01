@@ -64,19 +64,19 @@ type Senden = (method: string, params: unknown[], weg: string) => Promise<unknow
 export async function walletAufAequitasSchalten(senden: Senden, wege: readonly string[], kette: {
   chainId: string; chainName: string; nativeCurrency: unknown; rpcUrls: string[]; blockExplorerUrls: string[];
 }): Promise<void> {
+  // EINE Anfrage je Leitweg: wallet_addEthereumChain. Kennt die Wallet das
+  // Netz nicht, legt sie es an und wechselt; kennt sie es, bietet sie nur
+  // den Wechsel an (EIP-3085, MetaMask). Vorher erst ein Wechsel und dann
+  // ein Hinzufuegen -- doppelt so viele Spruenge in die Wallet, und jeder
+  // offene Sprung blockiert dort den naechsten.
   for (const weg of wege.slice(0, 8)) {
-    try {
-      await senden('wallet_switchEthereumChain', [{ chainId: kette.chainId }], weg);
-      return;
-    } catch (e) {
-      if (istAbgelehnt(e)) throw e;
-      if (istFalscheKette(e) && !istUnbekannteKette(e)) continue;
-    }
     try {
       await senden('wallet_addEthereumChain', [kette], weg);
       return;
     } catch (e) {
       if (istAbgelehnt(e)) throw e;
+      // Falscher Leitweg (Wallet steht auf einem anderen Netz) oder
+      // Ablehnung der Methode: naechster Leitweg.
     }
   }
   throw new Error(NETZ_FEHLT_IN_WALLET);

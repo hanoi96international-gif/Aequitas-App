@@ -312,7 +312,14 @@ export function useWalletConnect() {
     const senden = p?.client?.request && topic
       ? (method: string, params: unknown[], weg: string) => p.client.request({ topic, chainId: weg, request: { method, params } })
       : (method: string, params: unknown[], weg: string) => rawRequest!({ method, params }, weg);
-    const wege = [AEQUITAS_CAIP, ...ketten().filter((k) => k !== AEQUITAS_CAIP)];
+    // Zuerst Ethereum: dort steht MetaMask ohne Aequitas-Netz fast immer,
+    // und nur ueber das ausgewaehlte Netz nimmt sie eine Anfrage an.
+    const alle = ketten();
+    const wege = [
+      ...alle.filter((k) => k === anchorNetwork.caipNetworkId),
+      ...alle.filter((k) => k === AEQUITAS_CAIP),
+      ...alle.filter((k) => k !== AEQUITAS_CAIP && k !== anchorNetwork.caipNetworkId),
+    ];
     await walletAufAequitasSchalten(senden, wege, kette);
   };
 
