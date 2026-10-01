@@ -106,6 +106,72 @@ export function identityFromBioHash(bioHash: string): DeviceIdentity {
  * useLanguage()/t() access — the caller (identity.tsx) passes the localized
  * text through.
  */
+// Wie oft und wie lange /api/status vor einer Registrierung erneut gefragt
+// wird. Ein Knoten, der gerade neu gestartet ist, antwortet einige Sekunden
+// lang mit einem Notstand ohne vollstaendige Angaben (status_ohne_sperre.go,
+// stand_veraltet). Fest begrenzt: hoechstens VORPRUEFUNG_VERSUCHE Abfragen,
+// zusammen gut 7 s Wartezeit.
+export const VORPRUEFUNG_VERSUCHE = 4;
+const VORPRUEFUNG_PAUSE_MS = [1000, 2000, 4000];
+
+const schlafen = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+let vorpruefungWarte: (ms: number) => Promise<void> = schlafen;
+
+/** Nur fuer Tests: die Pausen zwischen den Abfragen ersetzen. */
+export function _setVorpruefungWarteForTest(f: ((ms: number) => Promise<void>) | null) {
+  vorpruefungWarte = f ?? schlafen;
+}
+
+/**
+ * Klaert VOR jeder Aufnahme und jeder Unterschrift, ob registriert werden
+ * kann: welcher Vertrag gilt und ob das Netz bestaetigt ist.
+ *
+ * DER FALL (01.10.2026, am Geraet): Gesicht aufgenommen und eingeschrieben,
+ * dann lieferte der frisch gestartete Knoten einen Status ohne Chain-ID, die
+ * App brach mit "Netz nicht bestaetigt" ab -- und beim naechsten Versuch war
+ * der Mensch ein Duplikat seiner selbst. Deshalb laeuft diese Pruefung jetzt
+ * vor der Einschreibung (biometric-capture.tsx) und wird bei einer unklaren
+ * Antwort einige Male wiederholt.
+ *
+ * Fail-closed: bleibt die Lage nach allen Versuchen unklar, wirft sie den
+ * letzten Grund; es wird nichts unterschrieben und nichts eingeschrieben.
+ */
+export async function registrierungsVorpruefung(
+  gespeicherteKennung: string | null = null,
+  warte: (ms: number) => Promise<void> = vorpruefungWarte,
+): Promise<{ vertrag: 'v7' | 'v8'; kennung: string | null }> {
+  let grund: Error = new Error('Netz nicht bestätigt');
+  for (let versuch = 0; versuch < VORPRUEFUNG_VERSUCHE; versuch++) {
+    if (versuch > 0) await warte(VORPRUEFUNG_PAUSE_MS[Math.min(versuch - 1, VORPRUEFUNG_PAUSE_MS.length - 1)]);
+    let status: unknown;
+    try {
+      status = await getStatus();
+    } catch (e: any) {
+      grund = new Error(`Knoten nicht erreichbar (${e?.message ?? 'unbekannt'}) — Registrierung nicht unterschrieben`);
+      continue;
+    }
+    const vertrag = registerVertrag(status);
+    if (!vertrag) {
+      grund = new Error('Der Knoten verlangt eine unbekannte Registrierung — bitte die App aktualisieren');
+      continue;
+    }
+    const netz = pruefeNetz(status, gespeicherteKennung);
+    if (!signierenErlaubt(netz)) {
+      grund = new Error('Netz nicht bestätigt (andere Kette oder Neustart) — Registrierung nicht unterschrieben');
+      // Ein bestaetigter Netzwechsel ist kein voruebergehender Zustand.
+      if (netz.art === 'gewechselt') break;
+      continue;
+    }
+    const kennung = netz.art === 'ok' || netz.art === 'erstmals' ? netz.kennung : null;
+    if (vertrag === 'v8' && !kennung) {
+      grund = new Error('Knoten liefert keine Netzkennung — V8-Registrierung nicht möglich');
+      continue;
+    }
+    return { vertrag, kennung };
+  }
+  throw grund;
+}
+
 export async function proveAndRegister(
   signer: AequitasSigner,
   identity: DeviceIdentity,
@@ -119,23 +185,7 @@ export async function proveAndRegister(
   // gebunden, und ein Neustart der Kette muss erst bestaetigt sein.
   gespeicherteKennung: string | null = null
 ) {
-  // Vor dem Beweis klaeren, welche Unterschrift der Knoten verlangt -- sonst
-  // wuerde eine unklare Lage erst nach der Gesichtsaufnahme sichtbar.
-  // Fail-closed: unbekannter Vertrag, fremde Kette, ungueltige oder
-  // gewechselte Kennung -> keine Unterschrift.
-  const status = await getStatus();
-  const vertrag = registerVertrag(status);
-  if (!vertrag) {
-    throw new Error('Der Knoten verlangt eine unbekannte Registrierung — bitte die App aktualisieren');
-  }
-  const netz = pruefeNetz(status, gespeicherteKennung);
-  if (!signierenErlaubt(netz)) {
-    throw new Error('Netz nicht bestätigt (andere Kette oder Neustart) — Registrierung nicht unterschrieben');
-  }
-  const kennung = netz.art === 'ok' || netz.art === 'erstmals' ? netz.kennung : null;
-  if (vertrag === 'v8' && !kennung) {
-    throw new Error('Knoten liefert keine Netzkennung — V8-Registrierung nicht möglich');
-  }
+  const { vertrag, kennung } = await registrierungsVorpruefung(gespeicherteKennung);
 
   const proof = await requestProof({
     bio: identity.bio,

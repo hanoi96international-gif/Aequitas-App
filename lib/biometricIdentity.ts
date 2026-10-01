@@ -613,6 +613,95 @@ export async function storedBioHash(): Promise<string | null> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Offener Kettenschritt: Einschreibung erfolgt, Registrierung auf der Kette
+// noch nicht.
+//
+// Scheitert der Schritt auf der Kette (Knoten neu gestartet, Netz kurz
+// unklar, Wallet-Zeitueberschreitung), ist das Gesicht trotzdem
+// eingeschrieben. Eine neue Aufnahme waere dann ein Duplikat -- die
+// Bescheinigung des Coordinators ist aber noch gueltig
+// (BIO_ATTESTATION_MAX_AGE_SECONDS am Proof-Server, 900 s). Sie wird hier
+// gehalten, damit der Kettenschritt OHNE neue Aufnahme wiederholt werden kann.
+//
+// Die Bescheinigung bindet die Kennung an EINE Wallet-Adresse; ohne deren
+// Schluessel ist sie wertlos. Trotzdem SecureStore, wie die bio_hash.
+
+const KETTENSCHRITT_KEY = 'aequitas_offener_kettenschritt_v1';
+// Etwas unter der Frist des Proof-Servers, damit ein Versuch nicht an der
+// letzten Sekunde scheitert.
+export const KETTENSCHRITT_GUELTIG_S = 840;
+
+export interface OffenerKettenschritt {
+  bioHash: string;
+  wallet: string;
+  signature: string | null;
+  issuedAt: number;
+  grantClass: string | null;
+  grantClassSignature: string | null;
+}
+
+function gueltigerKettenschritt(x: unknown, jetztS: number): OffenerKettenschritt | null {
+  if (!x || typeof x !== 'object') return null;
+  const k = x as Record<string, unknown>;
+  if (typeof k.bioHash !== 'string' || !/^[0-9]{1,80}$/.test(k.bioHash)) return null;
+  if (typeof k.wallet !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(k.wallet)) return null;
+  if (typeof k.issuedAt !== 'number' || !Number.isInteger(k.issuedAt)) return null;
+  const alter = jetztS - k.issuedAt;
+  if (alter < 0 || alter > KETTENSCHRITT_GUELTIG_S) return null;
+  const textOderNull = (v: unknown) => (typeof v === 'string' && v.length <= 4096 ? v : null);
+  return {
+    bioHash: k.bioHash,
+    wallet: k.wallet,
+    issuedAt: k.issuedAt,
+    signature: textOderNull(k.signature),
+    grantClass: textOderNull(k.grantClass),
+    grantClassSignature: textOderNull(k.grantClassSignature),
+  };
+}
+
+export async function merkeKettenschritt(k: OffenerKettenschritt): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(KETTENSCHRITT_KEY, JSON.stringify(k));
+  } catch (e) {
+    console.warn('[biometric] offener Kettenschritt konnte nicht gesichert werden', e);
+  }
+}
+
+/** Der gespeicherte offene Kettenschritt fuer DIESE Wallet, solange die
+ *  Bescheinigung noch gilt -- sonst null (und der Eintrag wird verworfen). */
+export async function offenerKettenschritt(wallet: string, jetztS = Math.floor(Date.now() / 1000)): Promise<OffenerKettenschritt | null> {
+  let roh: string | null = null;
+  try {
+    roh = await SecureStore.getItemAsync(KETTENSCHRITT_KEY);
+  } catch {
+    return null;
+  }
+  if (!roh || roh.length > 16384) return null;
+  let wert: unknown;
+  try {
+    wert = JSON.parse(roh);
+  } catch {
+    wert = null;
+  }
+  const k = gueltigerKettenschritt(wert, jetztS);
+  if (!k) {
+    await vergissKettenschritt();
+    return null;
+  }
+  // Eine andere Wallet: nicht verwerfen (sie kann zurueckkommen), nur nicht
+  // hergeben -- die Bescheinigung gilt ohnehin nur fuer ihre eigene Adresse.
+  return k.wallet.toLowerCase() === wallet.toLowerCase() ? k : null;
+}
+
+export async function vergissKettenschritt(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(KETTENSCHRITT_KEY);
+  } catch {
+    /* harmlos: ein abgelaufener Eintrag wird beim Lesen ohnehin verworfen */
+  }
+}
+
 export interface DeleteEnrollmentResult {
   // deleted | not_found | partial | invalid_request | unauthorized
   status: string;
