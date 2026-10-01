@@ -1,5 +1,5 @@
 import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
-import { AEQUITAS_CAIP, NETZ_NICHT_FREIGEGEBEN, istAbgelehnt, sitzungsKetten, walletConnectSigner, type AequitasSigner } from './signer';
+import { AEQUITAS_CAIP, NETZ_NICHT_FREIGEGEBEN, sitzungsKetten, walletAufAequitasSchalten, walletConnectSigner, type AequitasSigner } from './signer';
 import type { AppKitNetwork, Storage } from '@reown/appkit-react-native';
 
 type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
@@ -302,26 +302,18 @@ export function useWalletConnect() {
   const walletAufAequitas = async () => {
     const p: any = provider;
     const topic = p?.session?.topic;
-    if (!p?.client?.request || !topic) {
-      await rawRequest?.({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] }, AEQUITAS_CAIP);
-      return;
-    }
-    const wege = [AEQUITAS_CAIP, ...ketten().filter((k) => k !== AEQUITAS_CAIP)].slice(0, 8);
-    let letzter: unknown = new Error(NETZ_NICHT_FREIGEGEBEN);
-    for (const weg of wege) {
-      try {
-        await p.client.request({
-          topic,
-          chainId: weg,
-          request: { method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] },
-        });
-        return;
-      } catch (e) {
-        if (istAbgelehnt(e)) throw e;
-        letzter = e;
-      }
-    }
-    throw letzter;
+    const kette = {
+      chainId: CHAIN_ID_HEX,
+      chainName: 'Aequitas Chain',
+      nativeCurrency: NATIVE_CURRENCY,
+      rpcUrls: [RPC_URL],
+      blockExplorerUrls: [WEBAPP],
+    };
+    const senden = p?.client?.request && topic
+      ? (method: string, params: unknown[], weg: string) => p.client.request({ topic, chainId: weg, request: { method, params } })
+      : (method: string, params: unknown[], weg: string) => rawRequest!({ method, params }, weg);
+    const wege = [AEQUITAS_CAIP, ...ketten().filter((k) => k !== AEQUITAS_CAIP)];
+    await walletAufAequitasSchalten(senden, wege, kette);
   };
 
   const signer: AequitasSigner | null =
@@ -329,6 +321,14 @@ export function useWalletConnect() {
 
   const ensureNetwork = async () => {
     if (!rawRequest) throw new Error('No active WalletConnect provider');
+    // Ist die Kette schon fuer die Sitzung freigegeben, beantwortet der
+    // Provider eth_chainId und den Wechsel selbst (siehe walletAufAequitas) --
+    // ensureAequitasChain wuerde dann "fertig" melden, ohne dass die Wallet
+    // das Netz kennt. In dem Fall direkt an die Wallet.
+    if (ketten().includes(AEQUITAS_CAIP)) {
+      await walletAufAequitas();
+      return;
+    }
     await ensureAequitasChain(rawRequest);
     // Die Wallet meldet eine neu hinzugefuegte Kette per session_update; das
     // kann einen Moment dauern. Hoechstens 5 s warten. Fehlt die Kette

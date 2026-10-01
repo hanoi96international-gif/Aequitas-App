@@ -207,3 +207,48 @@ describe('walletConnectSigner: Wallet auf falschem Netz (Vorfall 01.10.2026)', (
     expect(wechseln).not.toHaveBeenCalled();
   });
 });
+
+describe('walletAufAequitasSchalten (Netz fehlt in MetaMask, 01.10.2026)', () => {
+  const { walletAufAequitasSchalten, NETZ_FEHLT_IN_WALLET } = require('../signer');
+  const KETTE = { chainId: '0x786', chainName: 'Aequitas Chain', nativeCurrency: {}, rpcUrls: ['https://aequitas.digital/rpc'], blockExplorerUrls: ['https://aequitas.digital'] };
+  const fehler = (message: string, code?: number) => Object.assign(new Error(message), code ? { code } : {});
+
+  it('Wallet auf Ethereum, Aequitas unbekannt: falscher Leitweg -> naechster, dort hinzufuegen', async () => {
+    const aufrufe: string[] = [];
+    const senden = jest.fn(async (m: string, _p: unknown[], weg: string) => {
+      aufrufe.push(`${m}@${weg}`);
+      if (weg !== 'eip155:1') throw fehler('Invalid chainId');
+      if (m === 'wallet_switchEthereumChain') throw fehler('Unrecognized chain ID "0x786". Try adding the chain using wallet_addEthereumChain first.', 4902);
+      return null;
+    });
+    await walletAufAequitasSchalten(senden, [AEQUITAS_CAIP, 'eip155:1'], KETTE);
+    expect(aufrufe).toEqual([
+      `wallet_switchEthereumChain@${AEQUITAS_CAIP}`,
+      'wallet_switchEthereumChain@eip155:1',
+      'wallet_addEthereumChain@eip155:1',
+    ]);
+    expect(senden.mock.calls[2][1]).toEqual([KETTE]);
+  });
+
+  it('Netz bekannt: ein Wechsel reicht', async () => {
+    const senden = jest.fn(async () => null);
+    await walletAufAequitasSchalten(senden, [AEQUITAS_CAIP, 'eip155:1'], KETTE);
+    expect(senden).toHaveBeenCalledTimes(1);
+  });
+
+  it('Ablehnung beim Hinzufuegen beendet sofort', async () => {
+    const senden = jest.fn(async (m: string) => {
+      if (m === 'wallet_switchEthereumChain') throw fehler('Unrecognized chain ID', 4902);
+      throw fehler('User rejected the request.', 4001);
+    });
+    await expect(walletAufAequitasSchalten(senden, [AEQUITAS_CAIP, 'eip155:1'], KETTE)).rejects.toThrow('User rejected');
+    expect(senden).toHaveBeenCalledTimes(2);
+  });
+
+  it('nichts klappt: klare Meldung, hoechstens 8 Leitwege x 2 Anfragen', async () => {
+    const senden = jest.fn(async () => { throw fehler('internal error'); });
+    const wege = Array.from({ length: 20 }, (_, i) => `eip155:${i + 1}`);
+    await expect(walletAufAequitasSchalten(senden, wege, KETTE)).rejects.toThrow(NETZ_FEHLT_IN_WALLET);
+    expect(senden.mock.calls.length).toBeLessThanOrEqual(16);
+  });
+});
