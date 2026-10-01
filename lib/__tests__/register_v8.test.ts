@@ -54,7 +54,8 @@ async function registriere(signer: any, gespeichert: string | null = KENNUNG) {
   let ergebnis: unknown;
   await jest.isolateModulesAsync(async () => {
     require('../api')._setApiCandidatesForTest([A]);
-    const { proveAndRegister } = require('../identity');
+    const { proveAndRegister, _setVorpruefungWarteForTest } = require('../identity');
+    _setVorpruefungWarteForTest(async () => {});
     ergebnis = await proveAndRegister(signer, { bio: '5', salt: '7' }, 'timeout', undefined, gespeichert);
   });
   return ergebnis;

@@ -17,8 +17,10 @@ import { theme } from '@/constants/aequitas-theme';
 import {
   registerBiometric,
   rememberBioHash,
-  storedBioHash,
-  deleteEnrollment,
+  merkeKettenschritt,
+  offenerKettenschritt,
+  vergissKettenschritt,
+  type OffenerKettenschritt,
   requestChallenge,
   getOrCreateDeviceId,
   voucherFor,
@@ -37,7 +39,6 @@ import {
   type VouchResult,
 } from '@/lib/biometricIdentity';
 import { WEBAPP } from '@/lib/config';
-import { raeumeVerwaisteEinschreibungAuf } from '@/lib/verwaist';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
 
@@ -115,7 +116,7 @@ function challengeInstruction(type: ChallengeType, t: TFunc): string {
     default: return '';
   }
 }
-import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister } from '@/lib/identity';
+import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
 
 import { withTimeout } from '@/lib/signer';
 
@@ -842,6 +843,74 @@ export default function BiometricCapture() {
   const [result, setResult] = useState<BiometricRegisterResult | null>(null);
   const [nachziehResult, setNachziehResult] = useState<NachziehenResult | null>(null);
   const [submitError, setSubmitError] = useState('');
+  // Eingeschrieben, aber noch nicht auf der Kette -- siehe
+  // lib/biometricIdentity.ts, OffenerKettenschritt. Solange gesetzt, kann der
+  // Kettenschritt ohne neue Aufnahme wiederholt werden.
+  const [offen, setOffen] = useState<OffenerKettenschritt | null>(null);
+  const [kettenLaeuft, setKettenLaeuft] = useState(false);
+  const [kettenFertig, setKettenFertig] = useState(false);
+
+  useEffect(() => {
+    if (nachziehen || !address) return;
+    let aktiv = true;
+    (async () => {
+      const k = await offenerKettenschritt(address);
+      if (!k || !aktiv) return;
+      try {
+        const c = await checkAlreadyRegistered(identityFromBioHash(k.bioHash).bio);
+        if (c.registered) {
+          await vergissKettenschritt();
+          return;
+        }
+      } catch {
+        // Unklar: anbieten schadet nicht, der Knoten prueft beim Absenden selbst.
+      }
+      if (aktiv) setOffen(k);
+    })();
+    return () => {
+      aktiv = false;
+    };
+  }, [nachziehen, address]);
+
+  /** Den Schritt auf der Kette mit der gespeicherten Bescheinigung
+   *  (erneut) ausfuehren -- ohne neue Aufnahme. */
+  async function kettenschrittAusfuehren(k: OffenerKettenschritt) {
+    if (!signer || signer.address.toLowerCase() !== k.wallet.toLowerCase()) {
+      setSubmitError(t('identity.kettenschrittAndereWallet'));
+      setStep('result');
+      return;
+    }
+    setKettenLaeuft(true);
+    setSubmitError('');
+    try {
+      const identity = identityFromBioHash(k.bioHash);
+      const check = await checkAlreadyRegistered(identity.bio);
+      if (check.registered && check.is_human) {
+        await vergissKettenschritt();
+        setOffen(null);
+        setKettenFertig(true);
+        return;
+      }
+      const r = await proveAndRegister(signer, identity, t('trade.signTimeout'), {
+        signature: k.signature,
+        issuedAt: k.issuedAt,
+        grantClass: k.grantClass,
+        grantClassSignature: k.grantClassSignature,
+      });
+      if (r.success) {
+        await vergissKettenschritt();
+        setOffen(null);
+        setKettenFertig(true);
+      } else {
+        setSubmitError(r.message || t('identity.registrationFailed'));
+      }
+    } catch (e: any) {
+      setSubmitError(e?.message ?? t('identity.registrationFailed'));
+    } finally {
+      setKettenLaeuft(false);
+      setStep('result');
+    }
+  }
 
   // Web-of-trust vouching (see aequitas-biometric-beta/matching-service/
   // app/trust.py) -- lets this device's now-enrolled identity vouch for
@@ -1185,16 +1254,12 @@ export default function BiometricCapture() {
         setStep('result');
         return;
       }
-      // Eine Einschreibung von einem frueheren Versuch, deren Schritt auf der
-      // Kette gescheitert ist, wuerde diesen Versuch als Duplikat abweisen.
-      // Kennt die Kette sie nicht, wird sie hier zuerst geloescht
-      // (lib/verwaist.ts; fail-closed).
-      await raeumeVerwaisteEinschreibungAuf({
-        gespeicherteKennung: storedBioHash,
-        pruefe: (bio) => checkAlreadyRegistered(bio),
-        bioAus: (k) => identityFromBioHash(k).bio,
-        loesche: deleteEnrollment,
-      });
+      // Erst klaeren, ob die Kette ueberhaupt registrieren kann -- VOR der
+      // Einschreibung. Scheitert das danach, ist der Mensch eingeschrieben,
+      // aber nicht registriert, und jede neue Aufnahme waere ein Duplikat
+      // (Vorfall 01.10.2026, lib/identity.ts registrierungsVorpruefung).
+      // Wirft bei unklarer Lage; dann wird nichts hochgeladen.
+      await registrierungsVorpruefung();
       const res = await registerBiometric(
         {
           faceUri: finalFaceUri,
@@ -1245,6 +1310,20 @@ export default function BiometricCapture() {
         // coordinator ever emits hex or a padded value instead, every
         // signature stops verifying, and the symptom would look like a
         // crypto bug rather than a formatting change.
+        if (res.decision === 'new_enrollment' && res.bio_attestation_issued_at) {
+          const k: OffenerKettenschritt = {
+            bioHash: res.bio_hash,
+            wallet: signer.address,
+            signature: res.bio_attestation ?? null,
+            issuedAt: res.bio_attestation_issued_at,
+            grantClass: res.grant_class ?? null,
+            grantClassSignature: res.grant_class_signature ?? null,
+          };
+          // Vor dem Kettenschritt sichern: scheitert er, bleibt der Weg
+          // zurueck ohne neue Aufnahme (siehe kettenschrittAusfuehren).
+          await merkeKettenschritt(k);
+          setOffen(k);
+        }
         const proveResult = await proveAndRegister(signer, identity, t('trade.signTimeout'), {
           signature: res.bio_attestation ?? null,
           issuedAt: res.bio_attestation_issued_at ?? null,
@@ -1253,6 +1332,9 @@ export default function BiometricCapture() {
         });
         if (!proveResult.success) {
           setSubmitError(proveResult.message || t('identity.registrationFailed'));
+        } else {
+          await vergissKettenschritt();
+          setOffen(null);
         }
       }
       setStep('result');
@@ -1275,6 +1357,18 @@ export default function BiometricCapture() {
     <SafeAreaView style={S.safe}>
       {step === 'consent' && (
         <View style={S.content}>
+          {offen && !nachziehen ? (
+            <View style={S.card}>
+              <Text style={S.title}>{t('identity.kettenschrittOffenTitel')}</Text>
+              <Text style={S.body}>{t('identity.kettenschrittOffenText')}</Text>
+              <GradientButton
+                label={t('identity.kettenschrittWiederholenBtn')}
+                onPress={() => kettenschrittAusfuehren(offen)}
+                disabled={kettenLaeuft}
+              />
+              {kettenLaeuft ? <ActivityIndicator style={S.spinnerGap} color={theme.purple} /> : null}
+            </View>
+          ) : null}
           <View style={S.card}>
             <Text style={S.title}>{nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
             <Text style={S.body}>{nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
@@ -1437,9 +1531,25 @@ export default function BiometricCapture() {
       {step === 'result' && (
         <View style={S.content}>
           <View style={S.card}>
+            {kettenFertig ? (
+              <Text style={S.body}>{t('identity.kettenschrittFertig')}</Text>
+            ) : null}
             {submitError ? (
-              <Text style={S.errorText}>{submitError}</Text>
-            ) : (
+              <>
+                <Text style={S.errorText}>{submitError}</Text>
+                {offen && !nachziehen ? (
+                  <>
+                    <Text style={S.body}>{t('identity.kettenschrittOffenText')}</Text>
+                    <GradientButton
+                      label={t('identity.kettenschrittWiederholenBtn')}
+                      onPress={() => kettenschrittAusfuehren(offen)}
+                      disabled={kettenLaeuft}
+                    />
+                    {kettenLaeuft ? <ActivityIndicator style={S.spinnerGap} color={theme.purple} /> : null}
+                  </>
+                ) : null}
+              </>
+            ) : kettenFertig ? null : (
               <>
                 <Text style={S.body}>
                   {(() => {
