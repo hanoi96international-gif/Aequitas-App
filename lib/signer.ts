@@ -30,6 +30,19 @@ export function sitzungsKetten(provider: unknown): string[] {
   return [...ketten];
 }
 
+/** Lehnt die Wallet ab, weil in ihr ein anderes Netz ausgewaehlt ist? */
+export function istFalscheKette(e: unknown): boolean {
+  const text = String((e as any)?.message ?? e ?? '');
+  return /invalid chain ?id|chainid is different|chain mismatch|must match the active chainid/i.test(text);
+}
+
+/** Hat der Mensch in der Wallet abgelehnt? (EIP-1193 4001) */
+export function istAbgelehnt(e: unknown): boolean {
+  const code = (e as any)?.code;
+  const text = String((e as any)?.message ?? e ?? '');
+  return code === 4001 || /user (rejected|denied)|rejected by user|abgelehnt/i.test(text);
+}
+
 /**
  * Uniform signing interface so screens don't care whether the active wallet
  * is our own in-app SecureStore-backed key or a WalletConnect session.
@@ -71,13 +84,26 @@ export function localWalletSigner(address: string): AequitasSigner {
 export function walletConnectSigner(
   address: string,
   request: WcRequest,
-  freigegebeneKetten: () => readonly string[]
+  freigegebeneKetten: () => readonly string[],
+  // Schaltet die Wallet SELBST auf die Aequitas-Kette (walletconnect.ts,
+  // walletAufAequitas). Fehlt sie, wird nicht nachgeholfen.
+  walletWechseln?: () => Promise<void>
 ): AequitasSigner {
-  const aufAequitas = (args: { method: string; params: unknown[] }) => {
+  const aufAequitas = async (args: { method: string; params: unknown[] }) => {
     if (!freigegebeneKetten().includes(AEQUITAS_CAIP)) {
-      return Promise.reject(new Error(NETZ_NICHT_FREIGEGEBEN));
+      throw new Error(NETZ_NICHT_FREIGEGEBEN);
     }
-    return request(args, AEQUITAS_CAIP);
+    try {
+      return await request(args, AEQUITAS_CAIP);
+    } catch (e) {
+      // Vorfall 01.10.2026 (MetaMask Mobile): "Invalid chainId". Die Kette
+      // ist fuer die Sitzung freigegeben, aber in MetaMask ist ein anderes
+      // Netz ausgewaehlt; MetaMask lehnt dann jede Anfrage fuer 1926 ab.
+      // Einmal wechseln, einmal wiederholen -- nicht mehr.
+      if (!walletWechseln || !istFalscheKette(e)) throw e;
+      await walletWechseln();
+      return request(args, AEQUITAS_CAIP);
+    }
   };
   return {
     address,

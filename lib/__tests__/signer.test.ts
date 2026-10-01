@@ -156,3 +156,54 @@ describe('sitzungsKetten', () => {
     expect(sitzungsKetten(provider)).not.toContain('eip155:1926');
   });
 });
+
+describe('walletConnectSigner: Wallet auf falschem Netz (Vorfall 01.10.2026)', () => {
+  const unterschreibe = (s: ReturnType<typeof walletConnectSigner>) =>
+    s.signTypedData(V8_DOMAIN as any, { Register: [{ name: 'x', type: 'uint256' }] }, { x: 1n });
+
+  it('wechselt einmal das Netz und wiederholt bei "Invalid chainId"', async () => {
+    const request = jest.fn()
+      .mockRejectedValueOnce(new Error('Invalid chainId'))
+      .mockResolvedValueOnce('0xsig');
+    const wechseln = jest.fn(async () => {});
+    const s = walletConnectSigner('0xABC', request, MIT_AEQUITAS, wechseln);
+    await expect(unterschreibe(s)).resolves.toBe('0xsig');
+    expect(wechseln).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1]).toBe(AEQUITAS_CAIP);
+  });
+
+  it('wiederholt hoechstens einmal', async () => {
+    const request = jest.fn().mockRejectedValue(new Error('Invalid chainId'));
+    const wechseln = jest.fn(async () => {});
+    const s = walletConnectSigner('0xABC', request, MIT_AEQUITAS, wechseln);
+    await expect(unterschreibe(s)).rejects.toThrow('Invalid chainId');
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(wechseln).toHaveBeenCalledTimes(1);
+  });
+
+  it('andere Fehler (z. B. Ablehnung) loesen keinen Wechsel aus', async () => {
+    const request = jest.fn().mockRejectedValue(Object.assign(new Error('User rejected'), { code: 4001 }));
+    const wechseln = jest.fn(async () => {});
+    const s = walletConnectSigner('0xABC', request, MIT_AEQUITAS, wechseln);
+    await expect(unterschreibe(s)).rejects.toThrow('User rejected');
+    expect(wechseln).not.toHaveBeenCalled();
+  });
+
+  it('lehnt der Mensch den Wechsel ab, wird nicht unterschrieben', async () => {
+    const request = jest.fn().mockRejectedValueOnce(new Error('Invalid chainId'));
+    const wechseln = jest.fn(async () => { throw Object.assign(new Error('User rejected'), { code: 4001 }); });
+    const s = walletConnectSigner('0xABC', request, MIT_AEQUITAS, wechseln);
+    await expect(unterschreibe(s)).rejects.toThrow('User rejected');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('ohne freigegebene Aequitas-Kette: weder Anfrage noch Wechsel', async () => {
+    const request = jest.fn();
+    const wechseln = jest.fn(async () => {});
+    const s = walletConnectSigner('0xABC', request, NUR_ETHEREUM, wechseln);
+    await expect(unterschreibe(s)).rejects.toThrow(NETZ_NICHT_FREIGEGEBEN);
+    expect(request).not.toHaveBeenCalled();
+    expect(wechseln).not.toHaveBeenCalled();
+  });
+});

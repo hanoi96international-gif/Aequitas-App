@@ -13,7 +13,8 @@ import {
 import { CHAIN_ID_DEC, V7_CONTRACT } from './config';
 import { withTimeout, type AequitasSigner } from './signer';
 
-const SIGN_TIMEOUT_MS = 60_000;
+// 120 s: schliesst ggf. einen Netzwechsel in der Wallet ein (signer.ts, walletWechseln).
+const SIGN_TIMEOUT_MS = 120_000;
 
 const DEVICE_SECRET_KEY = 'aequitas_device_identity_v1';
 
