@@ -1,5 +1,18 @@
+import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
-import { AEQUITAS_CAIP, NETZ_NICHT_FREIGEGEBEN, sitzungsKetten, walletAufAequitasSchalten, walletConnectSigner, type AequitasSigner } from './signer';
+import {
+  AEQUITAS_CAIP,
+  WALLET_ANTWORTET_NICHT,
+  adresseDerSitzung,
+  aequitasNetzEinrichten,
+  istAbgelehnt,
+  kettenDerSitzung,
+  walletConnectSigner,
+  withTimeout,
+  type AequitasSigner,
+  type KettenAngaben,
+} from './signer';
 import type { AppKitNetwork, Storage } from '@reown/appkit-react-native';
 
 type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
@@ -163,6 +176,14 @@ export async function resetWalletConnectStorage(): Promise<void> {
   await AsyncStorage.clear();
 }
 
+const AEQUITAS_KETTE: KettenAngaben = {
+  chainId: CHAIN_ID_HEX,
+  chainName: 'Aequitas Chain',
+  nativeCurrency: NATIVE_CURRENCY,
+  rpcUrls: [RPC_URL],
+  blockExplorerUrls: [WEBAPP],
+};
+
 export function useWalletConnect() {
   // Only ever rendered from WalletConnectBridge, itself only mounted when
   // appKit is truthy (see WalletContext.tsx) — by that point this require()
@@ -170,99 +191,146 @@ export function useWalletConnect() {
   // returns the cached module, never re-runs the risky import.
   const { useAppKit, useAccount, useProvider } = getAppKitModules();
   const { open, close, disconnect } = useAppKit();
-  const { address, isConnected } = useAccount();
+  const konto = useAccount();
   const { provider } = useProvider();
 
-  // Routing-Kette jeder Anfrage ohne eigene Vorgabe: die Aequitas-Kette,
-  // sobald die Wallet sie fuer die Sitzung freigegeben hat, sonst
-  // anchorNetwork (siehe dessen Kommentar) -- damit ensureAequitasChain und
-  // personal_sign auch vor der Freigabe gueltig geleitet werden. MetaMask
-  // Mobile nimmt die Routing-Kette als aktives Netz; ueber den Anker
-  // bliebe die Wallet auf Ethereum. Kettengebundene Anfragen legen die
-  // Aequitas-Kette selbst fest (walletConnectSigner).
-  const ketten = () => sitzungsKetten(provider);
+  // LIVE-Sitzung statt AppKit-Kopie.
+  //
+  // Vorfall 01.10.2026 (1.8.8 am Geraet, Quelltext von AppKit 2.0.5 und
+  // MetaMask Mobile nachgelesen):
+  // - useProvider() liefert fuer WalletConnect eine KOPIE des
+  //   UniversalProvider (`{ ...provider }`, WalletConnectConnector.getProvider).
+  //   Deren `session` aendert sich nie -- die Freigabe der Aequitas-Kette per
+  //   session_update kam dort nie an, das Warten darauf lief immer ins Leere.
+  //   Der SignClient (`client`) ist dagegen derselbe; sein Sitzungsspeicher
+  //   ist live.
+  // - useAccount() meldet nur das Konto auf AppKits aktiver Kette (Aequitas).
+  //   Hat MetaMask das Netz noch nicht, fehlt es in der Sitzung -> keine
+  //   Adresse -> die App hielt die Wallet fuer nicht verbunden und begann
+  //   die Netzeinrichtung nie (AppKit-Fenster blieb auf dem Startbildschirm).
+  //   Die Adresse kommt darum aus der Sitzung selbst.
+  const p: any = provider;
+  const client: any = p?.client ?? null;
+  const topic: string | undefined = typeof p?.session?.topic === 'string' ? p.session.topic : undefined;
+  const liveRef = useRef<{ client: any; topic?: string; provider: any }>({ client, topic, provider: p });
+  liveRef.current = { client, topic, provider: p };
+  // Kette, die die Wallet zuletzt als aktiv gemeldet hat (chainChanged).
+  const walletKetteRef = useRef<string | null>(null);
+
+  const sitzung = () => {
+    const { client: c, topic: t } = liveRef.current;
+    if (!c?.session?.get || !t) return undefined;
+    try {
+      return c.session.get(t);
+    } catch {
+      return undefined; // Sitzung beendet
+    }
+  };
+  const ketten = () => kettenDerSitzung(sitzung());
+
+  // Bei jeder Aenderung der Sitzung neu zeichnen (Freigabe, Kontowechsel,
+  // Trennen) und die aktive Kette der Wallet mitschreiben.
+  const [, setStand] = useState(0);
+  useEffect(() => {
+    if (!client?.on) return;
+    const neu = () => setStand((n) => (n + 1) % 1_000_000);
+    const ereignis = (e: any) => {
+      if (e?.topic !== liveRef.current.topic) return;
+      const name = e?.params?.event?.name;
+      const kette = e?.params?.chainId;
+      if (name === 'chainChanged' && typeof kette === 'string' && /^eip155:[0-9]{1,12}$/.test(kette)) {
+        walletKetteRef.current = kette;
+      }
+      neu();
+    };
+    client.on('session_update', neu);
+    client.on('session_delete', neu);
+    client.on('session_event', ereignis);
+    return () => {
+      client.off?.('session_update', neu);
+      client.off?.('session_delete', neu);
+      client.off?.('session_event', ereignis);
+    };
+  }, [client]);
+
+  const sitzungsAdresse = adresseDerSitzung(sitzung());
+  const address: string | undefined = konto.address || sitzungsAdresse || undefined;
+  const isConnected = !!address && (!!konto.isConnected || !!sitzungsAdresse);
+
+  // Anfrage an die Wallet ueber den SignClient: genau diese Kette als
+  // Leitweg, keine Sonderbehandlung durch den UniversalProvider (der
+  // beantwortet wallet_switchEthereumChain/eth_chainId sonst selbst). Der
+  // SignClient prueft Kette und Methode gegen die Sitzung und oeffnet die
+  // Wallet-App (Deep Link).
+  const senden = (method: string, params: unknown[], weg: string) => {
+    const { client: c, topic: t, provider: prov } = liveRef.current;
+    if (c?.request && t) return c.request({ topic: t, chainId: weg, request: { method, params } });
+    if (prov?.request) return prov.request({ method, params }, weg);
+    return Promise.reject(new Error('No active WalletConnect provider'));
+  };
+  // Ohne eigene Vorgabe: Aequitas, wenn freigegeben, sonst die zuletzt aktive
+  // bzw. erste freigegebene Kette (personal_sign ist kettenunabhaengig).
+  const standardWeg = () => {
+    const alle = ketten();
+    if (alle.includes(AEQUITAS_CAIP)) return AEQUITAS_CAIP;
+    const w = walletKetteRef.current;
+    return w && alle.includes(w) ? w : alle[0] ?? AEQUITAS_CAIP;
+  };
   const rawRequest: WcRequest | null = provider
-    ? (args, chainId) =>
-        provider.request(args, chainId ?? (ketten().includes(AEQUITAS_CAIP) ? AEQUITAS_CAIP : anchorNetwork.caipNetworkId))
+    ? (args, chainId) => senden(args.method, args.params, chainId ?? standardWeg())
     : null;
 
-  // wallet_switchEthereumChain DIREKT an die Wallet.
-  //
-  // Vorfall 01.10.2026: Der UniversalProvider (@walletconnect/universal-
-  // provider, handleSwitchChain) beantwortet einen Wechsel auf eine Kette,
-  // die in der Sitzung freigegeben ist, SELBST -- er setzt nur seine eigene
-  // Standardkette, die Anfrage erreicht MetaMask nie. Ebenso eth_chainId: das
-  // ist die Standardkette des Providers, nicht das Netz in der Wallet.
-  // MetaMask blieb so auf Ethereum und lehnte die Unterschrift fuer 1926 mit
-  // "Invalid chainId" ab. Hier geht der Wechsel ueber den SignClient an die
-  // Wallet. Geleitet wird er nacheinander ueber jede freigegebene Kette
-  // (zuerst Aequitas), denn MetaMask nimmt Anfragen nur fuer das gerade
-  // ausgewaehlte Netz an -- und welches das ist, laesst sich vorher nicht
-  // erfragen. Hoechstens so viele Versuche, wie die Sitzung Ketten hat;
-  // lehnt der Mensch ab, sofort Schluss.
-  const walletAufAequitas = async () => {
-    const p: any = provider;
-    const topic = p?.session?.topic;
-    const kette = {
-      chainId: CHAIN_ID_HEX,
-      chainName: 'Aequitas Chain',
-      nativeCurrency: NATIVE_CURRENCY,
-      rpcUrls: [RPC_URL],
-      blockExplorerUrls: [WEBAPP],
-    };
-    const senden = p?.client?.request && topic
-      ? (method: string, params: unknown[], weg: string) => p.client.request({ topic, chainId: weg, request: { method, params } })
-      : (method: string, params: unknown[], weg: string) => rawRequest!({ method, params }, weg);
-    // MetaMask nimmt eine Anfrage nur ueber das Netz an, das sie gerade
-    // ausgewaehlt hat. Am wahrscheinlichsten: Hat sie Aequitas fuer die
-    // Verbindung freigegeben, steht sie auch darauf; sonst steht sie auf
-    // Ethereum (dem Anker). Diesen Leitweg zuerst, die uebrigen danach.
+  const einrichten = () =>
+    aequitasNetzEinrichten({
+      senden,
+      ketten,
+      walletKette: () => walletKetteRef.current,
+      kette: AEQUITAS_KETTE,
+    });
+
+  // Wallet hat Aequitas freigegeben, steht aber auf einem anderen Netz und
+  // lehnt ab (aeltere MetaMask): einmal ausdruecklich umschalten.
+  const umschalten = async () => {
     const alle = ketten();
-    const zuerst = alle.includes(AEQUITAS_CAIP) ? AEQUITAS_CAIP : anchorNetwork.caipNetworkId;
-    const wege = [zuerst, ...alle.filter((k) => k !== zuerst)];
-    await walletAufAequitasSchalten(senden, wege, kette);
-    // MetaMask gibt das neue Netz der Verbindung per session_update frei;
-    // das kann einen Moment dauern. Hoechstens 10 s warten.
-    for (let i = 0; i < 20 && !ketten().includes(AEQUITAS_CAIP); i++) {
-      await new Promise((r) => setTimeout(r, 500));
+    const w = walletKetteRef.current;
+    const wege = [...new Set([...(w && alle.includes(w) ? [w] : []), AEQUITAS_CAIP, ...alle])].filter((k) => alle.includes(k));
+    let letzter: unknown = null;
+    for (const weg of wege.slice(0, 8)) {
+      try {
+        await withTimeout(senden('wallet_switchEthereumChain', [{ chainId: CHAIN_ID_HEX }], weg), 90_000, WALLET_ANTWORTET_NICHT);
+        return;
+      } catch (e) {
+        if (istAbgelehnt(e) || (e as any)?.message === WALLET_ANTWORTET_NICHT) throw e;
+        letzter = e;
+      }
     }
+    if (letzter) throw letzter;
   };
+
+  // Rueckkehr aus der Wallet: ist die Relay-Verbindung im Hintergrund
+  // abgerissen, neu aufbauen -- sonst kommt die Antwort der Wallet (und ihr
+  // session_update) erst mit der naechsten eigenen Anfrage an.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') return;
+      const relayer = liveRef.current.client?.core?.relayer;
+      if (relayer && relayer.connected === false && typeof relayer.transportOpen === 'function') {
+        relayer.transportOpen().catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const signer: AequitasSigner | null =
-    isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest, ketten, walletAufAequitas) : null;
+    isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest, ketten, einrichten, umschalten) : null;
 
-  // Beim Verbinden: IMMER direkt an die Wallet (walletAufAequitas). Frueher
-  // fragte der Weg fuer "noch nicht freigegeben" zuerst eth_chainId und
-  // wechselte dann nur -- beides beantwortet bzw. leitet der Provider selbst,
-  // und eine Wallet ohne Aequitas-Netz lehnte den Wechsel ab ("Switch
-  // declined", Vorfall 01.10.2026). Kennt die Wallet das Netz schon und steht
-  // darauf, kommt keine Abfrage.
-  //
-  // Pro Verbindung (Sitzungs-Topic) nur einmal: sonst spraenge MetaMask bei
-  // jedem App-Start auf. Steht die Wallet spaeter doch auf einem anderen
-  // Netz, holt das der Unterschriftsweg nach (walletConnectSigner).
+  // Beim Verbinden: Netz einrichten. Ist Aequitas in der Sitzung schon
+  // freigegeben, geht KEINE Anfrage an die Wallet (kein Aufspringen von
+  // MetaMask bei jedem App-Start).
   const ensureNetwork = async () => {
-    if (!rawRequest) throw new Error('No active WalletConnect provider');
-    const topic: string | undefined = (provider as any)?.session?.topic;
-    const merker = topic && /^[0-9a-f]{64}$/.test(topic) ? `aequitas_netz_ok_${topic}` : null;
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default; // eslint-disable-line @typescript-eslint/no-require-imports
-    if (merker && ketten().includes(AEQUITAS_CAIP)) {
-      try {
-        if ((await AsyncStorage.getItem(merker)) === '1') return;
-      } catch {
-        // ohne Merker einfach einrichten
-      }
-    }
-    await walletAufAequitas();
-    if (!ketten().includes(AEQUITAS_CAIP)) throw new Error(NETZ_NICHT_FREIGEGEBEN);
-    if (merker) {
-      try {
-        await AsyncStorage.setItem(merker, '1');
-      } catch {
-        // nur Bequemlichkeit
-      }
-    }
+    if (!liveRef.current.provider) throw new Error('No active WalletConnect provider');
+    await einrichten();
   };
 
-  return { open, close, disconnect, address, isConnected, signer, ensureNetwork };
+  return { open, close, disconnect, address, isConnected, signer, ensureNetwork, topic };
 }

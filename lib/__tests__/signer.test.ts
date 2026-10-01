@@ -278,3 +278,117 @@ describe('walletAufAequitasSchalten: Wallet antwortet nicht', () => {
     expect(senden).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Sitzung lesen (Vorfall 1.8.8: keine Adresse ohne Aequitas-Freigabe)', () => {
+  const { adresseDerSitzung, kettenDerSitzung } = require('../signer');
+  const sitzung = { namespaces: { eip155: { chains: ['eip155:1'], accounts: ['eip155:1:0x52908400098527886e0f7030069857d2e4169ee7'] } } };
+
+  it('Adresse kommt aus der Sitzung, mit Pruefsumme', () => {
+    expect(adresseDerSitzung(sitzung)).toBe('0x52908400098527886E0F7030069857D2E4169EE7');
+  });
+
+  it('kaputte oder fehlende Sitzung -> null, keine Ausnahme', () => {
+    expect(adresseDerSitzung(undefined)).toBeNull();
+    expect(adresseDerSitzung({ namespaces: { eip155: { accounts: ['eip155:1:0x123', 42] } } })).toBeNull();
+  });
+
+  it('Ketten aus der Sitzung', () => {
+    expect(kettenDerSitzung(sitzung)).toEqual(['eip155:1']);
+    expect(kettenDerSitzung(null)).toEqual([]);
+  });
+});
+
+describe('aequitasNetzEinrichten', () => {
+  const { aequitasNetzEinrichten, NETZ_FEHLT_IN_WALLET, KEINE_KETTE_IN_SITZUNG } = require('../signer');
+  const KETTE = { chainId: '0x786', chainName: 'Aequitas Chain', nativeCurrency: { name: 'Aequitas', symbol: 'AEQ', decimals: 18 }, rpcUrls: ['https://aequitas.digital/rpc'], blockExplorerUrls: ['https://aequitas.digital'] };
+  const fehler = (message: string, code?: number) => Object.assign(new Error(message), code ? { code } : {});
+  const schnell = { zeitJeAnfrageMs: 2_000, freigabeWarteMs: 600 };
+
+  it('Aequitas schon freigegeben: keine Anfrage an die Wallet', async () => {
+    const senden = jest.fn();
+    await aequitasNetzEinrichten({ senden, ketten: MIT_AEQUITAS, kette: KETTE, ...schnell });
+    expect(senden).not.toHaveBeenCalled();
+  });
+
+  it('Netz fehlt: EIN wallet_addEthereumChain ueber die aktive Kette der Wallet, dann Freigabe', async () => {
+    let ketten = ['eip155:1', 'eip155:59144'];
+    const senden = jest.fn(async (m: string, _p: unknown[], _w: string) => {
+      if (m === 'wallet_addEthereumChain') ketten = [...ketten, AEQUITAS_CAIP];
+      return null;
+    });
+    await aequitasNetzEinrichten({ senden, ketten: () => ketten, walletKette: () => 'eip155:59144', kette: KETTE, ...schnell });
+    expect(senden).toHaveBeenCalledTimes(1);
+    expect(senden.mock.calls[0][0]).toBe('wallet_addEthereumChain');
+    expect(senden.mock.calls[0][1]).toEqual([KETTE]);
+    expect(senden.mock.calls[0][2]).toBe('eip155:59144');
+  });
+
+  it('Freigabe kommt erst nach der Antwort (session_update spaeter): wartet darauf', async () => {
+    let ketten = ['eip155:1'];
+    const senden = jest.fn(async () => {
+      setTimeout(() => { ketten = ['eip155:1', AEQUITAS_CAIP]; }, 200);
+      return null;
+    });
+    await aequitasNetzEinrichten({ senden, ketten: () => ketten, kette: KETTE, ...schnell });
+    expect(senden).toHaveBeenCalledTimes(1);
+  });
+
+  it('Antwort geht verloren, Freigabe ist aber da: gilt als gelungen', async () => {
+    let ketten = ['eip155:1'];
+    const senden = jest.fn(() => {
+      setTimeout(() => { ketten = ['eip155:1', AEQUITAS_CAIP]; }, 100);
+      return new Promise(() => {});
+    });
+    await aequitasNetzEinrichten({ senden, ketten: () => ketten, kette: KETTE, zeitJeAnfrageMs: 5_000, freigabeWarteMs: 600 });
+    expect(senden).toHaveBeenCalledTimes(1);
+  });
+
+  it('angelegt, aber nicht freigegeben: einmal umschalten, dann freigegeben', async () => {
+    let ketten = ['eip155:1'];
+    const senden = jest.fn(async (m: string, _p?: unknown[], _w?: string) => {
+      if (m === 'wallet_switchEthereumChain') ketten = ['eip155:1', AEQUITAS_CAIP];
+      return null;
+    });
+    await aequitasNetzEinrichten({ senden, ketten: () => ketten, kette: KETTE, ...schnell });
+    expect(senden.mock.calls.map((c) => c[0])).toEqual(['wallet_addEthereumChain', 'wallet_switchEthereumChain']);
+    expect(senden.mock.calls[1][1]).toEqual([{ chainId: '0x786' }]);
+  });
+
+  it('bleibt die Freigabe ganz aus: fail-closed mit Meldung, begrenzte Anfragen', async () => {
+    const senden = jest.fn(async () => null);
+    await expect(aequitasNetzEinrichten({ senden, ketten: NUR_ETHEREUM, kette: KETTE, ...schnell })).rejects.toThrow(NETZ_NICHT_FREIGEGEBEN);
+    expect(senden).toHaveBeenCalledTimes(2);
+  });
+
+  it('Ablehnung beim Hinzufuegen: sofort Schluss, kein Umschalten', async () => {
+    const senden = jest.fn(async () => { throw fehler('User rejected the request.', 4001); });
+    await expect(aequitasNetzEinrichten({ senden, ketten: NUR_ETHEREUM, kette: KETTE, ...schnell })).rejects.toThrow('User rejected');
+    expect(senden).toHaveBeenCalledTimes(1);
+  });
+
+  it('Fehler der Wallet steht in der Meldung (Diagnose am Geraet)', async () => {
+    const senden = jest.fn(async () => { throw fehler('Chain ID returned by RPC URL does not match 0x786'); });
+    await expect(aequitasNetzEinrichten({ senden, ketten: NUR_ETHEREUM, kette: KETTE, ...schnell }))
+      .rejects.toThrow(`${NETZ_FEHLT_IN_WALLET} (Wallet: Chain ID returned by RPC URL does not match 0x786)`);
+  });
+
+  it('Sitzung ohne Kette: keine Anfrage', async () => {
+    const senden = jest.fn();
+    await expect(aequitasNetzEinrichten({ senden, ketten: () => [], kette: KETTE, ...schnell })).rejects.toThrow(KEINE_KETTE_IN_SITZUNG);
+    expect(senden).not.toHaveBeenCalled();
+  });
+});
+
+describe('walletConnectSigner: Umschalten statt Einrichten bei "Invalid chainId"', () => {
+  it('nutzt walletUmschalten, wenn angegeben', async () => {
+    const request = jest.fn()
+      .mockRejectedValueOnce(new Error('Invalid chainId'))
+      .mockResolvedValueOnce('0xsig');
+    const einrichten = jest.fn(async () => {});
+    const umschalten = jest.fn(async () => {});
+    const s = walletConnectSigner('0xABC', request, MIT_AEQUITAS, einrichten, umschalten);
+    await expect(s.signTypedData(V8_DOMAIN as any, { Register: [{ name: 'x', type: 'uint256' }] }, { x: 1n })).resolves.toBe('0xsig');
+    expect(umschalten).toHaveBeenCalledTimes(1);
+    expect(einrichten).not.toHaveBeenCalled();
+  });
+});
