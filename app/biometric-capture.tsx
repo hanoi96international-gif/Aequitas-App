@@ -39,6 +39,8 @@ import {
   type VouchResult,
 } from '@/lib/biometricIdentity';
 import { WEBAPP } from '@/lib/config';
+import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
+import { withTimeout } from '@/lib/signer';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
 
@@ -116,9 +118,6 @@ function challengeInstruction(type: ChallengeType, t: TFunc): string {
     default: return '';
   }
 }
-import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
-
-import { withTimeout } from '@/lib/signer';
 
 // The face, and nothing else.
 //

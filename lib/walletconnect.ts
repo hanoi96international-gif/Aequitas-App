@@ -77,7 +77,9 @@ const anchorNetwork: AppKitNetwork = {
 export const appKit = (() => {
   if (!WALLETCONNECT_PROJECT_ID) return null;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- bewusst spaet geladen (siehe Kommentar ueber appKit)
     require('@walletconnect/react-native-compat');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- bewusst spaet geladen (siehe Kommentar ueber appKit)
     const AsyncStorage = require('@react-native-async-storage/async-storage').default;
     const { createAppKit, EthersAdapter } = getAppKitModules();
 
@@ -156,6 +158,7 @@ function getAppKitModules() {
  * a working state once a session gets into this wedged condition.
  */
 export async function resetWalletConnectStorage(): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- bewusst spaet geladen (siehe Kommentar ueber appKit)
   const AsyncStorage = require('@react-native-async-storage/async-storage').default;
   await AsyncStorage.clear();
 }
@@ -191,6 +194,7 @@ export async function resetWalletConnectStorage(): Promise<void> {
 const CHAIN_SETUP_DONE_KEY = 'aequitas_chain_setup_done_v1';
 
 export async function ensureAequitasChain(request: WcRequest): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- bewusst spaet geladen (siehe Kommentar ueber appKit)
   const AsyncStorage = require('@react-native-async-storage/async-storage').default;
   const setUpBefore = (await AsyncStorage.getItem(CHAIN_SETUP_DONE_KEY)) === '1';
 
