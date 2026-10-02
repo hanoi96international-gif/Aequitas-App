@@ -12,6 +12,7 @@ import { formatBalance, isValidAddress, parseAEQToWei, shortWallet } from '@/lib
 import { getWirtschaftKonto, postFaucet } from '@/lib/api';
 import { betragText, fehlerArt, freierRest, gebuehrFuer, hoechstbetrag, type WirtschaftKonto } from '@/lib/ueberweisung';
 import { leseZahlungsziel } from '@/lib/zahlungslink';
+import { leseQr as leseBuergschaftsQr } from '@/lib/altersbuergschaft';
 import { QrScanner } from '@/components/QrScanner';
 import { Verlauf } from '@/components/Verlauf';
 import { withTimeout } from '@/lib/signer';
@@ -70,6 +71,12 @@ export default function Wallet() {
 
   function onScan(data: string) {
     setScannerOffen(false);
+    // Altersbuergschaft (lib/altersbuergschaft.ts): kein Zahlungsziel.
+    const buergschaft = leseBuergschaftsQr(data);
+    if (buergschaft) {
+      router.push({ pathname: '/alter-buergen', params: buergschaft });
+      return;
+    }
     const ziel = leseZahlungsziel(data);
     if (!ziel) {
       setSendStatus('✗ ' + t('wallet.scanInvalid'));

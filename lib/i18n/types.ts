@@ -310,6 +310,10 @@ export interface Translations {
     biometricResultCaptureFailed: string;
     biometricResultLivenessFailed: string;
     biometricResultQuorumFailed: string;
+    alterBuergschaftTitel: string;
+    alterBuergschaftText: string;
+    alterBuergschaftStand: string;
+    alterBuergschaftNochmal: string;
     alterTitel: string;
     alterMonat: string;
     alterJahr: string;
@@ -504,5 +508,17 @@ export interface Translations {
     buergenBtn: string;
     buergenOk: string;
     buergenHinweis: string;
+  };
+  buergen: {
+    titel: string;
+    text: string;
+    warnung: string;
+    bestaetigung: string;
+    unterschreiben: string;
+    ok: string;
+    fehler: string;
+    ungueltig: string;
+    keineWallet: string;
+    eigene: string;
   };
 }

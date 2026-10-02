@@ -40,6 +40,8 @@ import {
 } from '@/lib/biometricIdentity';
 import { WEBAPP } from '@/lib/config';
 import { landAusGeraet, pruefen as alterPruefen } from '@/lib/altersregel';
+import { anfrageFuer, BUERGEN_NOETIG, qrInhalt, stand as buergenStand } from '@/lib/altersbuergschaft';
+import QRCode from 'react-native-qrcode-svg';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
 import { withTimeout } from '@/lib/signer';
 
@@ -59,6 +61,45 @@ const WIDERSPRUCH_FRIST_TAGE = 90;
  * Kein Freitextfeld. Was ein Mensch zu seinem Fall schreibt, gehoert in einen
  * Kanal, den der pruefende Mensch privat lesen kann -- die Kontaktadresse im
  * Impressum, mit der Kennung. Siehe widerspruchEinlegen(). */
+/** Stufe 3 der Altersprüfung (lib/altersbuergschaft.ts): QR-Code fuer zwei
+ *  Buergen, laufender Stand, und erneut aufnehmen, sobald genug da sind. */
+function AltersbuergschaftKarte({ wallet, t, nochmal }: { wallet: string; t: TFunc; nochmal: () => void }) {
+  const [anfrage, setAnfrage] = useState<string | null>(null);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let aus = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    anfrageFuer(wallet).then((a) => {
+      if (aus) return;
+      setAnfrage(a);
+      const holen = () => buergenStand(a).then((x) => !aus && setN(x)).catch(() => {});
+      holen();
+      timer = setInterval(holen, 5000);
+    });
+    return () => {
+      aus = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [wallet]);
+  return (
+    <View style={[S.card, S.vouchCard]}>
+      <Text style={S.title}>{t('identity.alterBuergschaftTitel')}</Text>
+      <Text style={S.body}>{t('identity.alterBuergschaftText')}</Text>
+      {anfrage ? (
+        <View style={{ alignItems: 'center', marginVertical: 12 }}>
+          <QRCode value={qrInhalt(wallet, anfrage)} size={190} backgroundColor={theme.card} color={theme.text} />
+        </View>
+      ) : (
+        <ActivityIndicator color={theme.purple} />
+      )}
+      <Text style={S.body}>
+        {t('identity.alterBuergschaftStand').replace('{n}', String(n)).replace('{noetig}', String(BUERGEN_NOETIG))}
+      </Text>
+      {n >= BUERGEN_NOETIG ? <GradientButton label={t('identity.alterBuergschaftNochmal')} onPress={nochmal} /> : null}
+    </View>
+  );
+}
+
 function WiderspruchKarte({ kennung, t }: { kennung: string; t: TFunc }) {
   const [stand, setStand] = useState<'offen' | 'sendet' | WiderspruchResult['status']>('offen');
   const [kopiert, setKopiert] = useState(false);
@@ -983,7 +1024,7 @@ export default function BiometricCapture() {
     });
   }
 
-  function confirmConsent() {
+  async function confirmConsent() {
     if (!biometricChecked) {
       setConsentError(t('identity.biometricConsentRequired'));
       return;
@@ -1003,6 +1044,7 @@ export default function BiometricCapture() {
       biometricConsent: true,
       bonusConsent: bonusChecked,
       consentedAt: Date.now() / 1000,
+      alterAnfrage: address ? await anfrageFuer(address) : undefined,
       alter: {
         geburtsjahr: Number(altJahr.trim()),
         geburtsmonat: Number(altMonat.trim()),
@@ -1720,6 +1762,10 @@ export default function BiometricCapture() {
             })()}
             <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
           </View>
+
+          {!nachziehen && result?.decision === 'age_proof_required' && address ? (
+            <AltersbuergschaftKarte wallet={address} t={t} nochmal={() => { setResult(null); setStep('consent'); }} />
+          ) : null}
 
           {/* Only reachable once this device has a bio_hash to vouch
               with -- absent on capture_failed/liveness_failed/etc, same

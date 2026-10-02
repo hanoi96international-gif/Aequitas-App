@@ -341,6 +341,9 @@ export interface ConsentDecision {
   // Altersangabe aus demselben Schritt (lib/altersregel.ts). Der Coordinator
   // prueft sie vor jeder Aufnahme und speichert sie nicht.
   alter?: Altersangabe;
+  // Anfrage fuer Altersbuergschaften (lib/altersbuergschaft.ts); nur
+  // /register, der Coordinator findet damit gesammelte Buergen.
+  alterAnfrage?: string;
 }
 
 export interface RegisterVote {
@@ -488,6 +491,7 @@ export async function registerBiometric(
     if (opts.consent?.alter) {
       for (const [k, v] of formularFelder(opts.consent.alter)) form.append(k, v);
     }
+    if (opts.consent?.alterAnfrage) form.append('alter_anfrage', opts.consent.alterAnfrage);
     form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
     capture.faceBurstUris.forEach((uri, i) => {
       form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
