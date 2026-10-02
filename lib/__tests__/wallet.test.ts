@@ -101,3 +101,18 @@ describe('signMessage', () => {
     expect(hexSig).toMatch(/^0x[0-9a-fA-F]+$/);
   });
 });
+
+describe('walletLink', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { walletLink } = require('../walletconnect');
+  it('takes the wallet app scheme from the session', () => {
+    expect(walletLink({ peer: { metadata: { redirect: { native: 'metamask://' } } } })).toBe('metamask://');
+  });
+  it('refuses web links and other schemes that are not an app jump', () => {
+    for (const n of ['https://evil.example', 'http://x', 'javascript:alert(1)', 'intent://x', 'data:text/html,x', '', 'kein-link', 'a'.repeat(300) + '://']) {
+      expect(walletLink({ peer: { metadata: { redirect: { native: n } } } })).toBeNull();
+    }
+    expect(walletLink(undefined)).toBeNull();
+    expect(walletLink({ peer: {} })).toBeNull();
+  });
+});
