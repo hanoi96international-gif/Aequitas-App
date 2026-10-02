@@ -13,8 +13,8 @@
  * Coordinator 1 krank (der Nonce liegt bei 2), bei der Abgabe ist er wieder
  * gesund -- die normale Auswahl wuerde zu 1 zurueckkehren.
  */
-jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }), { virtual: true });
-jest.mock('expo-file-system', () => ({ deleteAsync: jest.fn(async () => undefined) }), { virtual: true });
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }));
+jest.mock('expo-file-system', () => ({ deleteAsync: jest.fn(async () => undefined) }));
 
 const C1 = 'https://c1.example';
 const C2 = 'https://c2.example';

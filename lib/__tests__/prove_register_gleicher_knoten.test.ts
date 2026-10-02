@@ -24,7 +24,7 @@
  * Fall 2 ist der schlimmere, weil der Ausweichknoten dort das Gegenteil
  * dessen tut, wofuer er gebaut wurde.
  */
-jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }), { virtual: true });
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }));
 
 const A = 'https://a.example/api';
 const B = 'https://b.example/api';

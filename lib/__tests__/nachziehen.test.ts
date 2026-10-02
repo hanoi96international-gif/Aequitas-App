@@ -11,13 +11,13 @@
  */
 import { ethers } from 'ethers';
 
-jest.mock('expo-crypto', () => ({ randomUUID: () => 'x' }), { virtual: true });
+jest.mock('expo-crypto', () => ({ randomUUID: () => 'x' }));
 jest.mock('expo-file-system/legacy', () => ({ deleteAsync: jest.fn() }), { virtual: true });
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
   deleteItemAsync: jest.fn(async () => undefined),
-}), { virtual: true });
+}));
 jest.mock('../attestation', () => ({ getAttestationPayload: async () => null }));
 
 const PRIV = '0x' + '11'.repeat(32);

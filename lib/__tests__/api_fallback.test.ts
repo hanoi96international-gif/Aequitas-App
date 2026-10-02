@@ -4,7 +4,7 @@
  * Fehler) ist KEIN Grund zu wechseln -- prove und register muessen denselben
  * Knoten treffen (prove_provenance.go).
  */
-jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }), { virtual: true });
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }));
 
 describe('api fallback', () => {
   const OLD = { ...process.env };

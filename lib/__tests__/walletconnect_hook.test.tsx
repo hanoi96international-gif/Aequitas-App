@@ -55,8 +55,8 @@ jest.mock('@reown/appkit-react-native', () => ({
   useAccount: () => ({ address: undefined, isConnected: false }),
   // KOPIE wie WalletConnectConnector.getProvider('eip155'): session eingefroren.
   useProvider: () => ({ provider: { client: mockSzenario.client, session: mockSzenario.anfangsSitzung, request: jest.fn() } }),
-}), { virtual: true });
-jest.mock('@reown/appkit-ethers-react-native', () => ({ EthersAdapter: class {} }), { virtual: true });
+}));
+jest.mock('@reown/appkit-ethers-react-native', () => ({ EthersAdapter: class {} }));
 
 // eslint-disable-next-line import/first
 import { useWalletConnect } from '../walletconnect';
