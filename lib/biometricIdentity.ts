@@ -9,6 +9,7 @@
 // config.ts) -- unset in every build today, so this module has no effect
 // on current behavior until deliberately turned on, and not before Phase 0
 // accuracy validation + Phase 2 legal review are actually done.
+import { formularFelder, type Altersangabe } from './altersregel';
 import * as Crypto from 'expo-crypto';
 // Legacy (function-based) API -- deleteAsync/idempotent isn't exposed by the
 // new File/Directory class API this SDK version defaults `expo-file-system`
@@ -337,6 +338,9 @@ export interface ConsentDecision {
   biometricConsent: boolean;
   bonusConsent: boolean;
   consentedAt: number; // seconds since epoch, set at the moment of explicit confirmation
+  // Altersangabe aus demselben Schritt (lib/altersregel.ts). Der Coordinator
+  // prueft sie vor jeder Aufnahme und speichert sie nicht.
+  alter?: Altersangabe;
 }
 
 export interface RegisterVote {
@@ -480,6 +484,9 @@ export async function registerBiometric(
     if (opts.consent?.biometricConsent) {
       form.append('consent_version', CONSENT_VERSION);
       form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    if (opts.consent?.alter) {
+      for (const [k, v] of formularFelder(opts.consent.alter)) form.append(k, v);
     }
     form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
     capture.faceBurstUris.forEach((uri, i) => {
@@ -811,6 +818,9 @@ export async function nachziehenBiometric(
     if (opts.consent?.biometricConsent) {
       form.append('consent_version', CONSENT_VERSION);
       form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    if (opts.consent?.alter) {
+      for (const [k, v] of formularFelder(opts.consent.alter)) form.append(k, v);
     }
     form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
     capture.faceBurstUris.forEach((uri, i) => {

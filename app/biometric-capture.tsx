@@ -39,6 +39,7 @@ import {
   type VouchResult,
 } from '@/lib/biometricIdentity';
 import { WEBAPP } from '@/lib/config';
+import { landAusGeraet, pruefen as alterPruefen } from '@/lib/altersregel';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
 import { withTimeout } from '@/lib/signer';
 
@@ -571,6 +572,11 @@ export default function BiometricCapture() {
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
+  // Altersangabe (lib/altersregel.ts): vor der Kamera, nie gespeichert.
+  const [altJahr, setAltJahr] = useState('');
+  const [altMonat, setAltMonat] = useState('');
+  const [altLand, setAltLand] = useState(() => landAusGeraet());
+  const [altRegion, setAltRegion] = useState('');
   const [consentError, setConsentError] = useState('');
   const [consent, setConsent] = useState<ConsentDecision | null>(null);
   // Fetched the moment the user commits to a real attempt (confirmConsent
@@ -982,7 +988,28 @@ export default function BiometricCapture() {
       setConsentError(t('identity.biometricConsentRequired'));
       return;
     }
-    setConsent({ biometricConsent: true, bonusConsent: bonusChecked, consentedAt: Date.now() / 1000 });
+    // Wer zu jung ist, kommt nicht zur Kamera: sein Gesicht wird nie
+    // aufgenommen. Der Coordinator prueft dieselbe Angabe noch einmal.
+    const alter = alterPruefen({ jahr: altJahr, monat: altMonat, land: altLand, region: altRegion });
+    if (!alter.ok) {
+      setConsentError(
+        alter.grund === 'zu_jung'
+          ? t('identity.alterZuJung').replace('{n}', String(alter.mindestalter))
+          : alter.grund === 'fehlt' ? t('identity.alterFehlt') : t('identity.alterUngueltig'),
+      );
+      return;
+    }
+    setConsent({
+      biometricConsent: true,
+      bonusConsent: bonusChecked,
+      consentedAt: Date.now() / 1000,
+      alter: {
+        geburtsjahr: Number(altJahr.trim()),
+        geburtsmonat: Number(altMonat.trim()),
+        land: altLand.trim().toUpperCase(),
+        region: altRegion.trim().toUpperCase() || undefined,
+      },
+    });
     setConsentError('');
     // 2026-08-19: the palm step is skipped.
     //
@@ -1381,6 +1408,51 @@ export default function BiometricCapture() {
             <Text style={S.title}>{nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
             <Text style={S.body}>{nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
 
+            <Text style={S.checkLabel}>{t('identity.alterTitel')}</Text>
+            <View style={S.alterReihe}>
+              <TextInput
+                style={[S.vouchInput, S.alterFeld]}
+                value={altMonat}
+                onChangeText={(v) => setAltMonat(v.replace(/[^0-9]/g, '').slice(0, 2))}
+                placeholder={t('identity.alterMonat')}
+                placeholderTextColor={theme.muted}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+              <TextInput
+                style={[S.vouchInput, S.alterFeld]}
+                value={altJahr}
+                onChangeText={(v) => setAltJahr(v.replace(/[^0-9]/g, '').slice(0, 4))}
+                placeholder={t('identity.alterJahr')}
+                placeholderTextColor={theme.muted}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+              <TextInput
+                style={[S.vouchInput, S.alterFeld]}
+                value={altLand}
+                onChangeText={(v) => setAltLand(v.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())}
+                placeholder={t('identity.alterLand')}
+                placeholderTextColor={theme.muted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={2}
+              />
+            </View>
+            {altLand.toUpperCase() === 'US' || altLand.toUpperCase() === 'CA' ? (
+              <TextInput
+                style={S.vouchInput}
+                value={altRegion}
+                onChangeText={(v) => setAltRegion(v.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase())}
+                placeholder={t('identity.alterRegion')}
+                placeholderTextColor={theme.muted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={3}
+              />
+            ) : null}
+            <Text style={S.resultDebugText}>{t('identity.alterHinweis')}</Text>
+
             <TouchableOpacity style={S.checkRow} onPress={() => setBiometricChecked((v) => !v)} activeOpacity={0.8}>
               <View style={[S.checkbox, biometricChecked && S.checkboxChecked]}>
                 {biometricChecked && <Text style={S.checkboxMark}>✓</Text>}
@@ -1578,6 +1650,10 @@ export default function BiometricCapture() {
                         case 'nonce_ungueltig': return t('identity.nachziehenResultNoChallenge');
                         case 'capture_failed': return t('identity.biometricResultCaptureFailed');
                         case 'liveness_failed': return t('identity.biometricResultLivenessFailed');
+                        case 'age_below_minimum': return t('identity.biometricResultAgeBelow');
+                        case 'age_declaration_missing':
+                        case 'age_declaration_invalid': return t('identity.biometricResultAgeDeclaration');
+                        case 'age_proof_required': return t('identity.biometricResultAgeProof');
                         case 'quorum_failed':
                         case 'commit_quorum_failed': return t('identity.biometricResultQuorumFailed');
                         default: return t('identity.biometricResultFailed');
@@ -1601,6 +1677,10 @@ export default function BiometricCapture() {
                       // the generic message.
                       case 'capture_failed': return t('identity.biometricResultCaptureFailed');
                       case 'liveness_failed': return t('identity.biometricResultLivenessFailed');
+                      case 'age_below_minimum': return t('identity.biometricResultAgeBelow');
+                      case 'age_declaration_missing':
+                      case 'age_declaration_invalid': return t('identity.biometricResultAgeDeclaration');
+                      case 'age_proof_required': return t('identity.biometricResultAgeProof');
                       case 'quorum_failed': return t('identity.biometricResultQuorumFailed');
                       default: return t('identity.biometricResultFailed');
                     }
@@ -1757,6 +1837,8 @@ const S = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
   },
   copyBtnText: { color: theme.text, fontSize: 11, fontWeight: '700' },
+  alterReihe: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  alterFeld: { flex: 1, textAlign: 'center' },
   vouchInput: {
     fontFamily: theme.fontMono, fontSize: 12, color: theme.text,
     backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.border,

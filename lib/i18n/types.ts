@@ -310,6 +310,18 @@ export interface Translations {
     biometricResultCaptureFailed: string;
     biometricResultLivenessFailed: string;
     biometricResultQuorumFailed: string;
+    alterTitel: string;
+    alterMonat: string;
+    alterJahr: string;
+    alterLand: string;
+    alterRegion: string;
+    alterHinweis: string;
+    alterFehlt: string;
+    alterUngueltig: string;
+    alterZuJung: string;
+    biometricResultAgeBelow: string;
+    biometricResultAgeDeclaration: string;
+    biometricResultAgeProof: string;
     biometricBackBtn: string;
     kettenschrittOffenTitel: string;
     kettenschrittOffenText: string;
