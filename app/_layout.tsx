@@ -37,6 +37,8 @@ function Navigation() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerShown: true }} />
         <Stack.Screen name="biometric-capture" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="knoten-binden" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="unternehmen" options={{ headerShown: false }} />
+        <Stack.Screen name="verzeichnis" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );

@@ -430,3 +430,22 @@ export interface RegistrationCheckResult {
 export function checkRegistrationByBioHash(bioHash: string) {
   return apiPost<RegistrationCheckResult>('/check-registration-by-biohash', { bioHash });
 }
+
+/** Register der Unternehmen (/api/unternehmen der Kette); pruefen mit
+ *  verzeichnisLesen aus lib/unternehmen.ts. */
+export function getUnternehmen() {
+  return apiGet<unknown>('/unternehmen');
+}
+
+export type UnternehmenAuftrag = 'eroeffnen' | 'verzeichnis' | 'buergschaft' | 'austreten' | 'schliessen';
+
+/** Ein unterschriebener Unternehmensauftrag an die Kette. Die Kette antwortet
+ *  {ok:true} oder {error:"..."} (wirtschaft_api.go). */
+export async function postUnternehmen(
+  auftrag: UnternehmenAuftrag,
+  body: Record<string, unknown>,
+): Promise<{ ok: boolean; fehler?: string }> {
+  const d = await apiPost<{ ok?: boolean; error?: string }>('/unternehmen/' + auftrag, body);
+  if (d?.ok) return { ok: true };
+  return { ok: false, fehler: typeof d?.error === 'string' ? d.error.slice(0, 300) : 'unbekannter Fehler' };
+}

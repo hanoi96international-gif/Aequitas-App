@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
@@ -314,6 +315,16 @@ export default function Wallet() {
 
         {address ? <Verlauf address={address} neuLaden={balance?.balance} /> : null}
 
+        {/* Unternehmen: Verzeichnis fuer alle, eigenes Unternehmen fuer Laeden (app/verzeichnis.tsx, app/unternehmen.tsx). */}
+        <View style={S.einstiege}>
+          <TouchableOpacity style={S.einstieg} onPress={() => router.push('/verzeichnis')} activeOpacity={0.85}>
+            <Text style={S.einstiegText}>{t('verzeichnis.einstieg')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={S.einstieg} onPress={() => router.push('/unternehmen')} activeOpacity={0.85}>
+            <Text style={S.einstiegText}>{t('firma.einstieg')}</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={S.btnDanger} onPress={confirmDisconnect} activeOpacity={0.8}>
           <Text style={S.btnDangerText}>{mode === 'local' ? t('wallet.removeWallet') : t('wallet.disconnect')}</Text>
         </TouchableOpacity>
@@ -366,6 +377,9 @@ const S = StyleSheet.create({
   hinweisKarte: { backgroundColor: goldTint, borderColor: goldTintBorder },
   hinweisText: { color: theme.gold, fontSize: 13, lineHeight: 19 },
 
+  einstiege: { flexDirection: 'row', gap: 10, marginHorizontal: 20, marginTop: 16 },
+  einstieg: { flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusPill, padding: 13, alignItems: 'center' },
+  einstiegText: { color: theme.text, fontSize: 12.5, fontWeight: '600', textAlign: 'center' },
   btnDanger: { marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: redTintBorder, borderRadius: theme.radiusPill, padding: 14, alignItems: 'center' },
   btnDangerText: { color: theme.red, fontSize: 11, letterSpacing: 1.5 },
 });

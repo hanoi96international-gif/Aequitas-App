@@ -71,7 +71,7 @@ export async function getStoredAddress(): Promise<string | null> {
 // node_modules/expo-local-authentication/android/.../LocalAuthenticationModule.kt).
 // Used only as a supplementary gate when SecureStore's own biometric prompt
 // isn't available -- the existing biometric path is untouched.
-async function ensureDeviceAuthentication(promptMessage: string): Promise<void> {
+export async function ensureDeviceAuthentication(promptMessage: string): Promise<void> {
   const enrolledLevel = await LocalAuthentication.getEnrolledLevelAsync();
   if (enrolledLevel === LocalAuthentication.SecurityLevel.NONE) {
     // Device has no lock screen configured at all (no PIN/pattern/password,
