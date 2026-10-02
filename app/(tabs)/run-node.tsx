@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, Linking, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { QrScanner } from '@/components/QrScanner';
-import { leseKnotenbindung } from '@/lib/knotenBindung';
+import { bindungsanfrageAblehnen, holeBindungsanfragen, kontrollzahl, leseKnotenbindung, type Bindungsanfrage } from '@/lib/knotenBindung';
+import { useWallet } from '@/contexts/WalletContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -14,12 +15,16 @@ const GITHUB_URL = 'https://github.com/hanoi96international-gif/Aequitas';
 // (docs/VALIDATOR_EINRICHTEN.md, docs/VERIFIER_EINRICHTEN.md).
 const GUIDE_URL = GITHUB_URL + '/blob/main/docs/VALIDATOR_EINRICHTEN.md';
 
-// Ein Befehl, zwei Fragen (docs/VALIDATOR_EINRICHTEN.md): die erste Zeile
-// installiert Docker, die zweite holt Aequitas, die dritte richtet alles ein
-// und zeigt am Ende den QR-Code, den dieser Tab scannt.
-const SETUP_CMD = `curl -fsSL https://get.docker.com | sh
+// Ein Befehl (docs/VALIDATOR_EINRICHTEN.md): die erste Zeile installiert
+// Docker, die zweite holt Aequitas, die dritte richtet alles ein. Die Wallet
+// steht schon drin; am Ende meldet der Server eine Anfrage, die dieser Tab von
+// selbst anzeigt (keeper/bindungsanfrage.go).
+function setupCmd(wallet?: string | null): string {
+  const w = wallet && /^0x[0-9a-fA-F]{40}$/.test(wallet) ? ' ' + wallet.toLowerCase() : '';
+  return `curl -fsSL https://get.docker.com | sh
 git clone https://github.com/hanoi96international-gif/Aequitas.git
-cd Aequitas/deploy/validator && bash einrichten.sh`;
+cd Aequitas/deploy/validator && bash einrichten.sh${w}`;
+}
 
 // Dasselbe fuer den Vergleichsdienst (docs/VERIFIER_EINRICHTEN.md).
 const VERIFIER_CMD = `curl -fsSL https://get.docker.com | sh
@@ -48,7 +53,34 @@ function CodeBlock({ code, copyBtnLabel, copiedTitle, copiedMsg }: { code: strin
 export default function RunNode() {
   const { t } = useLanguage();
 
+  const { address, signer } = useWallet();
   const [scanOffen, setScanOffen] = useState(false);
+  const [anfragen, setAnfragen] = useState<Bindungsanfrage[]>([]);
+
+  // Offene Anfragen meiner Server: alle 5 s, solange dieser Tab offen ist.
+  useFocusEffect(
+    useCallback(() => {
+      if (!address) return;
+      let aus = false;
+      const lesen = () => holeBindungsanfragen(address).then((a) => { if (!aus) setAnfragen(a); });
+      lesen();
+      const timer = setInterval(lesen, 5000);
+      return () => { aus = true; clearInterval(timer); };
+    }, [address]),
+  );
+
+  function bestaetigen(a: Bindungsanfrage) {
+    router.push({ pathname: '/knoten-binden', params: { adresse: a.adresse, wallet: a.wallet, beweis: a.beweis } });
+  }
+
+  async function ablehnen(a: Bindungsanfrage) {
+    if (!signer) return;
+    try {
+      await bindungsanfrageAblehnen(signer, a.adresse);
+    } finally {
+      setAnfragen((alt) => alt.filter((x) => x.adresse !== a.adresse));
+    }
+  }
 
   function gescannt(roh: string) {
     setScanOffen(false);
@@ -88,15 +120,36 @@ export default function RunNode() {
         <View style={S.card}>
           <Text style={S.cardTitle}>{t('node.setupTitle')}</Text>
           <Text style={S.faucetDesc}>{t('node.setupDesc')}</Text>
-          <CodeBlock code={SETUP_CMD} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
+          <CodeBlock code={setupCmd(address)} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
           <Text style={S.portNote}>{t('node.portNote')}</Text>
         </View>
 
         <View style={S.card}>
           <Text style={S.cardTitle}>{t('node.bindTitle')}</Text>
           <Text style={S.faucetDesc}>{t('node.bindDesc')}</Text>
-          <TouchableOpacity style={S.scanBtn} onPress={() => setScanOffen(true)} activeOpacity={0.85}>
-            <Text style={S.pdfBtnText}>{t('node.bindBtn')}</Text>
+          {anfragen.length === 0 ? (
+            <Text style={S.portNote}>{t('node.bindAnfrageLeer')}</Text>
+          ) : (
+            <>
+            {anfragen.length > 1 ? <Text style={S.warnung}>{t('node.bindMehrere')}</Text> : null}
+            {anfragen.map((a) => (
+              <View key={a.adresse} style={S.anfrage}>
+                <Text style={S.anfrageText}>{t('node.bindAnfrageVon').replace('{ip}', a.ip)}</Text>
+                <Text style={S.zahlLabel}>{t('node.bindKontrollzahl')}</Text>
+                <Text style={S.zahl}>{kontrollzahl(a.adresse)}</Text>
+                <Text style={S.anfrageHinweis}>{t('node.bindKontrollzahlHinweis')}</Text>
+                <TouchableOpacity style={S.scanBtn} onPress={() => bestaetigen(a)} activeOpacity={0.85}>
+                  <Text style={S.pdfBtnText}>{t('node.bindConfirmBtn')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => ablehnen(a)} activeOpacity={0.7}>
+                  <Text style={S.ablehnen}>{t('node.bindAblehnen')}</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            </>
+          )}
+          <TouchableOpacity onPress={() => setScanOffen(true)} activeOpacity={0.7}>
+            <Text style={S.qrLink}>{t('node.bindQrStattdessen')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -173,6 +226,14 @@ const S = StyleSheet.create({
 
 
   codeBlock: { backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, padding: 12, marginTop: 10 },
+  anfrage: { borderWidth: 1, borderColor: theme.gold, borderRadius: 12, padding: 12, marginTop: 8, marginBottom: 8 },
+  anfrageText: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  zahlLabel: { color: theme.muted, fontSize: 12, textAlign: 'center' },
+  zahl: { color: theme.gold, fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 4, marginVertical: 4, fontFamily: 'monospace' },
+  anfrageHinweis: { color: theme.text, fontSize: 13, textAlign: 'center', marginBottom: 10 },
+  warnung: { color: theme.gold, fontSize: 13, marginTop: 6 },
+  ablehnen: { color: theme.muted, fontSize: 13, textAlign: 'center', marginTop: 10 },
+  qrLink: { color: theme.muted, fontSize: 12, textAlign: 'center', marginTop: 12, textDecorationLine: 'underline' },
   copyBtn: { alignSelf: 'flex-end', borderWidth: 1, borderColor: theme.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 8 },
   copyBtnText: { color: theme.muted, fontSize: 10 },
   codeText: { color: theme.neon, fontSize: 10, fontFamily: theme.fontMono, lineHeight: 15 },

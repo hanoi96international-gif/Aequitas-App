@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { ausParametern, knotenBinden } from '@/lib/knotenBindung';
+import { ausParametern, knotenBinden, kontrollzahl } from '@/lib/knotenBindung';
 import { withTimeout } from '@/lib/signer';
 import { theme } from '@/constants/aequitas-theme';
 
@@ -69,6 +69,10 @@ export default function KnotenBinden() {
               <View style={S.zeile}>
                 <Text style={S.schluessel}>{t('node.bindWallet')}</Text>
                 <Text style={S.wert}>{kurz(b.wallet)}</Text>
+              </View>
+              <View style={S.zeile}>
+                <Text style={S.schluessel}>{t('node.bindKontrollzahl')}</Text>
+                <Text style={S.wert}>{kontrollzahl(b.adresse)}</Text>
               </View>
               <Text style={S.warnung}>{t('node.bindWarning')}</Text>
               {ergebnis ? (

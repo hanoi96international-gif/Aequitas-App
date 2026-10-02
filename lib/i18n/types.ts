@@ -370,6 +370,13 @@ export interface Translations {
     bindTitle: string;
     bindDesc: string;
     bindBtn: string;
+    bindAnfrageVon: string;
+    bindAnfrageLeer: string;
+    bindAblehnen: string;
+    bindQrStattdessen: string;
+    bindKontrollzahl: string;
+    bindKontrollzahlHinweis: string;
+    bindMehrere: string;
     bindInvalid: string;
     bindNoWallet: string;
     bindConfirmTitle: string;

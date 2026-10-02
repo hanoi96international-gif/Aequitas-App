@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
 import {
   AEQUITAS_CAIP,
@@ -186,6 +186,40 @@ const AEQUITAS_KETTE: KettenAngaben = {
   blockExplorerUrls: [WEBAPP],
 };
 
+// Anfragen, bei denen der Mensch in der Wallet etwas bestaetigen muss.
+const BRAUCHT_WALLET = new Set([
+  'personal_sign',
+  'eth_signTypedData_v4',
+  'eth_sendTransaction',
+  'wallet_addEthereumChain',
+  'wallet_switchEthereumChain',
+]);
+
+/**
+ * Link, mit dem sich die Wallet oeffnen laesst -- aus der Sitzung
+ * (peer.metadata.redirect.native, bei MetaMask "metamask://"). Nur ein
+ * eigenes App-Schema, nie http(s) (das waere eine Webseite, kein Sprung in
+ * die Wallet). null, wenn nichts Brauchbares da ist.
+ */
+export function walletLink(sitzung: any): string | null {
+  const n = sitzung?.peer?.metadata?.redirect?.native;
+  if (typeof n !== 'string' || n.length > 200) return null;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(n) || /^(https?|javascript|data|file|intent):/i.test(n)) return null;
+  return n;
+}
+
+async function walletOeffnenFallsNoetig(sitzung: any): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- bewusst spaet geladen (siehe Kommentar ueber appKit)
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    if (await AsyncStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE')) return; // der SignClient oeffnet selbst
+    const link = walletLink(sitzung);
+    if (link) await Linking.openURL(link);
+  } catch {
+    // Nichts zu tun: dann bleibt es beim Oeffnen von Hand.
+  }
+}
+
 export function useWalletConnect() {
   // Only ever rendered from WalletConnectBridge, itself only mounted when
   // appKit is truthy (see WalletContext.tsx) — by that point this require()
@@ -266,7 +300,17 @@ export function useWalletConnect() {
   // Wallet-App (Deep Link).
   const senden = (method: string, params: unknown[], weg: string) => {
     const { client: c, topic: t, provider: prov } = liveRef.current;
-    if (c?.request && t) return c.request({ topic: t, chainId: weg, request: { method, params } });
+    if (c?.request && t) {
+      const antwort = c.request({ topic: t, chainId: weg, request: { method, params } });
+      // Der SignClient oeffnet die Wallet nur, wenn AppKit beim Verbinden
+      // eine Wallet-Wahl abgelegt hat (WALLETCONNECT_DEEPLINK_CHOICE). Fehlt
+      // sie -- Verbindung per QR, oder nach resetWalletConnectStorage --,
+      // blieb man in der App haengen und musste MetaMask von Hand oeffnen
+      // (gemeldet am 02.10.2026). Dann selbst oeffnen, ueber den Link, den
+      // die Wallet in der Sitzung selbst nennt.
+      if (BRAUCHT_WALLET.has(method)) walletOeffnenFallsNoetig(sitzung());
+      return antwort;
+    }
     if (prov?.request) return prov.request({ method, params }, weg);
     return Promise.reject(new Error('No active WalletConnect provider'));
   };
