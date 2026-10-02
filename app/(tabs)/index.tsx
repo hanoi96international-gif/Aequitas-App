@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '@/contexts/WalletContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getCanonicalBlocks, type CanonicalBlock } from '@/lib/api';
+import { getCanonicalBlocks, getValidatorLabels, type CanonicalBlock } from '@/lib/api';
+import { erzeugerAnzeige, LEER, validatorNamenLesen, type ValidatorNamen } from '@/lib/validatorNamen';
 import { fmtAEQ, formatBalance } from '@/lib/format';
 import { theme, purpleTint, purpleTintBorder, tealTint, tealTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 import LanguagePicker from '@/components/LanguagePicker';
@@ -24,16 +25,13 @@ function blockAge(ts: number): string {
   return Math.floor(diff / 3600) + 'h';
 }
 
-function shortAddr(a: string): string {
-  return a.slice(0, 6) + '…' + a.slice(-4);
-}
-
 export default function Home() {
   const { status, refreshBalance } = useWallet();
   const { t } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
   const [ubiLeft, setUbiLeft] = useState(0);
   const [blocks, setBlocks] = useState<CanonicalBlock[]>([]);
+  const [namen, setNamen] = useState<ValidatorNamen>(LEER);
 
   const PHASES = [
     { label: t('home.phaseBootstrap'), desc: t('home.phaseBootstrapDesc') },
@@ -54,6 +52,12 @@ export default function Home() {
   ] as const;
 
   const loadBlocks = useCallback(async () => {
+    // Wer die Bloecke erzeugt hat, wie auf der Website: die Betreiber-Wallet
+    // statt der Signieradresse des Knotens (lib/validatorNamen.ts). Faellt
+    // das aus, bleibt die letzte bekannte Zuordnung stehen.
+    getValidatorLabels()
+      .then((d) => setNamen(validatorNamenLesen(d)))
+      .catch(() => {});
     try {
       setBlocks(await getCanonicalBlocks(10));
     } catch {
@@ -210,7 +214,7 @@ export default function Home() {
                 <View key={b.hash} style={S.blockRow}>
                   <Text style={S.blockNum}>#{b.height.toLocaleString()}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={S.blockProposer}>{shortAddr(b.proposer)}</Text>
+                    <Text style={S.blockProposer}>{erzeugerAnzeige(b.proposer, namen)}</Text>
                     <Text style={S.blockScore}>★ {b.blue_score.toLocaleString()}</Text>
                   </View>
                   <View style={isMerge ? S.badgeMerge : S.badgeStd}>

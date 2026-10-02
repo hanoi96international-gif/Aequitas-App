@@ -204,6 +204,12 @@ export function getCanonicalBlocks(limit = 12) {
   return apiGet<CanonicalBlock[]>('/blocks/canonical?limit=' + limit);
 }
 
+/** Signieradresse -> Bezeichnung und Betreiber-Wallet (lib/validatorNamen.ts
+ *  prueft die Antwort, bevor etwas angezeigt wird). */
+export function getValidatorLabels() {
+  return apiGet<unknown>('/validator-labels');
+}
+
 export interface BalanceResponse {
   balance: number;
   tusd_balance: number;
