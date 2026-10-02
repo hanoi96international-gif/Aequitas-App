@@ -1,6 +1,9 @@
 import { ethers } from 'ethers';
 import {
+  ablehnungsNachricht,
   ausParametern,
+  bindungsanfrageAblehnen,
+  holeBindungsanfragen,
   bindungsNachricht,
   knotenBinden,
   knotenNachweisGueltig,
@@ -120,5 +123,54 @@ describe('knotenBinden', () => {
     const fetchFn = jest.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'wallet is not a registered human' }) });
     const r = await knotenBinden(signerAus(mensch), b, fetchFn as unknown as typeof fetch);
     expect(r).toEqual({ ok: false, fehler: 'abgelehnt', meldung: 'wallet is not a registered human' });
+  });
+});
+
+describe('holeBindungsanfragen', () => {
+  async function eintrag(nachweisVon = knoten, fuerWallet = mensch.address, ip = '203.0.113.7') {
+    return {
+      signing_address: knoten.address.toLowerCase(),
+      wallet: fuerWallet.toLowerCase(),
+      beweis: await nachweisVon.signMessage(knotenNachweisNachricht(fuerWallet)),
+      ip,
+      zeit: '2026-10-02T13:00:00Z',
+    };
+  }
+  function antwort(anfragen: unknown) {
+    return jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ anfragen }) });
+  }
+
+  it('shows a valid request with the server IP', async () => {
+    const a = await holeBindungsanfragen(mensch.address, antwort([await eintrag()]) as any);
+    expect(a).toHaveLength(1);
+    expect(a[0].adresse).toBe(knoten.address.toLowerCase());
+    expect(a[0].ip).toBe('203.0.113.7');
+  });
+
+  it('drops what the network should never have sent: foreign proof, other wallet, bad IP text', async () => {
+    const a = await holeBindungsanfragen(mensch.address, antwort([
+      await eintrag(fremd),
+      await eintrag(knoten, fremd.address),
+      { ...(await eintrag()), signing_address: '0x123' },
+    ]) as any);
+    expect(a).toHaveLength(0);
+    const b = await holeBindungsanfragen(mensch.address, antwort([await eintrag(knoten, mensch.address, '<script>')]) as any);
+    expect(b[0].ip).toBe('?');
+  });
+
+  it('returns an empty list on errors', async () => {
+    expect(await holeBindungsanfragen(mensch.address, jest.fn().mockRejectedValue(new Error('offline')) as any)).toEqual([]);
+    expect(await holeBindungsanfragen(mensch.address, jest.fn().mockResolvedValue({ ok: false, status: 500 }) as any)).toEqual([]);
+  });
+});
+
+describe('bindungsanfrageAblehnen', () => {
+  it('signs the rejection with the wallet and sends DELETE', async () => {
+    const f = okFetch();
+    expect(await bindungsanfrageAblehnen(signerAus(mensch), knoten.address, f as any)).toBe(true);
+    const [url, opts] = f.mock.calls[0];
+    expect(opts.method).toBe('DELETE');
+    const q = new URL(url).searchParams;
+    expect(ethers.verifyMessage(ablehnungsNachricht(knoten.address), q.get('signatur')!).toLowerCase()).toBe(mensch.address.toLowerCase());
   });
 });

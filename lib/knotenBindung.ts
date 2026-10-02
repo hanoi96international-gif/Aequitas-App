@@ -120,3 +120,54 @@ export async function knotenBinden(
   }
   return { ok: true };
 }
+
+/** Eine offene Anfrage eines Servers (keeper/bindungsanfrage.go). */
+export interface Bindungsanfrage extends Knotenbindung {
+  /** IP, von der der Server die Anfrage geschickt hat. */
+  ip: string;
+  zeit: string;
+}
+
+/**
+ * Offene Anfragen fuer diese Wallet. Nur, was formal stimmt und dessen
+ * Knotennachweis zur genannten Signieradresse passt, wird angezeigt -- die
+ * Antwort des Netzes wird nicht ungeprueft geglaubt. Fehler: leere Liste.
+ */
+export async function holeBindungsanfragen(wallet: string, fetchFn: typeof fetch = fetch): Promise<Bindungsanfrage[]> {
+  try {
+    const r = await fetchFn(`${API_BASE}/bindungsanfragen?wallet=${encodeURIComponent(wallet.toLowerCase())}`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    const roh: unknown[] = Array.isArray(j?.anfragen) ? j.anfragen.slice(0, 10) : [];
+    const out: Bindungsanfrage[] = [];
+    for (const e of roh as any[]) {
+      const b = ausParametern(e?.signing_address, e?.wallet, e?.beweis);
+      if (!b || b.wallet !== wallet.toLowerCase() || !knotenNachweisGueltig(b)) continue;
+      const ip = typeof e?.ip === 'string' && /^[0-9a-fA-F:.]{2,45}$/.test(e.ip) ? e.ip : '?';
+      out.push({ ...b, ip, zeit: typeof e?.zeit === 'string' ? e.zeit : '' });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export function ablehnungsNachricht(adresse: string): string {
+  return 'Aequitas: reject validator ' + adresse.toLowerCase();
+}
+
+/** Lehnt eine Anfrage ab (unterschrieben, damit niemand fremde wegraeumt). */
+export async function bindungsanfrageAblehnen(
+  signer: AequitasSigner,
+  adresse: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<boolean> {
+  const sig = await signer.signMessage(ablehnungsNachricht(adresse));
+  const q = new URLSearchParams({ wallet: signer.address.toLowerCase(), signing_address: adresse.toLowerCase(), signatur: sig });
+  try {
+    const r = await fetchFn(`${API_BASE}/bindungsanfragen?${q.toString()}`, { method: 'DELETE' });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
