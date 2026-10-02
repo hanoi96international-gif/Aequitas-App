@@ -171,3 +171,16 @@ export async function bindungsanfrageAblehnen(
     return false;
   }
 }
+
+/**
+ * Kontrollzahl wie beim Bluetooth-Koppeln: dieselbe Rechnung wie in
+ * deploy/validator/einrichten.sh (Aequitas-Repo). SHA-256 der klein
+ * geschriebenen Signieradresse, erste 4 Byte, modulo 1.000.000, als
+ * "123 456". Wird hier selbst gerechnet, nie vom Netz uebernommen.
+ */
+export function kontrollzahl(adresse: string): string {
+  const h = ethers.getBytes(ethers.sha256(ethers.toUtf8Bytes(adresse.toLowerCase())));
+  const n = (((h[0] << 24) >>> 0) + (h[1] << 16) + (h[2] << 8) + h[3]) % 1000000;
+  const s = n.toString().padStart(6, '0');
+  return s.slice(0, 3) + ' ' + s.slice(3);
+}

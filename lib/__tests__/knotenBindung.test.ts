@@ -8,6 +8,7 @@ import {
   knotenBinden,
   knotenNachweisGueltig,
   knotenNachweisNachricht,
+  kontrollzahl,
   leseKnotenbindung,
   type Knotenbindung,
 } from '../knotenBindung';
@@ -172,5 +173,16 @@ describe('bindungsanfrageAblehnen', () => {
     expect(opts.method).toBe('DELETE');
     const q = new URL(url).searchParams;
     expect(ethers.verifyMessage(ablehnungsNachricht(knoten.address), q.get('signatur')!).toLowerCase()).toBe(mensch.address.toLowerCase());
+  });
+});
+
+describe('kontrollzahl', () => {
+  it('matches the setup script (fixed vector computed with Python hashlib)', () => {
+    expect(kontrollzahl('0x3066639af1653325100c1074a9696612dbdc42dc')).toBe('161 502');
+    expect(kontrollzahl('0x3066639AF1653325100C1074A9696612DBDC42DC')).toBe('161 502');
+  });
+  it('differs between servers', () => {
+    expect(kontrollzahl(knoten.address)).not.toBe(kontrollzahl(fremd.address));
+    expect(kontrollzahl(knoten.address)).toMatch(/^\d{3} \d{3}$/);
   });
 });

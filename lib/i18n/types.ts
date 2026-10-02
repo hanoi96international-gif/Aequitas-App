@@ -374,6 +374,9 @@ export interface Translations {
     bindAnfrageLeer: string;
     bindAblehnen: string;
     bindQrStattdessen: string;
+    bindKontrollzahl: string;
+    bindKontrollzahlHinweis: string;
+    bindMehrere: string;
     bindInvalid: string;
     bindNoWallet: string;
     bindConfirmTitle: string;
