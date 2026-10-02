@@ -9,6 +9,7 @@ import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
 import { storedBioHash, deleteEnrollment, nachgezogenAt } from '@/lib/biometricIdentity';
+import { AlterNachholen } from '@/components/AlterNachholen';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, redTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
@@ -273,6 +274,8 @@ export default function Identity() {
             <Text style={S.privBadgeText}>{t('identity.privBadge')}</Text>
           </View>
         )}
+
+        {bioHash ? <AlterNachholen onLoeschen={runDelete} /> : null}
 
         <View style={S.card}>
           {/* step1Desc etc. describe the device-secret flow specifically

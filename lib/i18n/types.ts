@@ -310,6 +310,11 @@ export interface Translations {
     biometricResultCaptureFailed: string;
     biometricResultLivenessFailed: string;
     biometricResultQuorumFailed: string;
+    alterNachholenTitel: string;
+    alterNachholenText: string;
+    alterNachholenBtn: string;
+    alterNachholenZuJung: string;
+    alterNachholenLoeschen: string;
     alterBuergschaftTitel: string;
     alterBuergschaftText: string;
     alterBuergschaftStand: string;
