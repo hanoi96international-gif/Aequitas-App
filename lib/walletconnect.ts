@@ -131,9 +131,11 @@ export const appKit = (() => {
       // onramp ("Buy Crypto") has no fiat on-ramp behind it for AEQ -- it's
       // dead, confusing clutter in AppKit's own account menu. swaps is off
       // for the same reason (single-chain app, nothing to swap against).
-      // There's no equivalent flag for the network-picker row or "Send" --
-      // those stay, they're just not ones a user should ever need to touch
-      // since ensureAequitasChain already handles the real chain setup.
+      // There's no equivalent flag for the network-picker row or "Send";
+      // patches/@reown+appkit-react-native+*.patch disables both (the row
+      // no longer opens AppKit's switch-only network view, "Send" is gone --
+      // sending goes through the app's own chain-checked screen).
+      // aequitasNetzEinrichten (lib/signer.ts) does the real chain setup.
       features: { onramp: false, swaps: false },
     });
   } catch (err) {

@@ -97,12 +97,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const runNetworkSetup = useCallback(async (wc: WCState) => {
     const gen = ++setupGenRef.current;
     // AppKit's own connect modal may still be open (e.g. showing its broken
-    // "network not supported" loop — see ensureAequitasChain's comment) —
+    // "network not supported" loop — see aequitasNetzEinrichten, lib/signer.ts) —
     // close it so our own overlay is the one clear thing the user sees,
     // instead of two competing screens stacked on top of each other.
     //
     // FIX (race condition, real-device report: AppKit's broken "Select
-    // network" screen — the exact one ensureAequitasChain exists to bypass
+    // network" screen — the exact one aequitasNetzEinrichten exists to bypass
     // — was still reachable/tappable after connecting): close() used to
     // only fire from a SEPARATE effect that waited for `mode` to become
     // 'walletconnect' first, which only happened after THIS effect's own
@@ -153,7 +153,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // used to be split across two effects and what race that caused). A
   // fresh WalletConnect connection may land on a wallet that has never
   // added the Aequitas chain; AppKit's built-in "switch network" screen can
-  // never fix that on its own (see ensureAequitasChain's own comment), so
+  // never fix that on its own (see aequitasNetzEinrichten, lib/signer.ts), so
   // waiting for the user to hit it means watching it fail.
   useEffect(() => {
     if (wcState?.isConnected && wcState.address) {
