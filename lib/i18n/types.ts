@@ -315,6 +315,9 @@ export interface Translations {
     kettenschrittOffenText: string;
     kettenschrittWiederholenBtn: string;
     kettenschrittFertig: string;
+    registrierungErfolgTitel: string;
+    registrierungErfolgText: string;
+    registrierungSchonText: string;
     kettenschrittAndereWallet: string;
     // Nachziehen: ein Altkonto (Geraetegeheimnis, vor 25.08.2026) liefert
     // sein Gesicht nach -- siehe lib/biometricIdentity.ts, nachziehenBiometric.

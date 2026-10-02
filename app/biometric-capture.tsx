@@ -562,7 +562,7 @@ export default function BiometricCapture() {
     [speakRaw]
   );
 
-  const { address, signer } = useWallet();
+  const { address, signer, refreshBalance } = useWallet();
   // ?zweck=nachziehen: the same capture, but for an account that is ALREADY a
   // registered human and only adds its face to the gallery (see
   // lib/biometricIdentity.ts, nachziehenBiometric). No grant, no proof.
@@ -840,6 +840,11 @@ export default function BiometricCapture() {
   const [imuSamples, setImuSamples] = useState<ImuSample[]>([]);
 
   const [result, setResult] = useState<BiometricRegisterResult | null>(null);
+  // Ausgang fuer den Menschen, in klaren Worten: 'neu' = gerade registriert
+  // (Startguthaben gutgeschrieben), 'schon' = dieses Konto war es bereits.
+  // Vorher stand nach einer erfolgreichen Registrierung nur "Neue Erfassung
+  // gespeichert." -- das sagt einem Laien nicht, dass alles geklappt hat.
+  const [registriert, setRegistriert] = useState<'neu' | 'schon' | null>(null);
   const [nachziehResult, setNachziehResult] = useState<NachziehenResult | null>(null);
   const [submitError, setSubmitError] = useState('');
   // Eingeschrieben, aber noch nicht auf der Kette -- siehe
@@ -900,6 +905,7 @@ export default function BiometricCapture() {
         await vergissKettenschritt();
         setOffen(null);
         setKettenFertig(true);
+        refreshBalance().catch(() => undefined);
       } else {
         setSubmitError(r.message || t('identity.registrationFailed'));
       }
@@ -1298,6 +1304,7 @@ export default function BiometricCapture() {
         const identity = identityFromBioHash(res.bio_hash);
         const check = await checkAlreadyRegistered(identity.bio);
         if (check.registered && check.is_human) {
+          setRegistriert('schon');
           setStep('result');
           return;
         }
@@ -1334,6 +1341,8 @@ export default function BiometricCapture() {
         } else {
           await vergissKettenschritt();
           setOffen(null);
+          setRegistriert('neu');
+          refreshBalance().catch(() => undefined);
         }
       }
       setStep('result');
@@ -1530,8 +1539,15 @@ export default function BiometricCapture() {
       {step === 'result' && (
         <View style={S.content}>
           <View style={S.card}>
-            {kettenFertig ? (
-              <Text style={S.body}>{t('identity.kettenschrittFertig')}</Text>
+            {(kettenFertig || registriert) && !submitError ? (
+              <>
+                <Text style={S.erfolgTitel}>
+                  {registriert === 'schon' ? t('identity.kettenschrittFertig') : t('identity.registrierungErfolgTitel')}
+                </Text>
+                <Text style={S.body}>
+                  {registriert === 'schon' ? t('identity.registrierungSchonText') : t('identity.registrierungErfolgText')}
+                </Text>
+              </>
             ) : null}
             {submitError ? (
               <>
@@ -1548,7 +1564,7 @@ export default function BiometricCapture() {
                   </>
                 ) : null}
               </>
-            ) : kettenFertig ? null : (
+            ) : kettenFertig || registriert ? null : (
               <>
                 <Text style={S.body}>
                   {(() => {
@@ -1704,6 +1720,7 @@ const S = StyleSheet.create({
     padding: 24,
   },
   title: { fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 12 },
+  erfolgTitel: { fontSize: 22, fontWeight: '800', color: theme.neon, marginBottom: 12, textAlign: 'center' },
   body: { fontSize: 13, color: theme.muted, lineHeight: 20, marginBottom: 16, textAlign: 'center' },
   spinnerGap: { marginTop: 14 },
 
