@@ -112,13 +112,19 @@ export default function Identity() {
     nachgezogenAt().then(setNachgezogen).catch(() => setNachgezogen(null));
   }, []);
 
-  // Re-read after the capture screen closes: rememberNachgezogen() runs
-  // there, and this tab stays mounted underneath it.
+  // Re-read after the capture screen closes: rememberBioHash() and
+  // rememberNachgezogen() run there, and this tab stays mounted underneath
+  // it. Gemeldet am 02.10.2026: nach einer frischen Registrierung MIT Gesicht
+  // stand hier "Gesicht nachziehen" -- bioHash war nur beim ersten Oeffnen
+  // gelesen worden, vor der Registrierung, und blieb null.
   useEffect(() => {
     if (status !== 'already_registered') return;
-    const timer = setInterval(() => {
+    const lesen = () => {
+      storedBioHash().then(setBioHash).catch(() => undefined);
       nachgezogenAt().then(setNachgezogen).catch(() => undefined);
-    }, 3000);
+    };
+    lesen();
+    const timer = setInterval(lesen, 3000);
     return () => clearInterval(timer);
   }, [status]);
 
