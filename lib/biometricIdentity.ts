@@ -9,6 +9,7 @@
 // config.ts) -- unset in every build today, so this module has no effect
 // on current behavior until deliberately turned on, and not before Phase 0
 // accuracy validation + Phase 2 legal review are actually done.
+import { formularFelder, type Altersangabe } from './altersregel';
 import * as Crypto from 'expo-crypto';
 // Legacy (function-based) API -- deleteAsync/idempotent isn't exposed by the
 // new File/Directory class API this SDK version defaults `expo-file-system`
@@ -200,7 +201,11 @@ export async function coordinatorBase(opts: { fresh?: boolean } = {}): Promise<s
 // Handflaeche ankuendigte (seit 23.08. nicht mehr erfasst) und behauptete,
 // es werde noch kein Bonus ausgezahlt (wird er). Siehe
 // aequitas-biometric-beta/docs/dsgvo/09_EINWILLIGUNG.md.
-export const CONSENT_VERSION = 'einwilligung-v2-2026-08-25';
+// Erhoeht am 03.10.2026 auf v3: der Text nennt die Altersabfrage und die
+// Altersschaetzung aus dem Gesicht. Coordinator und Vergleichsdienste nehmen
+// v2 nur noch an, solange die Altersschaetzung beobachtet wird -- und
+// schaetzen dann nicht (einwilligung.py dort).
+export const CONSENT_VERSION = 'einwilligung-v3-2026-10-02';
 
 const DEVICE_ID_KEY = 'aequitas_biometric_device_id_v1';
 
@@ -337,6 +342,12 @@ export interface ConsentDecision {
   biometricConsent: boolean;
   bonusConsent: boolean;
   consentedAt: number; // seconds since epoch, set at the moment of explicit confirmation
+  // Altersangabe aus demselben Schritt (lib/altersregel.ts). Der Coordinator
+  // prueft sie vor jeder Aufnahme und speichert sie nicht.
+  alter?: Altersangabe;
+  // Anfrage fuer Altersbuergschaften (lib/altersbuergschaft.ts); /register
+  // und /nachziehen, der Coordinator findet damit gesammelte Buergen.
+  alterAnfrage?: string;
 }
 
 export interface RegisterVote {
@@ -481,6 +492,10 @@ export async function registerBiometric(
       form.append('consent_version', CONSENT_VERSION);
       form.append('consented_at', String(opts.consent.consentedAt));
     }
+    if (opts.consent?.alter) {
+      for (const [k, v] of formularFelder(opts.consent.alter)) form.append(k, v);
+    }
+    if (opts.consent?.alterAnfrage) form.append('alter_anfrage', opts.consent.alterAnfrage);
     form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
     capture.faceBurstUris.forEach((uri, i) => {
       form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
@@ -812,6 +827,11 @@ export async function nachziehenBiometric(
       form.append('consent_version', CONSENT_VERSION);
       form.append('consented_at', String(opts.consent.consentedAt));
     }
+    if (opts.consent?.alter) {
+      for (const [k, v] of formularFelder(opts.consent.alter)) form.append(k, v);
+    }
+    // Altersbuergschaft auch beim Nachziehen (coordinator /nachziehen).
+    if (opts.consent?.alterAnfrage) form.append('alter_anfrage', opts.consent.alterAnfrage);
     form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
     capture.faceBurstUris.forEach((uri, i) => {
       form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));

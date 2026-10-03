@@ -2,15 +2,23 @@
  * Offener Kettenschritt: nur fuer die eigene Wallet, nur solange die
  * Bescheinigung gilt, und ein manipulierter Eintrag wird verworfen.
  */
-const speicher: Record<string, string> = {};
-jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(async (k: string) => speicher[k] ?? null),
-  setItemAsync: jest.fn(async (k: string, v: string) => { speicher[k] = v; }),
-  deleteItemAsync: jest.fn(async (k: string) => { delete speicher[k]; }),
-}), { virtual: true });
-jest.mock('expo-crypto', () => ({ getRandomBytesAsync: jest.fn() }), { virtual: true });
+// Der Speicher lebt IN der Mock-Fabrik: eine Fabrik, die eine Variable von
+// aussen benutzt, sieht je nach Reihenfolge des Ladens ein anderes Objekt.
+jest.mock('expo-secure-store', () => {
+  const ablage: Record<string, string> = {};
+  return {
+    __ablage: ablage,
+    getItemAsync: jest.fn(async (k: string) => ablage[k] ?? null),
+    setItemAsync: jest.fn(async (k: string, v: string) => { ablage[k] = v; }),
+    deleteItemAsync: jest.fn(async (k: string) => { delete ablage[k]; }),
+  };
+});
+jest.mock('expo-crypto', () => ({ getRandomBytesAsync: jest.fn() }));
 
+import * as SecureStore from 'expo-secure-store';
 import { merkeKettenschritt, offenerKettenschritt, KETTENSCHRITT_GUELTIG_S } from '../biometricIdentity';
+
+const speicher = (SecureStore as unknown as { __ablage: Record<string, string> }).__ablage;
 
 const WALLET = '0x' + 'ab'.repeat(20);
 const FREMD = '0x' + 'cd'.repeat(20);

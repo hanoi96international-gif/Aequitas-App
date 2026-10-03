@@ -13,8 +13,8 @@
  * ist Durchprobieren sicher; es macht den Weg auch nach einem App-Neustart
  * gangbar, wenn die App nicht mehr weiss, wer abgewiesen hat.
  */
-jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }), { virtual: true });
-jest.mock('expo-file-system', () => ({ deleteAsync: jest.fn(async () => undefined) }), { virtual: true });
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }));
+jest.mock('expo-file-system', () => ({ deleteAsync: jest.fn(async () => undefined) }));
 
 const C1 = 'https://c1.example';
 const C2 = 'https://c2.example';

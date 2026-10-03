@@ -39,6 +39,9 @@ import {
   type VouchResult,
 } from '@/lib/biometricIdentity';
 import { WEBAPP } from '@/lib/config';
+import { landAusGeraet, pruefen as alterPruefen } from '@/lib/altersregel';
+import { anfrageFuer, BUERGEN_NOETIG, qrInhalt, stand as buergenStand } from '@/lib/altersbuergschaft';
+import QRCode from 'react-native-qrcode-svg';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
 import { withTimeout } from '@/lib/signer';
 
@@ -58,6 +61,45 @@ const WIDERSPRUCH_FRIST_TAGE = 90;
  * Kein Freitextfeld. Was ein Mensch zu seinem Fall schreibt, gehoert in einen
  * Kanal, den der pruefende Mensch privat lesen kann -- die Kontaktadresse im
  * Impressum, mit der Kennung. Siehe widerspruchEinlegen(). */
+/** Stufe 3 der Altersprüfung (lib/altersbuergschaft.ts): QR-Code fuer zwei
+ *  Buergen, laufender Stand, und erneut aufnehmen, sobald genug da sind. */
+function AltersbuergschaftKarte({ wallet, t, nochmal }: { wallet: string; t: TFunc; nochmal: () => void }) {
+  const [anfrage, setAnfrage] = useState<string | null>(null);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let aus = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    anfrageFuer(wallet).then((a) => {
+      if (aus) return;
+      setAnfrage(a);
+      const holen = () => buergenStand(a).then((x) => !aus && setN(x)).catch(() => {});
+      holen();
+      timer = setInterval(holen, 5000);
+    });
+    return () => {
+      aus = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [wallet]);
+  return (
+    <View style={[S.card, S.vouchCard]}>
+      <Text style={S.title}>{t('identity.alterBuergschaftTitel')}</Text>
+      <Text style={S.body}>{t('identity.alterBuergschaftText')}</Text>
+      {anfrage ? (
+        <View style={{ alignItems: 'center', marginVertical: 12 }}>
+          <QRCode value={qrInhalt(wallet, anfrage)} size={190} backgroundColor={theme.card} color={theme.text} />
+        </View>
+      ) : (
+        <ActivityIndicator color={theme.purple} />
+      )}
+      <Text style={S.body}>
+        {t('identity.alterBuergschaftStand').replace('{n}', String(n)).replace('{noetig}', String(BUERGEN_NOETIG))}
+      </Text>
+      {n >= BUERGEN_NOETIG ? <GradientButton label={t('identity.alterBuergschaftNochmal')} onPress={nochmal} /> : null}
+    </View>
+  );
+}
+
 function WiderspruchKarte({ kennung, t }: { kennung: string; t: TFunc }) {
   const [stand, setStand] = useState<'offen' | 'sendet' | WiderspruchResult['status']>('offen');
   const [kopiert, setKopiert] = useState(false);
@@ -571,6 +613,11 @@ export default function BiometricCapture() {
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
+  // Altersangabe (lib/altersregel.ts): vor der Kamera, nie gespeichert.
+  const [altJahr, setAltJahr] = useState('');
+  const [altMonat, setAltMonat] = useState('');
+  const [altLand, setAltLand] = useState(() => landAusGeraet());
+  const [altRegion, setAltRegion] = useState('');
   const [consentError, setConsentError] = useState('');
   const [consent, setConsent] = useState<ConsentDecision | null>(null);
   // Fetched the moment the user commits to a real attempt (confirmConsent
@@ -977,12 +1024,34 @@ export default function BiometricCapture() {
     });
   }
 
-  function confirmConsent() {
+  async function confirmConsent() {
     if (!biometricChecked) {
       setConsentError(t('identity.biometricConsentRequired'));
       return;
     }
-    setConsent({ biometricConsent: true, bonusConsent: bonusChecked, consentedAt: Date.now() / 1000 });
+    // Wer zu jung ist, kommt nicht zur Kamera: sein Gesicht wird nie
+    // aufgenommen. Der Coordinator prueft dieselbe Angabe noch einmal.
+    const alter = alterPruefen({ jahr: altJahr, monat: altMonat, land: altLand, region: altRegion });
+    if (!alter.ok) {
+      setConsentError(
+        alter.grund === 'zu_jung'
+          ? t('identity.alterZuJung').replace('{n}', String(alter.mindestalter))
+          : alter.grund === 'fehlt' ? t('identity.alterFehlt') : t('identity.alterUngueltig'),
+      );
+      return;
+    }
+    setConsent({
+      biometricConsent: true,
+      bonusConsent: bonusChecked,
+      consentedAt: Date.now() / 1000,
+      alterAnfrage: address ? await anfrageFuer(address) : undefined,
+      alter: {
+        geburtsjahr: Number(altJahr.trim()),
+        geburtsmonat: Number(altMonat.trim()),
+        land: altLand.trim().toUpperCase(),
+        region: altRegion.trim().toUpperCase() || undefined,
+      },
+    });
     setConsentError('');
     // 2026-08-19: the palm step is skipped.
     //
@@ -1380,6 +1449,53 @@ export default function BiometricCapture() {
           <View style={S.card}>
             <Text style={S.title}>{nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
             <Text style={S.body}>{nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
+            {/* Einwilligung v3: die Altersschaetzung gehoert zum Text, dem zugestimmt wird. */}
+            <Text style={S.body}>{t('identity.biometricConsentAlter')}</Text>
+
+            <Text style={S.checkLabel}>{t('identity.alterTitel')}</Text>
+            <View style={S.alterReihe}>
+              <TextInput
+                style={[S.vouchInput, S.alterFeld]}
+                value={altMonat}
+                onChangeText={(v) => setAltMonat(v.replace(/[^0-9]/g, '').slice(0, 2))}
+                placeholder={t('identity.alterMonat')}
+                placeholderTextColor={theme.muted}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+              <TextInput
+                style={[S.vouchInput, S.alterFeld]}
+                value={altJahr}
+                onChangeText={(v) => setAltJahr(v.replace(/[^0-9]/g, '').slice(0, 4))}
+                placeholder={t('identity.alterJahr')}
+                placeholderTextColor={theme.muted}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+              <TextInput
+                style={[S.vouchInput, S.alterFeld]}
+                value={altLand}
+                onChangeText={(v) => setAltLand(v.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())}
+                placeholder={t('identity.alterLand')}
+                placeholderTextColor={theme.muted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={2}
+              />
+            </View>
+            {altLand.toUpperCase() === 'US' || altLand.toUpperCase() === 'CA' ? (
+              <TextInput
+                style={S.vouchInput}
+                value={altRegion}
+                onChangeText={(v) => setAltRegion(v.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase())}
+                placeholder={t('identity.alterRegion')}
+                placeholderTextColor={theme.muted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={3}
+              />
+            ) : null}
+            <Text style={S.resultDebugText}>{t('identity.alterHinweis')}</Text>
 
             <TouchableOpacity style={S.checkRow} onPress={() => setBiometricChecked((v) => !v)} activeOpacity={0.8}>
               <View style={[S.checkbox, biometricChecked && S.checkboxChecked]}>
@@ -1578,6 +1694,12 @@ export default function BiometricCapture() {
                         case 'nonce_ungueltig': return t('identity.nachziehenResultNoChallenge');
                         case 'capture_failed': return t('identity.biometricResultCaptureFailed');
                         case 'liveness_failed': return t('identity.biometricResultLivenessFailed');
+                        case 'age_below_minimum': return t('identity.biometricResultAgeBelow');
+                        case 'age_declaration_missing':
+                        case 'age_declaration_invalid': return t('identity.biometricResultAgeDeclaration');
+                        case 'age_proof_required': return t('identity.biometricResultAgeProof');
+                        case 'consent_outdated':
+                        case 'missing_consent': return t('identity.biometricResultConsentOutdated');
                         case 'quorum_failed':
                         case 'commit_quorum_failed': return t('identity.biometricResultQuorumFailed');
                         default: return t('identity.biometricResultFailed');
@@ -1595,12 +1717,19 @@ export default function BiometricCapture() {
                       // stubbed" table), liveness_failed, and quorum_failed
                       // are three completely different problems needing
                       // different user actions, but were indistinguishable on
-                      // screen. Now shown separately; invalid_mode/
-                      // missing_consent (internal-config errors, not user-
-                      // fixable by retrying differently) still fall back to
-                      // the generic message.
+                      // screen. Now shown separately; invalid_mode (an
+                      // internal-config error) still falls back to the
+                      // generic message. consent_outdated/missing_consent mean
+                      // this app version sends an older consent text -- the
+                      // fix is updating the app, so that is what it says.
                       case 'capture_failed': return t('identity.biometricResultCaptureFailed');
                       case 'liveness_failed': return t('identity.biometricResultLivenessFailed');
+                      case 'age_below_minimum': return t('identity.biometricResultAgeBelow');
+                      case 'age_declaration_missing':
+                      case 'age_declaration_invalid': return t('identity.biometricResultAgeDeclaration');
+                      case 'age_proof_required': return t('identity.biometricResultAgeProof');
+                      case 'consent_outdated':
+                      case 'missing_consent': return t('identity.biometricResultConsentOutdated');
                       case 'quorum_failed': return t('identity.biometricResultQuorumFailed');
                       default: return t('identity.biometricResultFailed');
                     }
@@ -1640,6 +1769,10 @@ export default function BiometricCapture() {
             })()}
             <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
           </View>
+
+          {(nachziehen ? nachziehResult?.decision : result?.decision) === 'age_proof_required' && address ? (
+            <AltersbuergschaftKarte wallet={address} t={t} nochmal={() => { setResult(null); setNachziehResult(null); setStep('consent'); }} />
+          ) : null}
 
           {/* Only reachable once this device has a bio_hash to vouch
               with -- absent on capture_failed/liveness_failed/etc, same
@@ -1757,6 +1890,8 @@ const S = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
   },
   copyBtnText: { color: theme.text, fontSize: 11, fontWeight: '700' },
+  alterReihe: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  alterFeld: { flex: 1, textAlign: 'center' },
   vouchInput: {
     fontFamily: theme.fontMono, fontSize: 12, color: theme.text,
     backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.border,

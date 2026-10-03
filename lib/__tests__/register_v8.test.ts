@@ -5,8 +5,8 @@
  */
 import { ethers } from 'ethers';
 
-jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }), { virtual: true });
-jest.mock('expo-crypto', () => ({ getRandomBytesAsync: jest.fn() }), { virtual: true });
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }));
+jest.mock('expo-crypto', () => ({ getRandomBytesAsync: jest.fn() }));
 jest.mock('../wallet', () => ({ signMessage: jest.fn(), signTypedData: jest.fn(), sendAEQ: jest.fn() }));
 
 const A = 'https://a.example/api';
