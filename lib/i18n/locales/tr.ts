@@ -272,7 +272,7 @@ const tr: Translations = {
     biometricStepsIntro: 'Önce onayını verirsin, ardından kısa bir yüz ve göz kırpma kaydı alırsın. Tüm ayrıntılar, herhangi bir kayıt yapılmadan önce bir sonraki adımda.',
     biometricConsentTitle: 'Biyometrik test rızası',
     biometricConsentBody: 'Daha önce kaydolup kaydolmadığını kontrol etmek için yüzünün bir fotoğrafı ve kısa bir göz kırpma dizisi kaydedilir. Yalnızca 64 baytlık bir özet saklanır — fotoğrafın kendisi atılır. Bu kontrol olmadan kayıt mümkün değildir.',
-    biometricConsentAlter: 'Yeni: Yüzün kimseyle karşılaştırılmadan önce görüntülerden yaşın tahmin edilir. Tahmin 25’in altındaysa işlem durur ve hiçbir şey kaydedilmez – kayıtlı iki kişi yaşına kefil olmuşsa ve tahmin en az 16 ise devam edilir. Ne tahmin edilen yaş ne de girdiğin yaş kaydedilir. Kefalet istersen cüzdan adresini ve kefillerin adreslerini ve imzalarını en fazla 366 gün saklarız.',
+    biometricConsentAlter: 'Yeni: Yüzün kimseyle karşılaştırılmadan önce görüntülerden yaşın tahmin edilir. Tahmin 27’in altındaysa işlem durur ve hiçbir şey kaydedilmez – kayıtlı iki kişi yaşına kefil olmuşsa ve tahmin en az 20 ise devam edilir. Ne tahmin edilen yaş ne de girdiğin yaş kaydedilir. Kefalet istersen cüzdan adresini ve kefillerin adreslerini ve imzalarını en fazla 366 gün saklarız.',
     biometricConsentBiometricLabel: 'Bu biyometrik test çekimini onaylıyorum (devam etmek için zorunlu)',
     biometricConsentBonusLabel: 'Ayrıca kayıt bonus programına katılmak istiyorum (isteğe bağlı)',
     biometricConsentRequired: 'Lütfen önce biyometrik test çekimini onayla (zorunlu).',
