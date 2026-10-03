@@ -85,7 +85,44 @@ export function wellKnownPasst(inhalt: string, adresse: string): boolean {
     .includes(a);
 }
 
-/** Prueft die Webseite selbst (die App, nicht der Knoten). false bei jedem Fehler. */
+const WELL_KNOWN_MAX = 4096;
+
+/** Liest hoechstens max Bytes einer fremden Antwort, sonst null. Mit Stream:
+ *  bricht nach max Bytes ab. Ohne Stream (React Native): nur mit
+ *  Content-Length <= max -- sonst wuerde die ganze Antwort in den Speicher
+ *  geladen, bevor gekuerzt werden kann. */
+export async function begrenztLesen(res: Response, max: number): Promise<string | null> {
+  const reader = (res.body as ReadableStream<Uint8Array> | null | undefined)?.getReader?.();
+  if (reader) {
+    const teile: Uint8Array[] = [];
+    let n = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        n += value.byteLength;
+        if (n > max) return null;
+        teile.push(value);
+      }
+    } finally {
+      reader.cancel().catch(() => undefined);
+    }
+    const alles = new Uint8Array(n);
+    let o = 0;
+    for (const t of teile) {
+      alles.set(t, o);
+      o += t.byteLength;
+    }
+    return new TextDecoder().decode(alles);
+  }
+  const laenge = Number(res.headers.get('content-length'));
+  if (!res.headers.get('content-length') || !Number.isFinite(laenge) || laenge < 0 || laenge > max) return null;
+  const text = await res.text();
+  return text.length > max ? null : text;
+}
+
+/** Prueft die Webseite selbst (die App, nicht der Knoten). false bei jedem Fehler
+ *  und bei Antworten ueber 4 KiB. */
 export async function webseiteBestaetigt(webseite: string, adresse: string, timeoutMs = 5000): Promise<boolean> {
   const url = wellKnownUrl(webseite);
   if (!url) return false;
@@ -94,7 +131,8 @@ export async function webseiteBestaetigt(webseite: string, adresse: string, time
   try {
     const res = await fetch(url, { signal: ctrl.signal, redirect: 'error' });
     if (!res.ok) return false;
-    return wellKnownPasst((await res.text()).slice(0, 4096), adresse);
+    const text = await begrenztLesen(res, WELL_KNOWN_MAX);
+    return text !== null && wellKnownPasst(text, adresse);
   } catch {
     return false;
   } finally {

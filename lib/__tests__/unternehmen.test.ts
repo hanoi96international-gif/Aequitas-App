@@ -141,3 +141,58 @@ describe('Verzeichnis', () => {
     expect(suchen(l, 'rosen')).toHaveLength(1);
   });
 });
+
+describe('Webseite pruefen: fremde Antworten bleiben klein', () => {
+  const { begrenztLesen, webseiteBestaetigt } = jest.requireActual('../unternehmen');
+  const ohneStream = (text: string, laenge?: string | null) =>
+    ({ ok: true, body: undefined, headers: new Headers(laenge === null ? {} : { 'content-length': laenge ?? String(text.length) }), text: jest.fn(async () => text) }) as any;
+  const mitStream = (stuecke: string[]) => {
+    const enc = new TextEncoder();
+    let i = 0;
+    const cancel = jest.fn(async () => undefined);
+    return {
+      cancel,
+      res: {
+        ok: true,
+        headers: new Headers(),
+        body: { getReader: () => ({ read: async () => (i < stuecke.length ? { done: false, value: enc.encode(stuecke[i++]) } : { done: true }), cancel }) },
+        text: jest.fn(),
+      } as any,
+    };
+  };
+
+  it('ohne Stream: nur mit Content-Length bis 4 KiB, sonst wird nichts gelesen', async () => {
+    expect(await begrenztLesen(ohneStream(U), 4096)).toBe(U);
+    const gross = ohneStream('x', '99999999');
+    expect(await begrenztLesen(gross, 4096)).toBeNull();
+    expect(gross.text).not.toHaveBeenCalled();
+    const ohneLaenge = ohneStream(U, null);
+    expect(await begrenztLesen(ohneLaenge, 4096)).toBeNull();
+    expect(ohneLaenge.text).not.toHaveBeenCalled();
+    expect(await begrenztLesen(ohneStream(U, 'abc'), 4096)).toBeNull();
+  });
+
+  it('ohne Stream: falsche Content-Length hilft nicht', async () => {
+    expect(await begrenztLesen(ohneStream('y'.repeat(5000), '10'), 4096)).toBeNull();
+  });
+
+  it('mit Stream: bricht nach 4 KiB ab und gibt den Stream frei', async () => {
+    const klein = mitStream(['aequitas: ', U]);
+    expect(await begrenztLesen(klein.res, 4096)).toBe('aequitas: ' + U);
+    const endlos = mitStream(Array(100).fill('z'.repeat(1000)));
+    expect(await begrenztLesen(endlos.res, 4096)).toBeNull();
+    expect(endlos.cancel).toHaveBeenCalled();
+  });
+
+  it('webseiteBestaetigt: riesige Antwort heisst nicht bestaetigt', async () => {
+    const alt = global.fetch;
+    global.fetch = jest.fn(async () => ohneStream(U + ' '.repeat(10), '99999999')) as any;
+    try {
+      expect(await webseiteBestaetigt('https://laden.example', U)).toBe(false);
+      global.fetch = jest.fn(async () => ohneStream(U)) as any;
+      expect(await webseiteBestaetigt('https://laden.example', U)).toBe(true);
+    } finally {
+      global.fetch = alt;
+    }
+  });
+});
