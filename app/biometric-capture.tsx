@@ -1449,6 +1449,8 @@ export default function BiometricCapture() {
           <View style={S.card}>
             <Text style={S.title}>{nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
             <Text style={S.body}>{nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
+            {/* Einwilligung v3: die Altersschaetzung gehoert zum Text, dem zugestimmt wird. */}
+            <Text style={S.body}>{t('identity.biometricConsentAlter')}</Text>
 
             <Text style={S.checkLabel}>{t('identity.alterTitel')}</Text>
             <View style={S.alterReihe}>
@@ -1696,6 +1698,8 @@ export default function BiometricCapture() {
                         case 'age_declaration_missing':
                         case 'age_declaration_invalid': return t('identity.biometricResultAgeDeclaration');
                         case 'age_proof_required': return t('identity.biometricResultAgeProof');
+                        case 'consent_outdated':
+                        case 'missing_consent': return t('identity.biometricResultConsentOutdated');
                         case 'quorum_failed':
                         case 'commit_quorum_failed': return t('identity.biometricResultQuorumFailed');
                         default: return t('identity.biometricResultFailed');
@@ -1713,16 +1717,19 @@ export default function BiometricCapture() {
                       // stubbed" table), liveness_failed, and quorum_failed
                       // are three completely different problems needing
                       // different user actions, but were indistinguishable on
-                      // screen. Now shown separately; invalid_mode/
-                      // missing_consent (internal-config errors, not user-
-                      // fixable by retrying differently) still fall back to
-                      // the generic message.
+                      // screen. Now shown separately; invalid_mode (an
+                      // internal-config error) still falls back to the
+                      // generic message. consent_outdated/missing_consent mean
+                      // this app version sends an older consent text -- the
+                      // fix is updating the app, so that is what it says.
                       case 'capture_failed': return t('identity.biometricResultCaptureFailed');
                       case 'liveness_failed': return t('identity.biometricResultLivenessFailed');
                       case 'age_below_minimum': return t('identity.biometricResultAgeBelow');
                       case 'age_declaration_missing':
                       case 'age_declaration_invalid': return t('identity.biometricResultAgeDeclaration');
                       case 'age_proof_required': return t('identity.biometricResultAgeProof');
+                      case 'consent_outdated':
+                      case 'missing_consent': return t('identity.biometricResultConsentOutdated');
                       case 'quorum_failed': return t('identity.biometricResultQuorumFailed');
                       default: return t('identity.biometricResultFailed');
                     }
@@ -1763,8 +1770,8 @@ export default function BiometricCapture() {
             <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
           </View>
 
-          {!nachziehen && result?.decision === 'age_proof_required' && address ? (
-            <AltersbuergschaftKarte wallet={address} t={t} nochmal={() => { setResult(null); setStep('consent'); }} />
+          {(nachziehen ? nachziehResult?.decision : result?.decision) === 'age_proof_required' && address ? (
+            <AltersbuergschaftKarte wallet={address} t={t} nochmal={() => { setResult(null); setNachziehResult(null); setStep('consent'); }} />
           ) : null}
 
           {/* Only reachable once this device has a bio_hash to vouch

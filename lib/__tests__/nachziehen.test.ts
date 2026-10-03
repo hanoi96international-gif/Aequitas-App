@@ -63,3 +63,53 @@ describe('coordinator candidates', () => {
     expect(coordinatorCandidatesFrom(undefined, [' '])).toEqual([]);
   });
 });
+
+describe('nachziehenBiometric: was an den Coordinator geht', () => {
+  const felder = (form: any): Record<string, unknown> => {
+    // React Natives FormData kennt getParts(), das von Node entries().
+    const teile: [string, unknown][] =
+      typeof form.getParts === 'function'
+        ? form.getParts().map((p: any) => [p.fieldName, p.string ?? p.uri])
+        : Array.from(form.entries());
+    return Object.fromEntries(teile);
+  };
+
+  it('schickt Einwilligung v3, Altersangabe und die Buergschafts-Anfrage', async () => {
+    const bio = require('../biometricIdentity');
+    bio._setCoordinatorCandidatesForTest(['http://coord.test']);
+    let gesendet: Record<string, unknown> = {};
+    const altFetch = global.fetch;
+    global.fetch = jest.fn(async (_url: string, init: any) => {
+      gesendet = felder(init.body);
+      return { ok: true, json: async () => ({ decision: 'age_proof_required' }) };
+    }) as any;
+    try {
+      await bio.nachziehenBiometric(
+        { faceUri: 'file:///f.jpg', faceBurstUris: [], burstIntervalMs: 100, challengeNonce: 'nonce-1' },
+        {
+          deviceId: 'd',
+          walletAddress: WALLET,
+          signer: { signMessage: async () => '0xsig' },
+          consent: {
+            biometricConsent: true, bonusConsent: false, consentedAt: 1,
+            alter: { geburtsjahr: 1990, geburtsmonat: 5, land: 'DE' },
+            alterAnfrage: 'a'.repeat(32),
+          },
+        },
+      );
+    } finally {
+      global.fetch = altFetch;
+      bio._setCoordinatorCandidatesForTest(null);
+    }
+    expect(gesendet.consent_version).toBe('einwilligung-v3-2026-10-02');
+    expect(gesendet.alter_anfrage).toBe('a'.repeat(32));
+    expect(gesendet.geburtsjahr).toBe('1990');
+    expect(gesendet.land).toBe('DE');
+  });
+
+  it('die Fassung ist dieselbe wie die Vorgabe von Coordinator und Vergleichsdiensten', () => {
+    // aequitas-biometric-beta: CURRENT_CONSENT_VERSION in coordinator/app/einwilligung.py
+    // und matching-service/app/config.py. Weicht sie ab, wird jede Aufnahme abgewiesen.
+    expect(require('../biometricIdentity').CONSENT_VERSION).toBe('einwilligung-v3-2026-10-02');
+  });
+});

@@ -275,6 +275,7 @@ export interface Translations {
     biometricStepsIntro: string;
     biometricConsentTitle: string;
     biometricConsentBody: string;
+    biometricConsentAlter: string;
     biometricConsentBiometricLabel: string;
     biometricConsentBonusLabel: string;
     biometricConsentRequired: string;
@@ -331,6 +332,7 @@ export interface Translations {
     biometricResultAgeBelow: string;
     biometricResultAgeDeclaration: string;
     biometricResultAgeProof: string;
+    biometricResultConsentOutdated: string;
     biometricBackBtn: string;
     kettenschrittOffenTitel: string;
     kettenschrittOffenText: string;
