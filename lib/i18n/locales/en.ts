@@ -272,7 +272,7 @@ const en: Translations = {
     biometricStepsIntro: 'You first confirm your consent, then record a short face and blink sequence. All the details come in the next step, before anything is recorded.',
     biometricConsentTitle: 'Biometric test consent',
     biometricConsentBody: 'A photo of your face and a short blink sequence are recorded to check whether you are already registered. Only a 64-byte extract is kept – the photo itself is discarded. Registration is not possible without this check.',
-    biometricConsentAlter: 'New: before your face is compared with anyone, your age is estimated from the images. Below 25 the process stops and nothing is stored – unless two registered people have vouched for you and the estimate is at least 16. Neither the estimated age nor the age you entered is stored. If you ask for vouching, we store your wallet address and the vouchers’ addresses and signatures for at most 366 days.',
+    biometricConsentAlter: 'New: before your face is compared with anyone, your age is estimated from the images. Below 27 the process stops and nothing is stored – unless two registered people have vouched for you and the estimate is at least 20. Neither the estimated age nor the age you entered is stored. If you ask for vouching, we store your wallet address and the vouchers’ addresses and signatures for at most 366 days.',
     biometricConsentBiometricLabel: 'I consent to this biometric test capture (required to continue)',
     biometricConsentBonusLabel: 'I also want to participate in the registration bonus program (optional)',
     biometricConsentRequired: 'Please consent to the biometric test capture first (required).',

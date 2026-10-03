@@ -272,7 +272,7 @@ const id: Translations = {
     biometricStepsIntro: 'Kamu terlebih dahulu memberikan persetujuan, lalu merekam urutan wajah dan kedipan singkat. Semua detail di langkah berikutnya, sebelum ada yang direkam.',
     biometricConsentTitle: 'Persetujuan uji coba biometrik',
     biometricConsentBody: 'Foto wajahmu dan rangkaian kedipan singkat direkam untuk memeriksa apakah kamu sudah terdaftar. Hanya cuplikan 64 byte yang disimpan — fotonya dibuang. Tanpa pemeriksaan ini pendaftaran tidak mungkin dilakukan.',
-    biometricConsentAlter: 'Baru: sebelum wajahmu dibandingkan dengan siapa pun, usiamu diperkirakan dari gambar. Di bawah 25 tahun proses dihentikan dan tidak ada yang disimpan – kecuali dua orang terdaftar telah menjamin usiamu dan perkiraannya setidaknya 16 tahun. Usia perkiraan maupun usia yang kamu masukkan tidak disimpan. Jika kamu meminta jaminan, kami menyimpan alamat wallet-mu serta alamat dan tanda tangan para penjamin paling lama 366 hari.',
+    biometricConsentAlter: 'Baru: sebelum wajahmu dibandingkan dengan siapa pun, usiamu diperkirakan dari gambar. Di bawah 27 tahun proses dihentikan dan tidak ada yang disimpan – kecuali dua orang terdaftar telah menjamin usiamu dan perkiraannya setidaknya 20 tahun. Usia perkiraan maupun usia yang kamu masukkan tidak disimpan. Jika kamu meminta jaminan, kami menyimpan alamat wallet-mu serta alamat dan tanda tangan para penjamin paling lama 366 hari.',
     biometricConsentBiometricLabel: 'Saya menyetujui pengambilan biometrik uji coba ini (wajib untuk melanjutkan)',
     biometricConsentBonusLabel: 'Saya juga ingin ikut serta dalam program bonus pendaftaran (opsional)',
     biometricConsentRequired: 'Mohon setujui pengambilan biometrik uji coba terlebih dahulu (wajib).',
