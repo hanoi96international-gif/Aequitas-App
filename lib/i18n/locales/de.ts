@@ -344,7 +344,7 @@ const de: Translations = {
     nachziehenBtn: 'Gesicht jetzt nachziehen',
     nachziehenDone: 'Gesicht nachgezogen — dieses Konto ist von der Duplikatprüfung erfasst.',
     nachziehenConsentTitle: 'Gesicht nachziehen — Einwilligung',
-    nachziehenConsentBody: 'Eine kurze Gesichtsaufnahme mit zufälliger Kopfdrehung wird von zwei unabhängigen Vergleichsdiensten mit allen bereits Registrierten verglichen. Gespeichert wird nur ein verschlüsselter Auszug; die Bilder werden verworfen. Du signierst mit deiner Wallet eine einmalige Nachricht als Nachweis, dass das Konto dir gehört. Für diesen Schritt gibt es keinen Zuschuss.',
+    nachziehenConsentBody: 'Eine kurze Gesichtsaufnahme mit zufälliger Kopfdrehung wird von den unabhängigen Vergleichsdiensten (derzeit einer) mit allen bereits Registrierten verglichen. Gespeichert wird nur ein verschlüsselter Auszug; die Bilder werden verworfen. Du signierst mit deiner Wallet eine einmalige Nachricht als Nachweis, dass das Konto dir gehört. Für diesen Schritt gibt es keinen Zuschuss.',
     nachziehenResultDone: 'Erledigt. Dein Gesicht ist jetzt in der Duplikatprüfung — es wurde nichts geprägt, dein Konto ist unverändert.',
     nachziehenResultAlready: 'Dieses Gesicht kennt die Duplikatprüfung bereits — nichts zu tun. Dein Konto ist unverändert.',
     nachziehenResultNotRegistered: 'Diese Wallet ist nicht als Mensch registriert. Nutze stattdessen die normale Registrierung.',

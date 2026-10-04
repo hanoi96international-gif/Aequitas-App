@@ -344,7 +344,7 @@ const pt: Translations = {
     nachziehenBtn: 'Adicionar rosto agora',
     nachziehenDone: 'Rosto adicionado — esta conta está coberta pela verificação de duplicados.',
     nachziehenConsentTitle: 'Adicionar rosto — consentimento',
-    nachziehenConsentBody: 'Uma breve captação facial com um movimento de cabeça aleatório é comparada por dois serviços independentes com todas as pessoas já registadas. Só é guardado um extrato cifrado; as imagens são descartadas. Assina com a sua carteira uma mensagem de uso único como prova de que a conta é sua. Não há atribuição por este passo.',
+    nachziehenConsentBody: 'Uma breve captação facial com um movimento de cabeça aleatório é comparada por os serviços de comparação independentes (atualmente um) com todas as pessoas já registadas. Só é guardado um extrato cifrado; as imagens são descartadas. Assina com a sua carteira uma mensagem de uso único como prova de que a conta é sua. Não há atribuição por este passo.',
     nachziehenResultDone: 'Concluído. O seu rosto está agora na verificação de duplicados — nada foi cunhado, a sua conta não mudou.',
     nachziehenResultAlready: 'Este rosto já é conhecido da verificação de duplicados — nada a fazer. A sua conta não mudou.',
     nachziehenResultNotRegistered: 'Esta carteira não está registada como humano. Use o registo normal.',

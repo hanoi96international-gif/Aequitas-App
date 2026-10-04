@@ -344,7 +344,7 @@ const zh: Translations = {
     nachziehenBtn: '立即补录人脸',
     nachziehenDone: '人脸已补录 — 此账户已纳入重复检测。',
     nachziehenConsentTitle: '补录人脸 — 同意',
-    nachziehenConsentBody: '一段带随机转头的简短人脸采集将由两家独立比对服务与所有已注册者进行比对。只保留加密摘要；图像会被丢弃。你用钱包签署一条一次性消息，以证明账户属于你。此步骤不发放任何补助。',
+    nachziehenConsentBody: '一段带随机转头的简短人脸采集将由独立比对服务（目前为一家）与所有已注册者进行比对。只保留加密摘要；图像会被丢弃。你用钱包签署一条一次性消息，以证明账户属于你。此步骤不发放任何补助。',
     nachziehenResultDone: '完成。你的面部现已纳入重复检测 — 未铸造任何代币，账户保持不变。',
     nachziehenResultAlready: '重复检测已认识这张脸 — 无需操作。账户保持不变。',
     nachziehenResultNotRegistered: '此钱包未注册为人类。请使用正常注册流程。',

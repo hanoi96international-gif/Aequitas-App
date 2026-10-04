@@ -344,7 +344,7 @@ const tr: Translations = {
     nachziehenBtn: 'Yüzü şimdi ekle',
     nachziehenDone: 'Yüz eklendi — bu hesap çift kayıt kontrolü kapsamında.',
     nachziehenConsentTitle: 'Yüz ekle — onay',
-    nachziehenConsentBody: 'Rastgele baş çevirmeli kısa bir yüz çekimi, iki bağımsız eşleştirme servisi tarafından kayıtlı herkesle karşılaştırılır. Yalnızca şifrelenmiş bir özet saklanır; görüntüler atılır. Hesabın sana ait olduğunu kanıtlamak için cüzdanınla tek kullanımlık bir mesaj imzalarsın. Bu adım için ödeme yapılmaz.',
+    nachziehenConsentBody: 'Rastgele baş çevirmeli kısa bir yüz çekimi, bağımsız eşleştirme servisleri (şu anda bir tane) tarafından kayıtlı herkesle karşılaştırılır. Yalnızca şifrelenmiş bir özet saklanır; görüntüler atılır. Hesabın sana ait olduğunu kanıtlamak için cüzdanınla tek kullanımlık bir mesaj imzalarsın. Bu adım için ödeme yapılmaz.',
     nachziehenResultDone: 'Tamam. Yüzün artık çift kayıt kontrolünde — hiçbir şey basılmadı, hesabın değişmedi.',
     nachziehenResultAlready: 'Bu yüz çift kayıt kontrolünce zaten biliniyor — yapılacak bir şey yok. Hesabın değişmedi.',
     nachziehenResultNotRegistered: 'Bu cüzdan insan olarak kayıtlı değil. Bunun yerine normal kaydı kullan.',

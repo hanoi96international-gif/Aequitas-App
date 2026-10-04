@@ -344,7 +344,7 @@ const en: Translations = {
     nachziehenBtn: 'Add face now',
     nachziehenDone: 'Face added — this account is covered by the duplicate check.',
     nachziehenConsentTitle: 'Add your face — consent',
-    nachziehenConsentBody: 'A short face capture with a random head-turn is compared by two independent matching services with everyone already registered. Only an encrypted extract is kept; the images are discarded. You sign a one-time message with your wallet to prove the account is yours. No grant is paid for this step.',
+    nachziehenConsentBody: 'A short face capture with a random head-turn is compared by the independent matching services (currently one) with everyone already registered. Only an encrypted extract is kept; the images are discarded. You sign a one-time message with your wallet to prove the account is yours. No grant is paid for this step.',
     nachziehenResultDone: 'Done. Your face is now in the duplicate check — nothing was minted, your account is unchanged.',
     nachziehenResultAlready: 'This face is already known to the duplicate check — nothing to do. Your account is unchanged.',
     nachziehenResultNotRegistered: 'This wallet is not registered as a human. Use the normal registration instead.',

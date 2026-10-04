@@ -344,7 +344,7 @@ const id: Translations = {
     nachziehenBtn: 'Tambahkan wajah sekarang',
     nachziehenDone: 'Wajah ditambahkan — akun ini tercakup dalam pemeriksaan duplikat.',
     nachziehenConsentTitle: 'Tambahkan wajah — persetujuan',
-    nachziehenConsentBody: 'Rekaman wajah singkat dengan putaran kepala acak dibandingkan oleh dua layanan pencocokan independen dengan semua orang yang sudah terdaftar. Hanya ekstrak terenkripsi yang disimpan; gambar dibuang. Anda menandatangani pesan sekali pakai dengan dompet Anda sebagai bukti bahwa akun ini milik Anda. Tidak ada hibah untuk langkah ini.',
+    nachziehenConsentBody: 'Rekaman wajah singkat dengan putaran kepala acak dibandingkan oleh layanan pencocokan independen (saat ini satu) dengan semua orang yang sudah terdaftar. Hanya ekstrak terenkripsi yang disimpan; gambar dibuang. Anda menandatangani pesan sekali pakai dengan dompet Anda sebagai bukti bahwa akun ini milik Anda. Tidak ada hibah untuk langkah ini.',
     nachziehenResultDone: 'Selesai. Wajah Anda kini ada dalam pemeriksaan duplikat — tidak ada yang dicetak, akun Anda tidak berubah.',
     nachziehenResultAlready: 'Wajah ini sudah dikenal pemeriksaan duplikat — tidak ada yang perlu dilakukan. Akun Anda tidak berubah.',
     nachziehenResultNotRegistered: 'Dompet ini tidak terdaftar sebagai manusia. Gunakan pendaftaran biasa.',
