@@ -344,7 +344,7 @@ const it: Translations = {
     nachziehenBtn: 'Aggiungi il volto ora',
     nachziehenDone: 'Volto aggiunto — questo account è coperto dal controllo duplicati.',
     nachziehenConsentTitle: 'Aggiungi il volto — consenso',
-    nachziehenConsentBody: 'Una breve acquisizione del volto con una rotazione casuale della testa viene confrontata da due servizi indipendenti con tutti i già registrati. Viene conservato solo un estratto cifrato; le immagini vengono scartate. Firmi con il tuo wallet un messaggio monouso come prova che l\'account è tuo. Per questo passo non c\'è alcun accredito.',
+    nachziehenConsentBody: 'Una breve acquisizione del volto con una rotazione casuale della testa viene confrontata da i servizi di confronto indipendenti (attualmente uno) con tutti i già registrati. Viene conservato solo un estratto cifrato; le immagini vengono scartate. Firmi con il tuo wallet un messaggio monouso come prova che l\'account è tuo. Per questo passo non c\'è alcun accredito.',
     nachziehenResultDone: 'Fatto. Il tuo volto è ora nel controllo duplicati — non è stato coniato nulla, il tuo account è invariato.',
     nachziehenResultAlready: 'Questo volto è già noto al controllo duplicati — niente da fare. Il tuo account è invariato.',
     nachziehenResultNotRegistered: 'Questo wallet non è registrato come umano. Usa la registrazione normale.',

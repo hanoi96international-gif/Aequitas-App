@@ -344,7 +344,7 @@ const fr: Translations = {
     nachziehenBtn: 'Ajouter le visage maintenant',
     nachziehenDone: 'Visage ajouté — ce compte est couvert par la vérification des doublons.',
     nachziehenConsentTitle: 'Ajouter le visage — consentement',
-    nachziehenConsentBody: 'Une courte capture du visage avec un mouvement de tête aléatoire est comparée par deux services indépendants à toutes les personnes déjà inscrites. Seul un extrait chiffré est conservé ; les images sont écartées. Tu signes avec ton portefeuille un message à usage unique pour prouver que le compte est à toi. Aucune allocation pour cette étape.',
+    nachziehenConsentBody: 'Une courte capture du visage avec un mouvement de tête aléatoire est comparée par les services de comparaison indépendants (actuellement un seul) à toutes les personnes déjà inscrites. Seul un extrait chiffré est conservé ; les images sont écartées. Tu signes avec ton portefeuille un message à usage unique pour prouver que le compte est à toi. Aucune allocation pour cette étape.',
     nachziehenResultDone: 'Terminé. Ton visage fait maintenant partie de la vérification des doublons — rien n\'a été émis, ton compte est inchangé.',
     nachziehenResultAlready: 'Ce visage est déjà connu de la vérification des doublons — rien à faire. Ton compte est inchangé.',
     nachziehenResultNotRegistered: 'Ce portefeuille n\'est pas inscrit comme humain. Utilise l\'inscription normale.',
