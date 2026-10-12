@@ -14,9 +14,7 @@
  * gesund -- die normale Auswahl wuerde zu 1 zurueckkehren.
  */
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }));
-const mockDeleteAsync = jest.fn(async () => undefined);
-jest.mock('expo-file-system', () => ({ deleteAsync: (...a: any[]) => (mockDeleteAsync as any)(...a) }));
-jest.mock('expo-file-system/legacy', () => ({ deleteAsync: (...a: any[]) => (mockDeleteAsync as any)(...a) }));
+jest.mock('expo-file-system', () => ({ deleteAsync: jest.fn(async () => undefined) }));
 
 const C1 = 'https://c1.example';
 const C2 = 'https://c2.example';
@@ -91,7 +89,6 @@ describe('Challenge und Abgabe treffen denselben Coordinator', () => {
   ])('%s mit unbekanntem Nonce', (fn, pfad) => {
     it('bricht ab, statt die Bilder umzuleiten', async () => {
       const calls: string[] = [];
-      mockDeleteAsync.mockClear();
       (global as any).fetch = jest.fn(async (url: string) => {
         calls.push(url);
         return { ok: true, status: 200, json: async () => ({ status: 'ok', decision: 'x' }) } as any;
@@ -99,6 +96,8 @@ describe('Challenge und Abgabe treffen denselben Coordinator', () => {
       await jest.isolateModulesAsync(async () => {
         const bio = require('../biometricIdentity');
         bio._setCoordinatorCandidatesForTest([C1, C2]);
+        const geloescht: string[] = [];
+        bio._setLoeschenFuerTest(async (uri: string) => { geloescht.push(uri); });
         // Kein requestChallenge: der Nonce stammt nicht aus dieser Sitzung.
         const signer = { signMessage: jest.fn(async () => '0xsig') };
         await expect(
@@ -109,8 +108,63 @@ describe('Challenge und Abgabe treffen denselben Coordinator', () => {
         ).rejects.toBeInstanceOf(bio.NachziehenNeedsChallenge);
         expect(calls.filter((u) => u.endsWith(pfad))).toEqual([]);
         expect(signer.signMessage).not.toHaveBeenCalled();
-        expect(mockDeleteAsync).toHaveBeenCalled();
+        expect(geloescht).toEqual(['file:///f.jpg']);
       });
+    });
+  });
+  it('zwei Challenges ueberschneiden sich: die Aufnahme mit der ersten geht an deren Aussteller', async () => {
+    // Pruefung #30, NIEDRIG: ein einziger Platz vergass den ersten Nonce,
+    // sobald der zweite kam -- die Aufnahme mit dem ersten waere abgebrochen.
+    const calls: string[] = [];
+    let n = 0;
+    let c1Gesund = true;
+    (global as any).fetch = jest.fn(async (url: string) => {
+      calls.push(url);
+      if (url.endsWith('/health')) {
+        const ok = url.startsWith(C1) ? c1Gesund : true;
+        return { ok, status: ok ? 200 : 503, json: async () => ({}) } as any;
+      }
+      if (url.endsWith('/challenge')) {
+        n += 1;
+        return { ok: true, status: 200, json: async () => ({ nonce: `N-${n}`, challenge_type: 'kopf_drehen', flash_sequence: '' }) } as any;
+      }
+      return { ok: true, status: 200, json: async () => ({ status: 'ok', url }) } as any;
+    });
+    await jest.isolateModulesAsync(async () => {
+      const bio = require('../biometricIdentity');
+      bio._setCoordinatorCandidatesForTest([C1, C2]);
+      bio._setLoeschenFuerTest(async () => undefined);
+      expect((await bio.requestChallenge())?.nonce).toBe('N-1'); // bei C1
+      c1Gesund = false;
+      expect((await bio.requestChallenge())?.nonce).toBe('N-2'); // bei C2
+      await bio.registerBiometric(
+        { faceUri: 'file:///f.jpg', faceBurstUris: [], challengeNonce: 'N-1', burstIntervalMs: 100 } as any,
+        { deviceId: 'd1', walletAddress: '0x1' },
+      );
+      expect(calls.filter((u) => u.endsWith('/register'))).toEqual([C1 + '/register']);
+    });
+  });
+
+  it('der Speicher ist begrenzt: ein uralter Nonce gilt als unbekannt', async () => {
+    (global as any).fetch = jest.fn(async (url: string) => {
+      if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) } as any;
+      if (url.endsWith('/challenge')) {
+        return { ok: true, status: 200, json: async () => ({ nonce: `N-${Math.random()}`, challenge_type: 'kopf_drehen', flash_sequence: '' }) } as any;
+      }
+      return { ok: true, status: 200, json: async () => ({ status: 'ok' }) } as any;
+    });
+    await jest.isolateModulesAsync(async () => {
+      const bio = require('../biometricIdentity');
+      bio._setCoordinatorCandidatesForTest([C1, C2]);
+      bio._setLoeschenFuerTest(async () => undefined);
+      const erster = (await bio.requestChallenge())?.nonce;
+      for (let i = 0; i < 4; i++) await bio.requestChallenge();
+      await expect(
+        bio.registerBiometric(
+          { faceUri: 'file:///f.jpg', faceBurstUris: [], challengeNonce: erster, burstIntervalMs: 100 } as any,
+          { deviceId: 'd1', walletAddress: '0x1' },
+        ),
+      ).rejects.toBeInstanceOf(bio.NachziehenNeedsChallenge);
     });
   });
 });
