@@ -25,6 +25,8 @@ import {
   getOrCreateDeviceId,
   voucherFor,
   nachziehenBiometric,
+  erneuernBiometric,
+  type ErneuernResult,
   rememberNachgezogen,
   NachziehenNeedsChallenge,
   widerspruchEinlegen,
@@ -610,6 +612,15 @@ export default function BiometricCapture() {
   // lib/biometricIdentity.ts, nachziehenBiometric). No grant, no proof.
   const { zweck } = useLocalSearchParams<{ zweck?: string }>();
   const nachziehen = zweck === 'nachziehen';
+  // ?zweck=erneuern: the second liveness check from day 7 (WP 3). Only the
+  // face that registered this wallet counts (lib/biometricIdentity.ts,
+  // erneuernBiometric). Nothing is enrolled, nothing is minted here -- the
+  // chain releases the staged grant afterwards. No age declaration either:
+  // that was part of the registration.
+  const erneuern = zweck === 'erneuern';
+  // Neither path mints anything at capture time, so neither asks for the
+  // bonus consent nor offers the pending registration step.
+  const ohneZuschuss = nachziehen || erneuern;
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
@@ -893,6 +904,7 @@ export default function BiometricCapture() {
   // gespeichert." -- das sagt einem Laien nicht, dass alles geklappt hat.
   const [registriert, setRegistriert] = useState<'neu' | 'schon' | null>(null);
   const [nachziehResult, setNachziehResult] = useState<NachziehenResult | null>(null);
+  const [erneuerResult, setErneuerResult] = useState<ErneuernResult | null>(null);
   const [submitError, setSubmitError] = useState('');
   // Eingeschrieben, aber noch nicht auf der Kette -- siehe
   // lib/biometricIdentity.ts, OffenerKettenschritt. Solange gesetzt, kann der
@@ -902,7 +914,7 @@ export default function BiometricCapture() {
   const [kettenFertig, setKettenFertig] = useState(false);
 
   useEffect(() => {
-    if (nachziehen || !address) return;
+    if (ohneZuschuss || !address) return;
     let aktiv = true;
     (async () => {
       const k = await offenerKettenschritt(address);
@@ -921,7 +933,7 @@ export default function BiometricCapture() {
     return () => {
       aktiv = false;
     };
-  }, [nachziehen, address]);
+  }, [ohneZuschuss, address]);
 
   /** Den Schritt auf der Kette mit der gespeicherten Bescheinigung
    *  (erneut) ausfuehren -- ohne neue Aufnahme. */
@@ -1027,6 +1039,16 @@ export default function BiometricCapture() {
   async function confirmConsent() {
     if (!biometricChecked) {
       setConsentError(t('identity.biometricConsentRequired'));
+      return;
+    }
+    if (erneuern) {
+      // Kein Alter: das wurde bei der Registrierung geprueft, und /erneuern
+      // nimmt keine Angabe an. Die Einwilligung geht mit (consent_version).
+      setConsent({ biometricConsent: true, bonusConsent: false, consentedAt: Date.now() / 1000 });
+      setConsentError('');
+      setStep('face_intro');
+      // Der Nonce steht in der Wallet-Signatur -- ohne ihn keine Erneuerung.
+      requestChallenge().then(setChallenge);
       return;
     }
     // Wer zu jung ist, kommt nicht zur Kamera: sein Gesicht wird nie
@@ -1306,6 +1328,23 @@ export default function BiometricCapture() {
     setSubmitError('');
     try {
       const deviceId = await getOrCreateDeviceId();
+      if (erneuern) {
+        const er = await erneuernBiometric(
+          {
+            faceUri: finalFaceUri,
+            faceBurstUris: finalBurst,
+            faceBurstVideoUri: burstVideoUri ?? undefined,
+            burstIntervalMs: BURST_INTERVAL_MS,
+            imuSamples: finalImu,
+            challengeNonce: challenge?.nonce,
+          },
+          { deviceId, walletAddress: address, signer, consent }
+        );
+        setErneuerResult(er);
+        if (er.kette === 'angenommen') refreshBalance().catch(() => undefined);
+        setStep('result');
+        return;
+      }
       if (nachziehen) {
         // Requires the challenge nonce: it is part of the ownership
         // signature. If /challenge failed, this throws NachziehenNeedsChallenge
@@ -1434,7 +1473,7 @@ export default function BiometricCapture() {
     <SafeAreaView style={S.safe}>
       {step === 'consent' && (
         <View style={S.content}>
-          {offen && !nachziehen ? (
+          {offen && !ohneZuschuss ? (
             <View style={S.card}>
               <Text style={S.title}>{t('identity.kettenschrittOffenTitel')}</Text>
               <Text style={S.body}>{t('identity.kettenschrittOffenText')}</Text>
@@ -1447,8 +1486,10 @@ export default function BiometricCapture() {
             </View>
           ) : null}
           <View style={S.card}>
-            <Text style={S.title}>{nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
-            <Text style={S.body}>{nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
+            <Text style={S.title}>{erneuern ? t('identity.erneuernConsentTitle') : nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
+            <Text style={S.body}>{erneuern ? t('identity.erneuernConsentBody') : nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
+            {!erneuern && (
+            <>
             {/* Einwilligung v3: die Altersschaetzung gehoert zum Text, dem zugestimmt wird. */}
             <Text style={S.body}>{t('identity.biometricConsentAlter')}</Text>
 
@@ -1496,6 +1537,8 @@ export default function BiometricCapture() {
               />
             ) : null}
             <Text style={S.resultDebugText}>{t('identity.alterHinweis')}</Text>
+            </>
+            )}
 
             <TouchableOpacity style={S.checkRow} onPress={() => setBiometricChecked((v) => !v)} activeOpacity={0.8}>
               <View style={[S.checkbox, biometricChecked && S.checkboxChecked]}>
@@ -1504,8 +1547,8 @@ export default function BiometricCapture() {
               <Text style={S.checkLabel}>{t('identity.biometricConsentBiometricLabel')}</Text>
             </TouchableOpacity>
 
-            {/* No bonus when only adding a face: nothing is minted. */}
-            {!nachziehen && (
+            {/* No bonus when only adding a face or renewing: nothing is minted. */}
+            {!ohneZuschuss && (
               <TouchableOpacity style={S.checkRow} onPress={() => setBonusChecked((v) => !v)} activeOpacity={0.8}>
                 <View style={[S.checkbox, bonusChecked && S.checkboxChecked]}>
                   {bonusChecked && <Text style={S.checkboxMark}>✓</Text>}
@@ -1668,7 +1711,7 @@ export default function BiometricCapture() {
             {submitError ? (
               <>
                 <Text style={S.errorText}>{submitError}</Text>
-                {offen && !nachziehen ? (
+                {offen && !ohneZuschuss ? (
                   <>
                     <Text style={S.body}>{t('identity.kettenschrittOffenText')}</Text>
                     <GradientButton
@@ -1684,6 +1727,9 @@ export default function BiometricCapture() {
               <>
                 <Text style={S.body}>
                   {(() => {
+                    if (erneuern) {
+                      return erneuernText(erneuerResult, t);
+                    }
                     if (nachziehen) {
                       switch (nachziehResult?.decision) {
                         case 'nachgezogen': return t('identity.nachziehenResultDone');
@@ -1977,3 +2023,36 @@ const S = StyleSheet.create({
   stepDotCheck: { color: '#fff', fontSize: 12, fontWeight: '700' },
   stepLine: { width: 28, height: 2, backgroundColor: theme.borderStrong, marginHorizontal: 4 },
 });
+
+// What to tell the person after a second liveness check. Kept outside the
+// component so every outcome is visible in one place.
+function erneuernText(r: ErneuernResult | null, t: TFunc): string {
+  const datum = (unix?: number | null) =>
+    unix ? new Date(unix * 1000).toLocaleDateString() : '';
+  switch (r?.decision) {
+    case 'bescheinigt':
+      switch (r.kette) {
+        case 'angenommen': return t('identity.erneuernResultDone');
+        case 'schon_erneuert': return t('identity.erneuernResultSchon');
+        case 'zu_frueh': return t('identity.erneuernResultTooEarly', { date: datum(r.frueh_ab) });
+        case 'nicht_erreichbar': return t('identity.nachziehenResultChainDown');
+        default: return t('identity.erneuernResultChainRejected');
+      }
+    case 'zu_frueh': return t('identity.erneuernResultTooEarly', { date: datum(r.frueh_ab) });
+    case 'keine_staffel': return t('identity.erneuernResultNichtNoetig');
+    case 'schon_erneuert': return t('identity.erneuernResultSchon');
+    case 'anderes_gesicht': return t('identity.erneuernResultOtherFace');
+    case 'unbekanntes_gesicht': return t('identity.erneuernResultUnknownFace');
+    case 'lebendigkeit_unsicher': return t('identity.erneuernResultUnsure');
+    case 'nicht_registriert': return t('identity.nachziehenResultNotRegistered');
+    case 'kette_nicht_erreichbar': return t('identity.nachziehenResultChainDown');
+    case 'signatur_ungueltig': return t('identity.nachziehenResultSignature');
+    case 'nonce_ungueltig': return t('identity.nachziehenResultNoChallenge');
+    case 'consent_outdated':
+    case 'missing_consent': return t('identity.biometricResultConsentOutdated');
+    case 'capture_failed': return t('identity.biometricResultCaptureFailed');
+    case 'liveness_failed': return t('identity.biometricResultLivenessFailed');
+    case 'quorum_failed': return t('identity.biometricResultQuorumFailed');
+    default: return t('identity.biometricResultFailed');
+  }
+}

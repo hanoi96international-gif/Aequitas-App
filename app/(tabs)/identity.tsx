@@ -9,6 +9,7 @@ import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
 import { storedBioHash, deleteEnrollment, nachgezogenAt } from '@/lib/biometricIdentity';
+import { staffelErneuerungAb } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, redTintBorder } from '@/constants/aequitas-theme';
 
@@ -392,6 +393,40 @@ export default function Identity() {
             <Text style={S.nachziehDone}>{t('identity.nachziehenDone')}</Text>
           </View>
         )}
+
+        {/* Gestaffelter Zuschuss (WP 2/3): part of the starting grant waits
+            for a second liveness check from day 7 -- with the SAME face
+            (coordinator /erneuern). Shown only when the chain reports a
+            stage for this wallet, i.e. almost never today. */}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && balance?.staffel && balance.staffel.rest_aeq > 0 && (() => {
+          const st = balance.staffel!;
+          // Day 7 as the chain counts it (erneuerungFruehestens). Before that
+          // only the date -- a capture now would not count. From then on the
+          // card asks for the check; the balance poll re-renders it.
+          const ab = staffelErneuerungAb(st);
+          const faellig = !st.laeuft && st.erneuert_am === 0 && ab > 0 && Date.now() / 1000 >= ab;
+          return (
+            <View style={S.nachziehCard}>
+              <Text style={S.nachziehTitle}>{t('identity.staffelTitle', { rest: formatBalance(st.rest_aeq) })}</Text>
+              {st.laeuft ? (
+                <Text style={S.nachziehDone}>{t('identity.staffelLaeuft', { rate: formatBalance(st.tagesrate_aeq) })}</Text>
+              ) : faellig ? (
+                <>
+                  <Text style={S.deleteBody}>{t('identity.staffelJetzt')}</Text>
+                  <TouchableOpacity onPress={() => router.push('/biometric-capture?zweck=erneuern')} activeOpacity={0.85}>
+                    <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                      <Text style={S.btnPrimaryText}>{t('identity.erneuernBtn')}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={S.deleteBody}>
+                  {t('identity.staffelWartet', { date: ab ? new Date(ab * 1000).toLocaleDateString() : '—' })}
+                </Text>
+              )}
+            </View>
+          );
+        })()}
 
         {bioHash && (
           <View style={S.deleteCard}>
