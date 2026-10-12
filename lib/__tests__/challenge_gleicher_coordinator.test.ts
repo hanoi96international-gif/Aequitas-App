@@ -14,7 +14,9 @@
  * gesund -- die normale Auswahl wuerde zu 1 zurueckkehren.
  */
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn() }));
-jest.mock('expo-file-system', () => ({ deleteAsync: jest.fn(async () => undefined) }));
+const mockDeleteAsync = jest.fn(async () => undefined);
+jest.mock('expo-file-system', () => ({ deleteAsync: (...a: any[]) => (mockDeleteAsync as any)(...a) }));
+jest.mock('expo-file-system/legacy', () => ({ deleteAsync: (...a: any[]) => (mockDeleteAsync as any)(...a) }));
 
 const C1 = 'https://c1.example';
 const C2 = 'https://c2.example';
@@ -76,6 +78,39 @@ describe('Challenge und Abgabe treffen denselben Coordinator', () => {
         { deviceId: 'd1', walletAddress: '0x1' },
       );
       expect(calls.filter((u) => u.endsWith('/register'))).toEqual([C1 + '/register']);
+    });
+  });
+  // Pruefung #29, L-4: frueher fiel die App bei einem fremden Nonce auf die
+  // normale Auswahl zurueck -- die Gesichtsbilder gingen an einen Coordinator,
+  // der den Nonce nie gesehen hat. Jetzt: abbrechen, kein Bild verlaesst das
+  // Geraet, und die Aufnahme wird trotzdem geloescht.
+  describe.each([
+    ['registerBiometric', '/register'],
+    ['nachziehenBiometric', '/nachziehen'],
+    ['erneuernBiometric', '/erneuern'],
+  ])('%s mit unbekanntem Nonce', (fn, pfad) => {
+    it('bricht ab, statt die Bilder umzuleiten', async () => {
+      const calls: string[] = [];
+      mockDeleteAsync.mockClear();
+      (global as any).fetch = jest.fn(async (url: string) => {
+        calls.push(url);
+        return { ok: true, status: 200, json: async () => ({ status: 'ok', decision: 'x' }) } as any;
+      });
+      await jest.isolateModulesAsync(async () => {
+        const bio = require('../biometricIdentity');
+        bio._setCoordinatorCandidatesForTest([C1, C2]);
+        // Kein requestChallenge: der Nonce stammt nicht aus dieser Sitzung.
+        const signer = { signMessage: jest.fn(async () => '0xsig') };
+        await expect(
+          (bio as any)[fn](
+            { faceUri: 'file:///f.jpg', faceBurstUris: [], challengeNonce: 'FREMD', burstIntervalMs: 100 } as any,
+            { deviceId: 'd1', walletAddress: '0x1', signer },
+          ),
+        ).rejects.toBeInstanceOf(bio.NachziehenNeedsChallenge);
+        expect(calls.filter((u) => u.endsWith(pfad))).toEqual([]);
+        expect(signer.signMessage).not.toHaveBeenCalled();
+        expect(mockDeleteAsync).toHaveBeenCalled();
+      });
     });
   });
 });

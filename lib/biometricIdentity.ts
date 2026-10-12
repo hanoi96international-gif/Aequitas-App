@@ -54,13 +54,20 @@ let activeCoordinator: { base: string; since: number } | null = null;
 // haben.
 let challengeKnoten: { base: string; nonce: string } | null = null;
 
-/** Der Coordinator, der diesen Nonce ausgestellt hat -- sonst die normale
- * Auswahl (eine Aufnahme ohne Challenge ist an nichts gebunden). */
+/** Der Coordinator, der diesen Nonce ausgestellt hat. Eine Aufnahme ohne
+ * Challenge ist an nichts gebunden und nimmt die normale Auswahl.
+ *
+ * Kennt die App den Aussteller eines Nonce NICHT, wird abgebrochen, bevor
+ * ein Bild das Geraet verlaesst -- nicht umgeleitet. Ein anderer Coordinator
+ * kennt diesen Nonce nicht; er bekaeme die Gesichtsbilder trotzdem und
+ * koennte nur nonce_ungueltig antworten (Pruefung #29, L-4). Die Meldung
+ * ist dieselbe wie ohne Nonce: neu versuchen. */
 async function basisFuerNonce(nonce: string | undefined | null): Promise<string> {
-  if (nonce && challengeKnoten && challengeKnoten.nonce === nonce) {
+  if (!nonce) return coordinatorBase();
+  if (challengeKnoten && challengeKnoten.nonce === nonce) {
     return challengeKnoten.base;
   }
-  return coordinatorBase();
+  throw new NachziehenNeedsChallenge();
 }
 
 /** Tests only. */
@@ -477,9 +484,9 @@ export async function registerBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<BiometricRegisterResult> {
-  const base = await basisFuerNonce(capture.challengeNonce);
-
   try {
+    // Im try: auch ein Abbruch hier loescht die Aufnahme (finally).
+    const base = await basisFuerNonce(capture.challengeNonce);
     const form = new FormData();
     // No `mode` field. It used to be sent here and it selected which
     // enrollment table the coordinator deduplicated against -- so a caller
@@ -811,11 +818,11 @@ export async function nachziehenBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<NachziehenResult> {
-  const base = await basisFuerNonce(capture.challengeNonce);
   try {
     if (!capture.challengeNonce) {
       throw new NachziehenNeedsChallenge();
     }
+    const base = await basisFuerNonce(capture.challengeNonce);
     const signature = await opts.signer.signMessage(
       nachziehenMessage(opts.walletAddress, capture.challengeNonce)
     );
@@ -946,12 +953,12 @@ export async function erneuernBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<ErneuernResult> {
-  const base = await basisFuerNonce(capture.challengeNonce);
   let ergebnis: ErneuernResult;
   try {
     if (!capture.challengeNonce) {
       throw new NachziehenNeedsChallenge();
     }
+    const base = await basisFuerNonce(capture.challengeNonce);
     const signature = await opts.signer.signMessage(
       erneuernMessage(opts.walletAddress, capture.challengeNonce)
     );
