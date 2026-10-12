@@ -113,12 +113,18 @@ describe('erneuernBiometric: what goes to the coordinator and the chain', () => 
     let gesendet: Record<string, unknown> = {};
     const altFetch = global.fetch;
     global.fetch = jest.fn(async (u: string, init: any) => {
+      // Der Nonce kommt aus requestChallenge -- die Aufnahme geht nur an
+      // den Coordinator, der ihn ausgestellt hat (Pruefung #29, L-4).
+      if (u.endsWith('/challenge')) {
+        return { ok: true, json: async () => ({ nonce: 'nonce-1', challenge_type: 'kopf_drehen', flash_sequence: '' }) };
+      }
       url = u;
       gesendet = felder(init.body);
       return { ok: true, json: async () => ({ decision: 'bescheinigt', erneuerung }) };
     }) as any;
     let r: any;
     try {
+      expect((await bio.requestChallenge())?.nonce).toBe('nonce-1');
       r = await bio.erneuernBiometric(
         { faceUri: 'file:///f.jpg', faceBurstUris: [], burstIntervalMs: 100, challengeNonce: 'nonce-1' },
         {

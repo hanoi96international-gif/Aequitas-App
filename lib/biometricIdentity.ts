@@ -52,20 +52,33 @@ let activeCoordinator: { base: string; since: number } | null = null;
 // dort abgelaufen, scheitert es aus dem richtigen Grund und mit der
 // richtigen Meldung -- nicht daran, dass wir an die falsche Tuer geklopft
 // haben.
-let challengeKnoten: { base: string; nonce: string } | null = null;
+//
+// Nicht nur der letzte: ueberschneiden sich zwei Anforderungen (Doppeltipp,
+// eine spaete Antwort waehrend der Aufnahme), haelt die Aufnahme noch den
+// ersten Nonce, waehrend der zweite schon eingetragen ist. Darum die letzten
+// CHALLENGE_KNOTEN_MAX, fest begrenzt -- aelter als das ist der Nonce beim
+// Coordinator ohnehin laengst verfallen.
+const CHALLENGE_KNOTEN_MAX = 4;
+let challengeKnoten: { base: string; nonce: string }[] = [];
 
-/** Der Coordinator, der diesen Nonce ausgestellt hat -- sonst die normale
- * Auswahl (eine Aufnahme ohne Challenge ist an nichts gebunden). */
+/** Der Coordinator, der diesen Nonce ausgestellt hat. Eine Aufnahme ohne
+ * Challenge ist an nichts gebunden und nimmt die normale Auswahl.
+ *
+ * Kennt die App den Aussteller eines Nonce NICHT, wird abgebrochen, bevor
+ * ein Bild das Geraet verlaesst -- nicht umgeleitet. Ein anderer Coordinator
+ * kennt diesen Nonce nicht; er bekaeme die Gesichtsbilder trotzdem und
+ * koennte nur nonce_ungueltig antworten (Pruefung #29, L-4). Die Meldung
+ * ist dieselbe wie ohne Nonce: neu versuchen. */
 async function basisFuerNonce(nonce: string | undefined | null): Promise<string> {
-  if (nonce && challengeKnoten && challengeKnoten.nonce === nonce) {
-    return challengeKnoten.base;
-  }
-  return coordinatorBase();
+  if (!nonce) return coordinatorBase();
+  const knoten = challengeKnoten.find((k) => k.nonce === nonce);
+  if (knoten) return knoten.base;
+  throw new NachziehenNeedsChallenge();
 }
 
 /** Tests only. */
 export function _challengeKnotenFuerTest(): { base: string; nonce: string } | null {
-  return challengeKnoten;
+  return challengeKnoten[challengeKnoten.length - 1] ?? null;
 }
 
 // WER HAT ABGEWIESEN? Der Widerspruchsvorgang (Art. 22 Abs. 3 DSGVO) liegt nur
@@ -147,7 +160,7 @@ let coordinatorCandidateOverride: string[] | null = null;
 export function _setCoordinatorCandidatesForTest(list: string[] | null): void {
   coordinatorCandidateOverride = list;
   activeCoordinator = null;
-  challengeKnoten = null;
+  challengeKnoten = [];
 }
 
 /** Tests only: laesst die Klebrigkeit ablaufen, ohne die Uhr zu stellen. */
@@ -329,7 +342,7 @@ export async function requestChallenge(): Promise<IssuedChallenge | null> {
     if (!body?.nonce || !body?.challenge_type) return null;
     // Ab hier ist die Aufnahme an DIESEN Coordinator gebunden -- nur er
     // kennt den Nonce (_pending_challenges liegt im Arbeitsspeicher).
-    challengeKnoten = { base, nonce: body.nonce };
+    challengeKnoten = [...challengeKnoten, { base, nonce: body.nonce }].slice(-CHALLENGE_KNOTEN_MAX);
     const flashSequence: FlashColor[] = typeof body.flash_sequence === 'string' && body.flash_sequence
       ? body.flash_sequence.split(',').filter(Boolean)
       : [];
@@ -451,6 +464,15 @@ function toUploadFile(uri: string, name: string, type = 'image/jpeg') {
  * URI that's already gone (e.g. cleaned up once already) doesn't throw.
  * Best-effort: a delete failure is logged, not surfaced, so cache-cleanup
  * problems never mask the real registration result/error to the caller. */
+// Tests only: beobachtet das Loeschen ohne Modul-Mock. Ein jest.mock von
+// expo-file-system/legacy griff bei kaltem Jest-Cache nicht zuverlaessig.
+let loeschenFuerTest: ((uri: string) => Promise<void>) | null = null;
+
+/** Tests only. */
+export function _setLoeschenFuerTest(fn: ((uri: string) => Promise<void>) | null): void {
+  loeschenFuerTest = fn;
+}
+
 async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
   const uris = [
     capture.faceUri,
@@ -461,7 +483,8 @@ async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
   await Promise.all(
     uris.map(async (uri) => {
       try {
-        await FileSystem.deleteAsync(uri, { idempotent: true });
+        if (loeschenFuerTest) await loeschenFuerTest(uri);
+        else await FileSystem.deleteAsync(uri, { idempotent: true });
       } catch (e) {
         console.warn('[biometricIdentity] failed to delete capture temp file', uri, e);
       }
@@ -477,9 +500,9 @@ export async function registerBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<BiometricRegisterResult> {
-  const base = await basisFuerNonce(capture.challengeNonce);
-
   try {
+    // Im try: auch ein Abbruch hier loescht die Aufnahme (finally).
+    const base = await basisFuerNonce(capture.challengeNonce);
     const form = new FormData();
     // No `mode` field. It used to be sent here and it selected which
     // enrollment table the coordinator deduplicated against -- so a caller
@@ -811,11 +834,11 @@ export async function nachziehenBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<NachziehenResult> {
-  const base = await basisFuerNonce(capture.challengeNonce);
   try {
     if (!capture.challengeNonce) {
       throw new NachziehenNeedsChallenge();
     }
+    const base = await basisFuerNonce(capture.challengeNonce);
     const signature = await opts.signer.signMessage(
       nachziehenMessage(opts.walletAddress, capture.challengeNonce)
     );
@@ -946,12 +969,12 @@ export async function erneuernBiometric(
     consent?: ConsentDecision;
   }
 ): Promise<ErneuernResult> {
-  const base = await basisFuerNonce(capture.challengeNonce);
   let ergebnis: ErneuernResult;
   try {
     if (!capture.challengeNonce) {
       throw new NachziehenNeedsChallenge();
     }
+    const base = await basisFuerNonce(capture.challengeNonce);
     const signature = await opts.signer.signMessage(
       erneuernMessage(opts.walletAddress, capture.challengeNonce)
     );

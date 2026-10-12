@@ -79,11 +79,17 @@ describe('nachziehenBiometric: was an den Coordinator geht', () => {
     bio._setCoordinatorCandidatesForTest(['http://coord.test']);
     let gesendet: Record<string, unknown> = {};
     const altFetch = global.fetch;
-    global.fetch = jest.fn(async (_url: string, init: any) => {
+    global.fetch = jest.fn(async (url: string, init: any) => {
+      // Der Nonce kommt aus requestChallenge -- die Aufnahme geht nur an
+      // den Coordinator, der ihn ausgestellt hat (Pruefung #29, L-4).
+      if (url.endsWith('/challenge')) {
+        return { ok: true, json: async () => ({ nonce: 'nonce-1', challenge_type: 'kopf_drehen', flash_sequence: '' }) };
+      }
       gesendet = felder(init.body);
       return { ok: true, json: async () => ({ decision: 'age_proof_required' }) };
     }) as any;
     try {
+      expect((await bio.requestChallenge())?.nonce).toBe('nonce-1');
       await bio.nachziehenBiometric(
         { faceUri: 'file:///f.jpg', faceBurstUris: [], burstIntervalMs: 100, challengeNonce: 'nonce-1' },
         {
