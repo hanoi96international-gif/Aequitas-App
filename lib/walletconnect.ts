@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
 import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
+import { walletConnectAufbauBeginnt } from './globalErrorHandler';
 import {
   AEQUITAS_CAIP,
   WALLET_ANTWORTET_NICHT,
@@ -115,6 +116,8 @@ export const appKit = (() => {
       },
     };
 
+    // Nur jetzt darf globalErrorHandler.ts den bekannten Startfehler abfangen.
+    walletConnectAufbauBeginnt();
     return createAppKit({
       projectId: WALLETCONNECT_PROJECT_ID,
       networks: [aequitasNetwork, anchorNetwork],

@@ -47,18 +47,23 @@ const g = globalThis as unknown as ErrorUtilsGlobal;
 // Erkannt wird der Fehler (Pruefung von #31) an
 //  (a) einem Stack mit Pfaden der beiden Pakete -- so im Entwicklungsbuild;
 //  (b) im Release-Build sind Stacks minifiziert (index.android.bundle:1:...),
-//      Pfade fehlen. Dort zaehlt nur die bekannte Meldung aus dem
-//      Subscriber-Start, und nur in den ersten 30 s nach dem App-Start, in
-//      denen createAppKit() seine Verbindungen aufbaut (lib/walletconnect.ts).
+//      Pfade fehlen. Dort zaehlt nur ein TypeError mit der bekannten Meldung
+//      aus dem Subscriber-Start, und nur, solange WalletConnect WIRKLICH
+//      startet: lib/walletconnect.ts setzt das Kennzeichen direkt vor
+//      createAppKit() (nur mit Projekt-ID), es verfaellt nach 30 s -- der
+//      Aufbau meldet kein Ende. Ohne WalletConnect gibt es kein Fenster.
 // Ein Wort in einer Meldung aus App-Code genuegt nie.
 const WALLETCONNECT_PFAD = /node_modules\/(@walletconnect|@reown)\//;
 const BEKANNTE_MELDUNG = 'Cannot convert undefined value to object';
 export const WALLETCONNECT_START_MS = 30_000;
-const appStart = Date.now();
+let aufbauBis = 0;
+export function walletConnectAufbauBeginnt(jetzt: number = Date.now()): void {
+  aufbauBis = jetzt + WALLETCONNECT_START_MS;
+}
 export function istWalletConnectFehler(error: unknown, jetzt: number = Date.now()): boolean {
   const e = error as { message?: unknown; stack?: unknown } | null;
   if (typeof e?.stack === 'string' && WALLETCONNECT_PFAD.test(e.stack)) return true;
-  return jetzt - appStart < WALLETCONNECT_START_MS && e?.message === BEKANNTE_MELDUNG;
+  return error instanceof TypeError && e?.message === BEKANNTE_MELDUNG && jetzt < aufbauBis;
 }
 
 if (g.ErrorUtils && typeof g.ErrorUtils.setGlobalHandler === 'function') {

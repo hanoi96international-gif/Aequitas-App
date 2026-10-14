@@ -35,18 +35,20 @@ describe('globalErrorHandler', () => {
     expect(vorher).toHaveBeenCalledWith(e, true);
   });
 
-  it('Release-Build: die bekannte Meldung mit minifiziertem Stack beim Start', () => {
+  it('Release-Build: die bekannte Meldung nur waehrend des WalletConnect-Aufbaus', () => {
+    const m = require('../globalErrorHandler');
     const e = new TypeError('Cannot convert undefined value to object');
     e.stack = 'at anonymous (index.android.bundle:1:123456)';
+    // Ohne Aufbau: weiter an den Standard-Handler (eigener Fehler beim Wallet-Laden).
+    installiert!(e, true);
+    expect(vorher).toHaveBeenCalledWith(e, true);
+    vorher.mockReset();
+    m.walletConnectAufbauBeginnt();
     installiert!(e, true);
     expect(vorher).not.toHaveBeenCalled();
-  });
-
-  it('dieselbe Meldung nach der Startphase geht weiter', () => {
-    const { istWalletConnectFehler, WALLETCONNECT_START_MS } = require('../globalErrorHandler');
-    const e = new TypeError('Cannot convert undefined value to object');
-    e.stack = 'at anonymous (index.android.bundle:1:123456)';
-    expect(istWalletConnectFehler(e, Date.now() + WALLETCONNECT_START_MS + 1)).toBe(false);
+    expect(m.istWalletConnectFehler(e, Date.now() + m.WALLETCONNECT_START_MS + 1)).toBe(false);
+    // Kein TypeError: nie.
+    expect(m.istWalletConnectFehler(Object.assign(new Error(e.message), { stack: e.stack }))).toBe(false);
   });
 
   it('nicht-fatale Fehler gehen wie bisher weiter', () => {
