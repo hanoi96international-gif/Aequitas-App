@@ -10,6 +10,7 @@
 // on current behavior until deliberately turned on, and not before Phase 0
 // accuracy validation + Phase 2 legal review are actually done.
 import { formularFelder, type Altersangabe } from './altersregel';
+import { fetchMitFrist, FRIST_AUFNAHME_MS } from './frist';
 import * as Crypto from 'expo-crypto';
 // Legacy (function-based) API -- deleteAsync/idempotent isn't exposed by the
 // new File/Directory class API this SDK version defaults `expo-file-system`
@@ -119,7 +120,7 @@ export async function widerspruchEinlegen(kennung: string): Promise<WiderspruchR
   let einerFehlte = false;
   for (const base of reihe) {
     try {
-      const resp = await fetch(`${base}/widerspruch`, {
+      const resp = await fetchMitFrist(`${base}/widerspruch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kennung: k, standpunkt: '' }),
@@ -336,7 +337,7 @@ export async function requestChallenge(): Promise<IssuedChallenge | null> {
     // fresh: a new flow starts here, so re-pick the coordinator now and let
     // every later call of this flow stick to it.
     const base = await coordinatorBase({ fresh: true });
-    const resp = await fetch(`${base}/challenge`, { method: 'POST' });
+    const resp = await fetchMitFrist(`${base}/challenge`, { method: 'POST' });
     if (!resp.ok) return null;
     const body = await resp.json();
     if (!body?.nonce || !body?.challenge_type) return null;
@@ -550,7 +551,7 @@ export async function registerBiometric(
       form.append('attestation_token', attestation.token);
     }
 
-    const resp = await fetch(`${base}/register`, { method: 'POST', body: form });
+    const resp = await fetchMitFrist(`${base}/register`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
     }
@@ -590,7 +591,7 @@ export async function voucherFor(
   voucheeBioHash: string
 ): Promise<VouchResult> {
   const base = await coordinatorBase();
-  const resp = await fetch(`${base}/vouch`, {
+  const resp = await fetchMitFrist(`${base}/vouch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // No `mode` -- same reason as registerBiometric above: which table a
@@ -760,7 +761,7 @@ export interface DeleteEnrollmentResult {
  * erasure would be gone while their data was still out there. */
 export async function deleteEnrollment(bioHash: string): Promise<DeleteEnrollmentResult> {
   const base = await coordinatorBase();
-  const resp = await fetch(`${base}/enrollment`, {
+  const resp = await fetchMitFrist(`${base}/enrollment`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     // No wallet_address: that key is public and needs an operator token this
@@ -875,7 +876,7 @@ export async function nachziehenBiometric(
       form.append('attestation_platform', attestation.platform);
       form.append('attestation_token', attestation.token);
     }
-    const resp = await fetch(`${base}/nachziehen`, { method: 'POST', body: form });
+    const resp = await fetchMitFrist(`${base}/nachziehen`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
     }
@@ -1006,7 +1007,7 @@ export async function erneuernBiometric(
       form.append('attestation_platform', attestation.platform);
       form.append('attestation_token', attestation.token);
     }
-    const resp = await fetch(`${base}/erneuern`, { method: 'POST', body: form });
+    const resp = await fetchMitFrist(`${base}/erneuern`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
     }

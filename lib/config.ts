@@ -8,8 +8,22 @@
 // module at transform time, `??` sees a defined value, and the app ships with
 // API_BASE === '' -- every request going to a relative empty base. An empty
 // URL is never a meaningful override, so treat it as absent.
+// NUR HTTPS (Beta-Pruefung 14.10.2026): Biometrie, Salz und Schluessel-
+// Signaturen gehen an diese Adressen. Eine Umgebungsvariable mit http:// in
+// einem Release-Build waere ein stiller Abstieg auf Klartext -- sie zaehlt
+// dann nicht. Nur im Entwicklungsbuild (__DEV__) gilt http fuer lokale
+// Adressen (localhost, 127.0.0.1, 10.0.2.2 = Android-Emulator).
+const LOKAL = /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/|$)/;
+export function sichereAdresse(raw: string | undefined, dev: boolean): string | null {
+  const v = (raw ?? '').trim();
+  if (v === '') return null;
+  if (/^https:\/\/[^\s/]+/.test(v)) return v;
+  if (dev && LOKAL.test(v)) return v;
+  return null;
+}
+const istDev = typeof __DEV__ !== 'undefined' && __DEV__;
 const orDefault = (value: string | undefined, fallback: string) =>
-  value && value.trim() !== '' ? value : fallback;
+  sichereAdresse(value, istDev) ?? fallback;
 
 // TEMPORARY — REVERT ON 2026-08-18. See docs/ENDPOINTS.md.
 //
@@ -43,8 +57,8 @@ export const RPC_URL = orDefault(process.env.EXPO_PUBLIC_RPC_URL, PRIMARY_NODE +
 function liste(raw: string | undefined): string[] {
   return String(raw ?? '')
     .split(',')
-    .map((s: string) => s.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
+    .map((s: string) => sichereAdresse(s.trim().replace(/\/+$/, ''), istDev))
+    .filter((s): s is string => Boolean(s));
 }
 export const API_FALLBACKS: string[] = liste(process.env.EXPO_PUBLIC_API_FALLBACKS);
 export const RPC_FALLBACKS: string[] = liste(process.env.EXPO_PUBLIC_RPC_FALLBACKS);
@@ -81,13 +95,10 @@ export const WALLETCONNECT_PROJECT_ID = process.env.EXPO_PUBLIC_WALLETCONNECT_PR
 // coordinator is restored (Contabo / proof-server out of scope for this PR).
 export const BIOMETRIC_ENABLED = process.env.EXPO_PUBLIC_BIOMETRIC_ENABLED === 'true';
 export const ALLOW_DEVICE_SECRET_REGISTER = process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER === 'true';
-export const COORDINATOR_BASE = process.env.EXPO_PUBLIC_COORDINATOR_BASE ?? '';
+export const COORDINATOR_BASE = sichereAdresse(process.env.EXPO_PUBLIC_COORDINATOR_BASE, istDev) ?? '';
 // Weitere Coordinatoren, kommagetrennt (z. B. proof2, wenn COORDINATOR_BASE
 // auf proof1 zeigt). Der erste erreichbare gewinnt -- und bleibt fuer den
 // ganzen Ablauf derselbe: ein Challenge-Nonce gilt nur bei dem Coordinator,
 // der ihn ausgegeben hat (coordinator/app/main.py, _pending_challenges liegt
 // im Arbeitsspeicher). Siehe lib/biometricIdentity.ts, coordinatorBase().
-export const COORDINATOR_FALLBACKS: string[] = String(process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS ?? '')
-  .split(',')
-  .map((s: string) => s.trim().replace(/\/+$/, ''))
-  .filter(Boolean);
+export const COORDINATOR_FALLBACKS: string[] = liste(process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS);

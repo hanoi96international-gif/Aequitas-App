@@ -1,4 +1,5 @@
 import { API_BASE, API_FALLBACKS } from './config';
+import { fetchMitFrist } from './frist';
 
 // ---------------------------------------------------------------------------
 // Which node. API_BASE first, then API_FALLBACKS. The choice is STICKY for a
@@ -106,14 +107,14 @@ async function fetchApi(
 ): Promise<{ res: Response; base: string }> {
   const base = fest ?? apiBase();
   try {
-    return { res: await fetch(base + path, init), base };
+    return { res: await fetchMitFrist(base + path, init), base };
   } catch (e) {
     if (fest) {
-      return { res: await fetch(base + path, init), base };
+      return { res: await fetchMitFrist(base + path, init), base };
     }
     const next = apiWechsel(base);
     if (!next) throw e;
-    return { res: await fetch(next + path, init), base: next };
+    return { res: await fetchMitFrist(next + path, init), base: next };
   }
 }
 

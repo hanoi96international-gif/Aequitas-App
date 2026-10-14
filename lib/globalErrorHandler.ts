@@ -37,11 +37,25 @@ type ErrorUtilsGlobal = {
 
 const g = globalThis as unknown as ErrorUtilsGlobal;
 
+// NUR die bekannte Klasse (Beta-Pruefung 14.10.2026): bis dahin wurde JEDER
+// fatale Fehler verschluckt, und eine Wallet lief in einem Zustand weiter,
+// den niemand kennt -- ein halb geschriebener Schluessel, ein Bildschirm,
+// der einen alten Kontostand zeigt. Ein unbekannter fataler Fehler geht
+// wieder an den Standard-Handler (Absturz statt Weiterlaufen im Ungewissen).
+// Verschluckt wird nur, was erkennbar aus WalletConnect/AppKit stammt --
+// dort ist der Rueckfall auf die lokale Wallet vollstaendig.
+const WALLETCONNECT_SPUR = /walletconnect|appkit|reown|@walletconnect|Subscriber|initConnectors/i;
+export function istWalletConnectFehler(error: unknown): boolean {
+  const e = error as { message?: unknown; stack?: unknown } | null;
+  const text = `${typeof e?.message === 'string' ? e.message : ''}\n${typeof e?.stack === 'string' ? e.stack : ''}`;
+  return WALLETCONNECT_SPUR.test(text);
+}
+
 if (g.ErrorUtils && typeof g.ErrorUtils.setGlobalHandler === 'function') {
   const previousHandler = g.ErrorUtils.getGlobalHandler?.();
   g.ErrorUtils.setGlobalHandler((error, isFatal) => {
-    if (isFatal) {
-      console.error('[GlobalError] FATAL error suppressed — app continues running:', error);
+    if (isFatal && istWalletConnectFehler(error)) {
+      console.error('[GlobalError] WalletConnect-Fehler abgefangen -- App laeuft mit lokaler Wallet weiter:', error);
       return;
     }
     console.error('[GlobalError]', error);

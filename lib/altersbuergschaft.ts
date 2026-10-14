@@ -11,6 +11,7 @@
 // Vergleichsdienste entsprechen (altersbuergschaft.py, alter_buergschaft.py).
 
 import * as Crypto from 'expo-crypto';
+import { fetchMitFrist } from './frist';
 import * as SecureStore from 'expo-secure-store';
 import { coordinatorCandidates } from './biometricIdentity';
 
@@ -68,7 +69,7 @@ export async function buergen(
   let ok = false;
   for (const base of coordinatorCandidates()) {
     try {
-      const r = await fetch(base + '/alter/buergschaft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const r = await fetchMitFrist(base + '/alter/buergschaft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d?.ok) {
         ok = true;
@@ -88,7 +89,7 @@ export async function stand(anfrage: string): Promise<number> {
   let best = 0;
   for (const base of coordinatorCandidates()) {
     try {
-      const r = await fetch(base + '/alter/buergschaft?anfrage=' + anfrage);
+      const r = await fetchMitFrist(base + '/alter/buergschaft?anfrage=' + anfrage);
       if (r.ok) best = Math.max(best, Number((await r.json())?.buergen) || 0);
     } catch {
       /* naechster */
