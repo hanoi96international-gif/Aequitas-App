@@ -102,6 +102,10 @@ jobs:
           # 13.09.2026, und die Notizen einer Version mit `Code` darin waren
           # damit gar nicht veroeffentlichbar.
           NOTES: ${{ inputs.notes }}
+          SIZE: ${{ steps.check.outputs.size }}
+          SHA256: ${{ steps.check.outputs.sha256 }}
+          SIGNER: ${{ steps.check.outputs.signer }}
+          FINGERPRINT: ${{ steps.check.outputs.fingerprint }}
         run: |
           set -euo pipefail
           {
@@ -109,12 +113,12 @@ jobs:
             echo ""
             echo "| | |"
             echo "|---|---|"
-            echo "| Groesse | ${{ steps.check.outputs.size }} |"
-            echo "| SHA-256 | \`${{ steps.check.outputs.sha256 }}\` |"
+            echo "| Groesse | $SIZE |"
+            echo "| SHA-256 | \`$SHA256\` |"
             echo "| Gebaut aus | Run [$RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID) |"
             echo ""
-            echo "Signiert von \`${{ steps.check.outputs.signer }}\`, SHA-256 \`${{ steps.check.outputs.fingerprint }}\`."
-            if [ "${{ steps.check.outputs.fingerprint }}" = "473e9de3a5ba2077d176af95daed88be50c0789815e35428d1c185ae2fc95288" ]; then
+            echo "Signiert von \`$SIGNER\`, SHA-256 \`$FINGERPRINT\`."
+            if [ "$FINGERPRINT" = "473e9de3a5ba2077d176af95daed88be50c0789815e35428d1c185ae2fc95288" ]; then
               echo "Das ist der eigene Release-Schluessel (seit app-v1.6.0): ein Update von v1.6.0 oder neuer"
               echo "funktioniert normal. Von v1.5.x oder aelter (Debug-Schluessel) einmal deinstallieren --"
               echo "vorher die Seed-Phrase sichern."

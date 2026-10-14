@@ -10,7 +10,7 @@
 // on current behavior until deliberately turned on, and not before Phase 0
 // accuracy validation + Phase 2 legal review are actually done.
 import { formularFelder, type Altersangabe } from './altersregel';
-import { fetchMitFrist, FRIST_AUFNAHME_MS } from './frist';
+import { fetchMitFrist, FRIST_ALLE_DIENSTE_MS, FRIST_AUFNAHME_MS } from './frist';
 import * as Crypto from 'expo-crypto';
 // Legacy (function-based) API -- deleteAsync/idempotent isn't exposed by the
 // new File/Directory class API this SDK version defaults `expo-file-system`
@@ -597,7 +597,7 @@ export async function voucherFor(
     // No `mode` -- same reason as registerBiometric above: which table a
     // vouch is recorded against is the coordinator's business, not ours.
     body: JSON.stringify({ voucher_bio_hash: voucherBioHash, vouchee_bio_hash: voucheeBioHash }),
-  });
+  }, FRIST_ALLE_DIENSTE_MS);
   if (!resp.ok) {
     throw new Error(`Coordinator vouch request failed (HTTP ${resp.status})`);
   }
@@ -767,7 +767,7 @@ export async function deleteEnrollment(bioHash: string): Promise<DeleteEnrollmen
     // No wallet_address: that key is public and needs an operator token this
     // app must not carry. See the block comment above.
     body: JSON.stringify({ bio_hash: bioHash }),
-  });
+  }, FRIST_ALLE_DIENSTE_MS);
   if (!resp.ok) {
     throw new Error(`Coordinator delete request failed (HTTP ${resp.status})`);
   }

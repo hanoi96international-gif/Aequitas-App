@@ -8,8 +8,16 @@
 
 /** Lesende und kleine Anfragen an Knoten und Dienste. */
 export const FRIST_MS = 20_000;
-/** Aufnahmen hochladen und vergleichen lassen (Bilder, Video, Quorum). */
-export const FRIST_AUFNAHME_MS = 120_000;
+/** Anfragen, die der Coordinator an alle Vergleichsdienste weiterreicht
+ * (/vouch, DELETE /enrollment): je Dienst 20 s, plus Weg und Antwort. */
+export const FRIST_ALLE_DIENSTE_MS = 40_000;
+/** Aufnahmen hochladen und vergleichen lassen (Bilder, Video, Quorum).
+ * Laenger als der Coordinator selbst rechnet: propose_timeout_seconds() in
+ * coordinator/app/quorum.py steht auf 180 s (der Vergleichsdienst bremst
+ * wiederholte Duplikatversuche absichtlich um bis zu 120 s), dazu bis 20 s
+ * Mengengrenze und 20 s /commit. Sonst meldete die App "unerreichbar",
+ * waehrend der Coordinator noch eintraegt. */
+export const FRIST_AUFNAHME_MS = 240_000;
 
 export async function fetchMitFrist(
   url: string,

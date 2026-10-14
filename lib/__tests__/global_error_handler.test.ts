@@ -28,6 +28,27 @@ describe('globalErrorHandler', () => {
     expect(vorher).not.toHaveBeenCalled();
   });
 
+  it('ein WalletConnect-Wort in der Meldung allein genuegt nicht', () => {
+    const e = new Error('Subscriber appkit reown kaputt');
+    e.stack = 'at onPress (app/(tabs)/index.tsx:10)';
+    installiert!(e, true);
+    expect(vorher).toHaveBeenCalledWith(e, true);
+  });
+
+  it('Release-Build: die bekannte Meldung mit minifiziertem Stack beim Start', () => {
+    const e = new TypeError('Cannot convert undefined value to object');
+    e.stack = 'at anonymous (index.android.bundle:1:123456)';
+    installiert!(e, true);
+    expect(vorher).not.toHaveBeenCalled();
+  });
+
+  it('dieselbe Meldung nach der Startphase geht weiter', () => {
+    const { istWalletConnectFehler, WALLETCONNECT_START_MS } = require('../globalErrorHandler');
+    const e = new TypeError('Cannot convert undefined value to object');
+    e.stack = 'at anonymous (index.android.bundle:1:123456)';
+    expect(istWalletConnectFehler(e, Date.now() + WALLETCONNECT_START_MS + 1)).toBe(false);
+  });
+
   it('nicht-fatale Fehler gehen wie bisher weiter', () => {
     const e = new Error('x');
     installiert!(e, false);

@@ -44,11 +44,21 @@ const g = globalThis as unknown as ErrorUtilsGlobal;
 // wieder an den Standard-Handler (Absturz statt Weiterlaufen im Ungewissen).
 // Verschluckt wird nur, was erkennbar aus WalletConnect/AppKit stammt --
 // dort ist der Rueckfall auf die lokale Wallet vollstaendig.
-const WALLETCONNECT_SPUR = /walletconnect|appkit|reown|@walletconnect|Subscriber|initConnectors/i;
-export function istWalletConnectFehler(error: unknown): boolean {
+// Erkannt wird der Fehler (Pruefung von #31) an
+//  (a) einem Stack mit Pfaden der beiden Pakete -- so im Entwicklungsbuild;
+//  (b) im Release-Build sind Stacks minifiziert (index.android.bundle:1:...),
+//      Pfade fehlen. Dort zaehlt nur die bekannte Meldung aus dem
+//      Subscriber-Start, und nur in den ersten 30 s nach dem App-Start, in
+//      denen createAppKit() seine Verbindungen aufbaut (lib/walletconnect.ts).
+// Ein Wort in einer Meldung aus App-Code genuegt nie.
+const WALLETCONNECT_PFAD = /node_modules\/(@walletconnect|@reown)\//;
+const BEKANNTE_MELDUNG = 'Cannot convert undefined value to object';
+export const WALLETCONNECT_START_MS = 30_000;
+const appStart = Date.now();
+export function istWalletConnectFehler(error: unknown, jetzt: number = Date.now()): boolean {
   const e = error as { message?: unknown; stack?: unknown } | null;
-  const text = `${typeof e?.message === 'string' ? e.message : ''}\n${typeof e?.stack === 'string' ? e.stack : ''}`;
-  return WALLETCONNECT_SPUR.test(text);
+  if (typeof e?.stack === 'string' && WALLETCONNECT_PFAD.test(e.stack)) return true;
+  return jetzt - appStart < WALLETCONNECT_START_MS && e?.message === BEKANNTE_MELDUNG;
 }
 
 if (g.ErrorUtils && typeof g.ErrorUtils.setGlobalHandler === 'function') {
