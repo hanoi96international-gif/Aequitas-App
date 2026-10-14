@@ -35,6 +35,9 @@ concurrency:
   group: apk-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -403,12 +406,16 @@ jobs:
             echo "::error::apksigner nicht gefunden — ohne Build-Tools laesst sich nicht signieren."
             exit 1
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # Passwoerter ueber env:, nicht pass: -- sonst stehen sie in der
+          # Prozessliste des Runners (Beta-Pruefung 14.10.2026). Der
+          # Schluessel wird auch bei einem Fehler entfernt.
+          trap 'rm -f "$RUNNER_TEMP/release.keystore"' EXIT
+          ( umask 077; echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore" )
           "$apksigner" sign \
             --ks "$RUNNER_TEMP/release.keystore" \
-            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-pass env:KEYSTORE_PASSWORD \
             --ks-key-alias "$KEY_ALIAS" \
-            --key-pass "pass:$KEY_PASSWORD" \
+            --key-pass env:KEY_PASSWORD \
             "$APK"
           # Ohne diese Pruefung wuerde eine fehlgeschlagene Signatur erst auf
           # dem Geraet auffallen, mit einer Fehlermeldung des Installers, die

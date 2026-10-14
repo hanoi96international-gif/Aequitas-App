@@ -37,11 +37,40 @@ type ErrorUtilsGlobal = {
 
 const g = globalThis as unknown as ErrorUtilsGlobal;
 
+// NUR die bekannte Klasse (Beta-Pruefung 14.10.2026): bis dahin wurde JEDER
+// fatale Fehler verschluckt, und eine Wallet lief in einem Zustand weiter,
+// den niemand kennt -- ein halb geschriebener Schluessel, ein Bildschirm,
+// der einen alten Kontostand zeigt. Ein unbekannter fataler Fehler geht
+// wieder an den Standard-Handler (Absturz statt Weiterlaufen im Ungewissen).
+// Verschluckt wird nur, was erkennbar aus WalletConnect/AppKit stammt --
+// dort ist der Rueckfall auf die lokale Wallet vollstaendig.
+// Erkannt wird der Fehler (Pruefung von #31) an
+//  (a) einem Stack mit Pfaden der beiden Pakete -- so im Entwicklungsbuild;
+//  (b) im Release-Build sind Stacks minifiziert (index.android.bundle:1:...),
+//      Pfade fehlen. Dort zaehlt nur ein TypeError mit der bekannten Meldung
+//      aus dem Subscriber-Start, und nur, solange WalletConnect WIRKLICH
+//      startet: lib/walletconnect.ts setzt das Kennzeichen direkt vor
+//      createAppKit() (nur mit Projekt-ID), es verfaellt nach 30 s -- der
+//      Aufbau meldet kein Ende. Ohne WalletConnect gibt es kein Fenster.
+// Ein Wort in einer Meldung aus App-Code genuegt nie.
+const WALLETCONNECT_PFAD = /node_modules\/(@walletconnect|@reown)\//;
+const BEKANNTE_MELDUNG = 'Cannot convert undefined value to object';
+export const WALLETCONNECT_START_MS = 30_000;
+let aufbauBis = 0;
+export function walletConnectAufbauBeginnt(jetzt: number = Date.now()): void {
+  aufbauBis = jetzt + WALLETCONNECT_START_MS;
+}
+export function istWalletConnectFehler(error: unknown, jetzt: number = Date.now()): boolean {
+  const e = error as { message?: unknown; stack?: unknown } | null;
+  if (typeof e?.stack === 'string' && WALLETCONNECT_PFAD.test(e.stack)) return true;
+  return error instanceof TypeError && e?.message === BEKANNTE_MELDUNG && jetzt < aufbauBis;
+}
+
 if (g.ErrorUtils && typeof g.ErrorUtils.setGlobalHandler === 'function') {
   const previousHandler = g.ErrorUtils.getGlobalHandler?.();
   g.ErrorUtils.setGlobalHandler((error, isFatal) => {
-    if (isFatal) {
-      console.error('[GlobalError] FATAL error suppressed — app continues running:', error);
+    if (isFatal && istWalletConnectFehler(error)) {
+      console.error('[GlobalError] WalletConnect-Fehler abgefangen -- App laeuft mit lokaler Wallet weiter:', error);
       return;
     }
     console.error('[GlobalError]', error);
