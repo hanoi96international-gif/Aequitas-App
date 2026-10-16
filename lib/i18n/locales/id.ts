@@ -5,6 +5,7 @@ const id: Translations = {
     appName: 'AEQUITAS',
     copied: 'Tersalin',
     cancel: 'Batal',
+    offline: 'Tidak ada koneksi ke jaringan – nilai mungkin tidak terbaru. Mencoba lagi.',
   },
   tabs: {
     home: 'Beranda',

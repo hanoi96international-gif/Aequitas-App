@@ -5,6 +5,7 @@ const ar: Translations = {
     appName: 'AEQUITAS',
     copied: 'تم النسخ',
     cancel: 'إلغاء',
+    offline: 'لا يوجد اتصال بالشبكة – قد لا تكون القيم محدّثة. جارٍ إعادة المحاولة.',
   },
   tabs: {
     home: 'الرئيسية',

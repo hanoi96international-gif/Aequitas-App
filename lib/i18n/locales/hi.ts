@@ -5,6 +5,7 @@ const hi: Translations = {
     appName: 'AEQUITAS',
     copied: 'कॉपी हो गया',
     cancel: 'रद्द करें',
+    offline: 'नेटवर्क से कनेक्शन नहीं है – मान पुराने हो सकते हैं। फिर से कोशिश हो रही है।',
   },
   tabs: {
     home: 'होम',

@@ -5,6 +5,7 @@ const tr: Translations = {
     appName: 'AEQUITAS',
     copied: 'Kopyalandı',
     cancel: 'İptal',
+    offline: 'Ağ bağlantısı yok – değerler güncel olmayabilir. Yeniden deneniyor.',
   },
   tabs: {
     home: 'Ana Sayfa',

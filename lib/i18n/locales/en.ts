@@ -5,6 +5,7 @@ const en: Translations = {
     appName: 'AEQUITAS',
     copied: 'Copied',
     cancel: 'Cancel',
+    offline: 'No connection to the network – values may be out of date. Retrying.',
   },
   tabs: {
     home: 'Home',

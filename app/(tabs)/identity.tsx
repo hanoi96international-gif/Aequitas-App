@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useWallet } from '@/contexts/WalletContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
@@ -119,16 +119,20 @@ export default function Identity() {
   // it. Gemeldet am 02.10.2026: nach einer frischen Registrierung MIT Gesicht
   // stand hier "Gesicht nachziehen" -- bioHash war nur beim ersten Oeffnen
   // gelesen worden, vor der Registrierung, und blieb null.
-  useEffect(() => {
-    if (status !== 'already_registered') return;
-    const lesen = () => {
-      storedBioHash().then(setBioHash).catch(() => undefined);
-      nachgezogenAt().then(setNachgezogen).catch(() => undefined);
-    };
-    lesen();
-    const timer = setInterval(lesen, 3000);
-    return () => clearInterval(timer);
-  }, [status]);
+  // Nur solange der Tab den Fokus hat (er bekommt ihn zurueck, wenn die
+  // Aufnahme schliesst) -- nicht dauerhaft im Hintergrund.
+  useFocusEffect(
+    useCallback(() => {
+      if (status !== 'already_registered') return;
+      const lesen = () => {
+        storedBioHash().then(setBioHash).catch(() => undefined);
+        nachgezogenAt().then(setNachgezogen).catch(() => undefined);
+      };
+      lesen();
+      const timer = setInterval(lesen, 3000);
+      return () => clearInterval(timer);
+    }, [status]),
+  );
 
   // Two-step on purpose: erasure is irreversible, and it does more than drop
   // this person's row -- it makes them a stranger to the duplicate check, so

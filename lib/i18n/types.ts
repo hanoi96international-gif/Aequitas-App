@@ -3,6 +3,7 @@ export interface Translations {
     appName: string;
     copied: string;
     cancel: string;
+    offline: string;
   };
   tabs: {
     home: string;
