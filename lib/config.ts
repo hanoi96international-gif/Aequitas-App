@@ -36,7 +36,7 @@ const orDefault = (value: string | undefined, fallback: string) =>
 //
 // RESOLVED 2026-08-22. aequitas.digital now serves the primary over HTTPS:
 // /api/status reports height 4,511,424 and commit 7bf2db9, identical to the
-// node at 173.249.37.118, /rpc answers eth_chainId with 0x786, and the
+// node at 173.249.37.118, /rpc answers eth_chainId with 0x786 (then), and the
 // certificate verifies. So the temporary IP default and the cleartext
 // permission that went with it are both gone -- config.test.ts had been red
 // since the 18th demanding exactly this, which is what that test is for.
@@ -63,8 +63,18 @@ function liste(raw: string | undefined): string[] {
 export const API_FALLBACKS: string[] = liste(process.env.EXPO_PUBLIC_API_FALLBACKS);
 export const RPC_FALLBACKS: string[] = liste(process.env.EXPO_PUBLIC_RPC_FALLBACKS);
 
-export const CHAIN_ID_HEX = '0x786';
-export const CHAIN_ID_DEC = 1926;
+// EVM-Chain-ID (Chain-Repo docs/CHAIN_ID_WECHSEL.md): die Kette wechselt zu
+// einem Stichtag von 1926 auf 19260930. Zum Signieren gilt NIE eine feste
+// Zahl, sondern die ID, die der Knoten live meldet -- und nur, wenn sie in
+// dieser Liste steht (lib/kette.ts, lib/ketteLive.ts). Alles andere: nicht
+// signieren.
+export const CHAIN_ID_ALT = 1926; // 0x786, bis zum Stichtag
+export const CHAIN_ID_NEU = 19260930; // 0x125E602, ab dem Stichtag
+export const AEQUITAS_CHAIN_IDS: readonly number[] = Object.freeze([CHAIN_ID_ALT, CHAIN_ID_NEU]);
+// EINGEFROREN: die Chain-ID der V8-Genesis in der Netzkennung
+// "aequitas-1926-<genesis>" (NETZ_SALT im V8-Vertrag ist immutable). Sie
+// bleibt 1926, auch nach dem Wechsel -- nie fuer eine EVM-Signatur nutzen.
+export const NETZ_KENNUNG_CHAIN_ID = 1926;
 export const V7_CONTRACT = '0x20D271028f32577FCd07b4583A8e0E4eBBdB4F78';
 
 export const NATIVE_CURRENCY = { name: 'Aequitas', symbol: 'AEQ', decimals: 18 } as const;

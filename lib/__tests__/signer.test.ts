@@ -1,4 +1,17 @@
-import { AEQUITAS_CAIP, NETZ_NICHT_FREIGEGEBEN, sitzungsKetten, withTimeout, walletConnectSigner } from '../signer';
+// Die Chain-ID zum Signieren kommt live vom Knoten (lib/ketteLive.ts). Hier
+// steuert der Test, was der Knoten meldet: eine Zahl oder einen Fehler.
+let mockCid: number | Error = 1926;
+jest.mock('../ketteLive', () => ({
+  signierChainId: jest.fn(async () => {
+    if (mockCid instanceof Error) throw mockCid;
+    return mockCid;
+  }),
+}));
+
+import { DOMAENE_FALSCHE_KETTE, NETZ_NICHT_FREIGEGEBEN, sitzungsKetten, withTimeout, walletConnectSigner } from '../signer';
+
+const AEQUITAS_CAIP = 'eip155:1926';
+beforeEach(() => { mockCid = 1926; });
 
 const MIT_AEQUITAS = () => ['eip155:1', AEQUITAS_CAIP];
 const NUR_ETHEREUM = () => ['eip155:1'];
@@ -118,10 +131,10 @@ describe('walletConnectSigner', () => {
     const request = jest.fn().mockResolvedValue('0xsignature');
     const signer = walletConnectSigner('0xABC', request, MIT_AEQUITAS);
     const types = { Register: [{ name: 'nonce', type: 'uint256' }] };
-    await expect(signer.signTypedData({ ...V8_DOMAIN, chainId: 1 }, types, { nonce: 0n })).rejects.toThrow('chainId 1926');
+    await expect(signer.signTypedData({ ...V8_DOMAIN, chainId: 1 }, types, { nonce: 0n })).rejects.toThrow(DOMAENE_FALSCHE_KETTE);
     const { chainId: _weg, ...ohneKette } = V8_DOMAIN;
-    await expect(signer.signTypedData(ohneKette, types, { nonce: 0n })).rejects.toThrow('chainId 1926');
-    await expect(signer.signTypedData({ ...V8_DOMAIN, chainId: 'kaputt' as any }, types, { nonce: 0n })).rejects.toThrow('chainId 1926');
+    await expect(signer.signTypedData(ohneKette, types, { nonce: 0n })).rejects.toThrow(DOMAENE_FALSCHE_KETTE);
+    await expect(signer.signTypedData({ ...V8_DOMAIN, chainId: 'kaputt' as any }, types, { nonce: 0n })).rejects.toThrow(DOMAENE_FALSCHE_KETTE);
     expect(request).not.toHaveBeenCalled();
   });
 
@@ -390,5 +403,109 @@ describe('walletConnectSigner: Umschalten statt Einrichten bei "Invalid chainId"
     await expect(s.signTypedData(V8_DOMAIN as any, { Register: [{ name: 'x', type: 'uint256' }] }, { x: 1n })).resolves.toBe('0xsig');
     expect(umschalten).toHaveBeenCalledTimes(1);
     expect(einrichten).not.toHaveBeenCalled();
+  });
+});
+
+// Chain-ID-Wechsel 1926 -> 19260930 (Chain-Repo docs/CHAIN_ID_WECHSEL.md).
+describe('walletConnectSigner: Chain-ID live vom Knoten', () => {
+  const NEU = 'eip155:19260930';
+  const types = { Register: [{ name: 'nonce', type: 'uint256' }] };
+
+  it('nach dem Stichtag: Ueberweisung mit 0x125e602 ueber eip155:19260930', async () => {
+    mockCid = 19260930;
+    const request = jest.fn().mockResolvedValue('0xtxhash');
+    const signer = walletConnectSigner('0xABC', request, () => ['eip155:1', AEQUITAS_CAIP, NEU]);
+    await signer.sendTransaction({ to: '0xDEF', value: 1n });
+    expect(request).toHaveBeenCalledWith(
+      { method: 'eth_sendTransaction', params: [{ from: '0xABC', to: '0xDEF', value: '0x1', chainId: '0x125e602' }] },
+      NEU,
+    );
+  });
+
+  it('nach dem Stichtag: EIP-712 nur mit der neuen ID in der Domaene; 1926 wird nicht mehr unterschrieben', async () => {
+    mockCid = 19260930;
+    const request = jest.fn().mockResolvedValue('0xsig');
+    const signer = walletConnectSigner('0xABC', request, () => [AEQUITAS_CAIP, NEU]);
+    await expect(signer.signTypedData(V8_DOMAIN, types, { nonce: 0n })).rejects.toThrow(DOMAENE_FALSCHE_KETTE);
+    expect(request).not.toHaveBeenCalled();
+    await signer.signTypedData({ ...V8_DOMAIN, chainId: 19260930 }, types, { nonce: 0n });
+    expect(request.mock.calls[0][1]).toBe(NEU);
+  });
+
+  it('vor dem Stichtag: eine Domaene mit der neuen ID wird nicht unterschrieben (keine Vorab-Signatur)', async () => {
+    const request = jest.fn();
+    const signer = walletConnectSigner('0xABC', request, () => [AEQUITAS_CAIP, NEU]);
+    await expect(signer.signTypedData({ ...V8_DOMAIN, chainId: 19260930 }, types, { nonce: 0n })).rejects.toThrow(DOMAENE_FALSCHE_KETTE);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('Knoten unerreichbar oder Antwort ungueltig: nichts geht an die Wallet', async () => {
+    mockCid = new Error('Aequitas-Netz nicht bestätigt');
+    const request = jest.fn();
+    const signer = walletConnectSigner('0xABC', request, MIT_AEQUITAS);
+    await expect(signer.sendTransaction({ to: '0xDEF', value: 1n })).rejects.toThrow('nicht bestätigt');
+    await expect(signer.signTypedData(V8_DOMAIN, types, { nonce: 0n })).rejects.toThrow('nicht bestätigt');
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('Wallet kennt nur die alte ID: Netz fuer die neue einrichten, nie ueber eip155:1926 senden', async () => {
+    mockCid = 19260930;
+    let ketten = ['eip155:1', AEQUITAS_CAIP];
+    const request = jest.fn(async () => '0xtx');
+    const wechseln = jest.fn(async (cid: number) => { if (cid === 19260930) ketten = [...ketten, NEU]; });
+    const signer = walletConnectSigner('0xABC', request, () => ketten, wechseln);
+    await signer.sendTransaction({ to: '0xDEF', value: 1n });
+    expect(wechseln).toHaveBeenCalledWith(19260930);
+    expect(request.mock.calls.map((c: any[]) => c[1])).toEqual([NEU]);
+  });
+
+  it('beim Umschalten wird die live gemeldete ID mitgegeben', async () => {
+    mockCid = 19260930;
+    const request = jest.fn().mockRejectedValueOnce(new Error('Invalid chainId')).mockResolvedValueOnce('0xsig');
+    const umschalten = jest.fn(async (_cid: number) => {});
+    const signer = walletConnectSigner('0xABC', request, () => [NEU], undefined, umschalten);
+    await signer.sendTransaction({ to: '0xDEF', value: 1n });
+    expect(umschalten).toHaveBeenCalledWith(19260930);
+  });
+});
+
+describe('aequitasNetzEinrichten: nur Ketten des Netzes', () => {
+  const { aequitasNetzEinrichten } = require('../signer');
+  const { kettenAngabenFuer } = require('../kette');
+
+  it('richtet die neue ID ein und wartet auf eip155:19260930, nicht auf 1926', async () => {
+    let ketten = ['eip155:1', AEQUITAS_CAIP];
+    const senden = jest.fn(async (m: string, p: any[]) => {
+      if (m === 'wallet_addEthereumChain' && p[0].chainId === '0x125e602') ketten = [...ketten, 'eip155:19260930'];
+      return null;
+    });
+    await aequitasNetzEinrichten({ senden, ketten: () => ketten, kette: kettenAngabenFuer(19260930), zeitJeAnfrageMs: 2_000, freigabeWarteMs: 600 });
+    expect(senden).toHaveBeenCalledTimes(1);
+    expect(senden.mock.calls[0][1][0]).toMatchObject({ chainId: '0x125e602', chainName: 'Aequitas Chain' });
+  });
+
+  it('fremde Chain-ID in den Angaben: keine Anfrage an die Wallet', async () => {
+    const senden = jest.fn();
+    for (const chainId of ['0x1', '0x787', '0x125e603', 'kaputt', 1926 as any]) {
+      await expect(aequitasNetzEinrichten({ senden, ketten: () => ['eip155:1'], kette: { chainId, chainName: 'X', nativeCurrency: {}, rpcUrls: [], blockExplorerUrls: [] } }))
+        .rejects.toThrow('Chain-ID');
+    }
+    expect(senden).not.toHaveBeenCalled();
+  });
+});
+
+describe('localWalletSigner: EIP-712 nur mit der live gemeldeten ID', () => {
+  const { localWalletSigner } = require('../signer');
+  const wallet = require('../wallet');
+  it('fremde oder veraltete Domaene: der Schluessel wird gar nicht erst entsperrt', async () => {
+    const spion = jest.spyOn(wallet, 'signTypedData').mockResolvedValue('0xsig');
+    const s = localWalletSigner('0xABC', async () => 19260930);
+    await expect(s.signTypedData(V8_DOMAIN, { Register: [{ name: 'nonce', type: 'uint256' }] }, { nonce: 0n })).rejects.toThrow(DOMAENE_FALSCHE_KETTE);
+    expect(spion).not.toHaveBeenCalled();
+    await expect(s.signTypedData({ ...V8_DOMAIN, chainId: 19260930 }, { Register: [{ name: 'nonce', type: 'uint256' }] }, { nonce: 0n })).resolves.toBe('0xsig');
+    const kaputt = localWalletSigner('0xABC', async () => { throw new Error('Aequitas-Netz nicht bestätigt'); });
+    await expect(kaputt.signTypedData(V8_DOMAIN, { Register: [{ name: 'nonce', type: 'uint256' }] }, { nonce: 0n })).rejects.toThrow('nicht bestätigt');
+    expect(spion).toHaveBeenCalledTimes(1);
+    spion.mockRestore();
   });
 });

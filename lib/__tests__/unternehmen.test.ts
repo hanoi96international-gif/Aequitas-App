@@ -92,13 +92,21 @@ describe('Schluessel', () => {
 });
 
 describe('Kasse', () => {
-  it('Zahlungslink liest die Kundenseite zurueck', () => {
-    const link = zahlungslink(U, '12.5');
-    const z = leseZahlungsziel(link)!;
-    expect(z.adresse.toLowerCase()).toBe(U);
-    expect(z.betrag).toBe('12.5');
-    expect(z.fremdeKette).toBeUndefined();
-    expect(() => zahlungslink(U, '0')).toThrow();
+  it('Zahlungslink liest die Kundenseite zurueck -- mit beiden Chain-IDs', () => {
+    for (const cid of [1926, 19260930]) {
+      const link = zahlungslink(U, '12.5', cid);
+      expect(link).toContain(`@${cid}?`);
+      const z = leseZahlungsziel(link)!;
+      expect(z.adresse.toLowerCase()).toBe(U);
+      expect(z.betrag).toBe('12.5');
+      expect(z.fremdeKette).toBeUndefined();
+    }
+    expect(() => zahlungslink(U, '0', 1926)).toThrow();
+  });
+  it('Zahlungslink nur mit einer Chain-ID des Netzes', () => {
+    for (const cid of [1, 1927, 19260931, NaN, undefined, '1926'] as any[]) {
+      expect(() => zahlungslink(U, '1', cid)).toThrow('Chain-ID');
+    }
   });
   const e = (zeit: number, betrag: number, richtung: KassenEintrag['richtung'] = 'ein'): KassenEintrag => ({
     zeit, betrag, richtung, gegenkonto: M, tx: '0xabc',

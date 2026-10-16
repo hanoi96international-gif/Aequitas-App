@@ -7,7 +7,8 @@ import { useWallet } from '@/contexts/WalletContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { CHAIN_ID_DEC, RPC_URL } from '@/lib/config';
+import { AEQUITAS_CHAIN_IDS, RPC_URL } from '@/lib/config';
+import { kettenStandAusStatus } from '@/lib/kette';
 import { theme, purpleTint, purpleTintBorder, goldTint, goldTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 
 const GITHUB_URL = 'https://github.com/hanoi96international-gif/Aequitas';
@@ -53,7 +54,7 @@ function CodeBlock({ code, copyBtnLabel, copiedTitle, copiedMsg }: { code: strin
 export default function RunNode() {
   const { t } = useLanguage();
 
-  const { address, signer } = useWallet();
+  const { address, signer, status } = useWallet();
   const [scanOffen, setScanOffen] = useState(false);
   const [anfragen, setAnfragen] = useState<Bindungsanfrage[]>([]);
 
@@ -182,7 +183,8 @@ export default function RunNode() {
           <Text style={S.cardTitle}>{t('node.rpcTitle')}</Text>
           <DetailRow label={t('node.networkName')} value="Aequitas" />
           <DetailRow label={t('node.rpcUrl')} value={RPC_URL} />
-          <DetailRow label={t('node.chainId')} value={String(CHAIN_ID_DEC)} />
+          {/* Die ID, die der Knoten jetzt meldet (Wechsel 1926 -> 19260930); unbekannt: beide. */}
+          <DetailRow label={t('node.chainId')} value={String(kettenStandAusStatus(status)?.chainId ?? AEQUITAS_CHAIN_IDS.join(' / '))} />
           <DetailRow label={t('node.currencySymbol')} value="AEQ" />
           <DetailRow label={t('node.decimals')} value="18" last />
         </View>

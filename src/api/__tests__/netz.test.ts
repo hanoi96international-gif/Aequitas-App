@@ -49,3 +49,18 @@ describe('Missbrauch: Antwort eines fremden oder kaputten Knotens', () => {
     expect(gueltigeKennung(`aequitas-1926-${'9'.repeat(13)}`)).toBe(false);
   });
 });
+
+describe('Chain-ID-Wechsel 1926 -> 19260930', () => {
+  it('nach dem Stichtag: neue ID mit Stichtag ist dasselbe Netz, die Kennung bleibt aequitas-1926-...', () => {
+    expect(pruefeNetz({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_800_000_000, netz_kennung: K1 }, K1)).toEqual({ art: 'ok', kennung: K1 });
+    expect(pruefeNetz({ chain_evm_id: 1926, chain_id_wechsel_ab: 1_800_000_000, netz_kennung: K1 }, K1)).toEqual({ art: 'ok', kennung: K1 });
+  });
+  it('neue ID ohne Stichtag oder mit kaputtem Stichtag: fremde Kette', () => {
+    expect(pruefeNetz({ chain_evm_id: 19260930, netz_kennung: K1 }, K1)).toEqual({ art: 'fremdeKette' });
+    expect(pruefeNetz({ chain_evm_id: 1926, chain_id_wechsel_ab: -5, netz_kennung: K1 }, K1)).toEqual({ art: 'fremdeKette' });
+  });
+  it('eine Kennung mit der neuen ID ist NICHT gueltig (eingefroren auf 1926)', () => {
+    expect(gueltigeKennung('aequitas-19260930-1790000000')).toBe(false);
+    expect(pruefeNetz({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_800_000_000, netz_kennung: 'aequitas-19260930-1790000000' }, K1)).toEqual({ art: 'ungueltig' });
+  });
+});

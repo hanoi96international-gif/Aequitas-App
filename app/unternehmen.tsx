@@ -8,6 +8,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
 import { getVerlauf, getWirtschaftKonto, postUnternehmen } from '@/lib/api';
+import { signierChainId } from '@/lib/ketteLive';
 import { withTimeout } from '@/lib/signer';
 import {
   ausPhrase,
@@ -154,12 +155,21 @@ function Kasse({ firma, setFehler }: { firma: GespeichertesUnternehmen; setFehle
     };
   }, [ladeHeute]);
 
-  function anzeigen() {
+  async function anzeigen() {
     setFehler('');
     setBezahlt(null);
+    // Chain-ID live vom Knoten (Wechsel 1926 -> 19260930): ohne bestaetigte
+    // ID kein Zahlungslink.
+    let chainId: number;
+    try {
+      chainId = await signierChainId();
+    } catch (e: any) {
+      setFehler(t('firma.fehler').replace('{meldung}', String(e?.message ?? e).slice(0, 200)));
+      return;
+    }
     let l: string;
     try {
-      l = zahlungslink(firma.adresse, betrag.replace(',', '.'));
+      l = zahlungslink(firma.adresse, betrag.replace(',', '.'), chainId);
     } catch {
       setFehler(t('firma.betragUngueltig'));
       return;

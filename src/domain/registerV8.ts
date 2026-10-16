@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
-import { CHAIN_ID_DEC, V7_CONTRACT } from '@/lib/config';
+import { V7_CONTRACT } from '@/lib/config';
+import { istAequitasChainId } from '@/lib/kette';
 import { gueltigeKennung } from '@/src/api/netz';
 
 // EIP-712-Unterschrift der Registrierung fuer den Registervertrag V8
@@ -13,8 +14,12 @@ import { gueltigeKennung } from '@/src/api/netz';
 //
 // Die Domaene wird hier aus festen Werten gebaut, nicht vom Knoten
 // uebernommen (eip712Domain() am Vertrag). Ein Knoten kann so nur die
-// netz_kennung vorgeben, und die ist gegen das Format und die gespeicherte
-// Kennung geprueft (src/api/netz.ts). Jeder Knoten prueft die Unterschrift
+// netz_kennung und die Chain-ID vorgeben: die Kennung ist gegen das Format
+// und die gespeicherte Kennung geprueft (src/api/netz.ts), die Chain-ID muss
+// genau 1926 oder 19260930 sein (lib/kette.ts) -- der Knoten prueft die
+// Domaene mit der ID, die zur Annahme- bzw. Registrierungszeit gilt
+// (vertrag_v8.go, chainIDFuer(RegAt)), also mit der live gemeldeten
+// (lib/ketteLive.ts). Jeder Knoten prueft die Unterschrift
 // beim Nachspielen selbst gegen dieselbe Domaene.
 //
 // Gemeinsamer Pruefvektor mit Go: TestV8_GoldenVektorMitDerApp
@@ -66,11 +71,12 @@ export function netzSalt(kennung: string): string {
   return ethers.keccak256(ethers.toUtf8Bytes(kennung));
 }
 
-export function registerV8Domain(kennung: string): ethers.TypedDataDomain {
+export function registerV8Domain(kennung: string, chainId: number): ethers.TypedDataDomain {
+  if (!istAequitasChainId(chainId)) throw new Error('Chain-ID nicht im Aequitas-Netz');
   return {
     name: 'Aequitas',
     version: '8',
-    chainId: CHAIN_ID_DEC,
+    chainId,
     verifyingContract: V7_CONTRACT, // V8 liegt an der V7-Adresse
     salt: netzSalt(kennung),
   };
@@ -114,8 +120,8 @@ export function registerV8Frist(jetztMs: number = Date.now()): number {
   return Math.floor(jetztMs / 1000) + FRIST_S;
 }
 
-export function registerV8Digest(kennung: string, n: RegisterV8Nachricht): string {
-  return ethers.TypedDataEncoder.hash(registerV8Domain(kennung), REGISTER_V8_TYPES as any, n as any);
+export function registerV8Digest(kennung: string, n: RegisterV8Nachricht, chainId: number): string {
+  return ethers.TypedDataEncoder.hash(registerV8Domain(kennung, chainId), REGISTER_V8_TYPES as any, n as any);
 }
 
 /**
@@ -125,7 +131,7 @@ export function registerV8Digest(kennung: string, n: RegisterV8Nachricht): strin
  * 0/1 liefern -- das wird angeglichen. Alles andere schliesst ab: hohes s,
  * falscher Unterzeichner, falsche Laenge.
  */
-export function registerV8Signatur(kennung: string, n: RegisterV8Nachricht, roh: string): string {
+export function registerV8Signatur(kennung: string, n: RegisterV8Nachricht, roh: string, chainId: number): string {
   if (typeof roh !== 'string' || !/^0x[0-9a-fA-F]{130}$/.test(roh)) throw new Error('Signatur muss 65 Byte haben');
   const bytes = ethers.getBytes(roh);
   if (bytes[64] === 0 || bytes[64] === 1) bytes[64] += 27;
@@ -134,15 +140,15 @@ export function registerV8Signatur(kennung: string, n: RegisterV8Nachricht, roh:
   const r = BigInt(ethers.hexlify(bytes.slice(0, 32)));
   if (r === 0n || s === 0n || s > HALBES_N) throw new Error('Signatur: r/s ungueltig oder hohes s');
   const sig = ethers.hexlify(bytes);
-  const signer = ethers.recoverAddress(registerV8Digest(kennung, n), sig);
+  const signer = ethers.recoverAddress(registerV8Digest(kennung, n, chainId), sig);
   if (signer !== n.human) throw new Error('Signatur stammt nicht von dieser Wallet');
   return sig;
 }
 
 /** Was die Wallet per eth_signTypedData_v4 / Wallet.signTypedData unterschreibt. */
-export function registerV8TypedData(kennung: string, n: RegisterV8Nachricht) {
+export function registerV8TypedData(kennung: string, n: RegisterV8Nachricht, chainId: number) {
   return {
-    domain: registerV8Domain(kennung),
+    domain: registerV8Domain(kennung, chainId),
     types: REGISTER_V8_TYPES,
     message: n,
   };
