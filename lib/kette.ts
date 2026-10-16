@@ -97,6 +97,24 @@ export function inWechselPause(stand: KettenStand, jetztS: number): boolean {
   return stand.chainId === CHAIN_ID_ALT && stand.wechselAb > 0 && jetztS >= stand.wechselAb - WECHSEL_PAUSE_S;
 }
 
+/** Spielraum der Geraeteuhr gegen den Stichtag (s). */
+export const UHR_TOLERANZ_S = 300;
+
+/**
+ * Passt die gemeldete ID zur Uhr des Geraets? Fuer JEDE Unterschrift:
+ *   - 1926 nicht mehr, wenn der Stichtag mehr als UHR_TOLERANZ_S vorbei ist;
+ *   - 19260930 nicht, solange der Stichtag mehr als UHR_TOLERANZ_S entfernt ist.
+ * Ein Knoten mit veralteter Antwort (Zwischenspeicher, falsche Uhr) oder
+ * eine gefaelschte Meldung fuehrt so nicht zu einer Unterschrift, die der
+ * Knoten zu ihrer Zeit nicht annehmen duerfte.
+ */
+export function passtZurUhr(stand: KettenStand, jetztS: number): boolean {
+  if (!Number.isFinite(jetztS)) return false;
+  if (stand.chainId === CHAIN_ID_ALT) return !(stand.wechselAb > 0 && jetztS >= stand.wechselAb + UHR_TOLERANZ_S);
+  if (stand.chainId === CHAIN_ID_NEU) return stand.wechselAb > 0 && jetztS >= stand.wechselAb - UHR_TOLERANZ_S;
+  return false;
+}
+
 /** Angaben fuer wallet_addEthereumChain -- immer fuer genau eine ID der Liste. */
 export function kettenAngabenFuer(id: number) {
   return {

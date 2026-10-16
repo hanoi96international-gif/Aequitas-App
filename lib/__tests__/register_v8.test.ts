@@ -122,7 +122,7 @@ describe('proveAndRegister beim Chain-ID-Wechsel', () => {
   afterEach(() => { jest.resetModules(); (global as any).fetch = undefined; });
 
   it('nach dem Stichtag: V8-Domaene mit der live gemeldeten 19260930, Netzkennung bleibt 1926', async () => {
-    const { bodies } = knoten({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_800_000_000, netz_kennung: KENNUNG, register_vertrag: 'v8' }, BEWEIS, '0x125e602');
+    const { bodies } = knoten({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_700_000_000, netz_kennung: KENNUNG, register_vertrag: 'v8' }, BEWEIS, '0x125e602');
     const signer = signerFuer(ALICE);
     await registriere(signer);
     const [domain] = signer.signTypedData.mock.calls[0];
@@ -135,7 +135,7 @@ describe('proveAndRegister beim Chain-ID-Wechsel', () => {
   });
 
   it('V7 nach dem Stichtag: personal_sign ueber die neue ID', async () => {
-    knoten({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_800_000_000, netz_kennung: KENNUNG, register_vertrag: 'v7' }, BEWEIS, '0x125e602');
+    knoten({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_700_000_000, netz_kennung: KENNUNG, register_vertrag: 'v7' }, BEWEIS, '0x125e602');
     const signer = signerFuer(ALICE);
     await registriere(signer);
     const nullifier = BigInt(BEWEIS.zkNullifier).toString(16).padStart(64, '0');

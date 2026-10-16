@@ -12,11 +12,13 @@ import {
   domaeneTraegt,
   inWechselPause,
   istAequitasCaip,
+  passtZurUhr,
   istAequitasChainId,
   kettenAngabenFuer,
   kettenStandAusStatus,
 } from '../kette';
 import { KETTE_NICHT_BESTAETIGT, WECHSEL_PAUSE_MELDUNG, rpcChainId, signierChainId } from '../ketteLive';
+import { UHR_TOLERANZ_S } from '../kette';
 
 const AB = 1_800_000_000;
 
@@ -87,6 +89,17 @@ describe('kettenStandAusStatus (/api/status)', () => {
       expect(kettenStandAusStatus(s)).toBeNull();
     }
   });
+  it('passtZurUhr: Toleranz 300 s um den Stichtag', () => {
+    expect(UHR_TOLERANZ_S).toBe(300);
+    expect(passtZurUhr({ chainId: 1926, wechselAb: 0 }, AB * 2)).toBe(true);
+    expect(passtZurUhr({ chainId: 1926, wechselAb: AB }, AB + 299)).toBe(true);
+    expect(passtZurUhr({ chainId: 1926, wechselAb: AB }, AB + 300)).toBe(false);
+    expect(passtZurUhr({ chainId: 19260930, wechselAb: AB }, AB - 300)).toBe(true);
+    expect(passtZurUhr({ chainId: 19260930, wechselAb: AB }, AB - 301)).toBe(false);
+    expect(passtZurUhr({ chainId: 19260930, wechselAb: 0 }, AB)).toBe(false);
+    expect(passtZurUhr({ chainId: 1926, wechselAb: AB }, NaN)).toBe(false);
+  });
+
   it('Pause vor dem Stichtag nur fuer 1926, nur wenn geplant', () => {
     const alt = { chainId: 1926, wechselAb: AB };
     expect(inWechselPause(alt, AB - 601)).toBe(false);
@@ -120,6 +133,25 @@ describe('signierChainId: live, beide Quellen, fail-closed', () => {
   it('fremde ID vom Knoten: wirft', async () => {
     await expect(signierChainId(quellen({ chain_evm_id: 1 }, 1926))).rejects.toThrow(KETTE_NICHT_BESTAETIGT);
   });
+  it('Missbrauch gegen die Uhr: 1926 nach dem Stichtag, 19260930 weit davor -- fuer JEDE Unterschrift abgelehnt', async () => {
+    for (const ueberweisung of [false, true]) {
+      // Ein Knoten meldet nach dem Stichtag noch 1926 (veraltet/gefaelscht).
+      await expect(signierChainId({ ueberweisung, ...quellen({ chain_evm_id: 1926, chain_id_wechsel_ab: AB }, 1926, AB + 300) })).rejects.toThrow(KETTE_NICHT_BESTAETIGT);
+      await expect(signierChainId({ ueberweisung, ...quellen({ chain_evm_id: 1926, chain_id_wechsel_ab: AB }, 1926, AB + 86_400) })).rejects.toThrow(KETTE_NICHT_BESTAETIGT);
+      // Ein Knoten meldet die neue ID lange vor dem Stichtag (Vorab-Signatur).
+      await expect(signierChainId({ ueberweisung, ...quellen({ chain_evm_id: 19260930, chain_id_wechsel_ab: AB }, 19260930, AB - 301) })).rejects.toThrow(KETTE_NICHT_BESTAETIGT);
+      await expect(signierChainId({ ueberweisung, ...quellen({ chain_evm_id: 19260930, chain_id_wechsel_ab: AB }, 19260930, AB - 30 * 86_400) })).rejects.toThrow(KETTE_NICHT_BESTAETIGT);
+    }
+    // Innerhalb der Toleranz: Uhren duerfen etwas abweichen.
+    await expect(signierChainId(quellen({ chain_evm_id: 1926, chain_id_wechsel_ab: AB }, 1926, AB + 299))).resolves.toBe(1926);
+    await expect(signierChainId(quellen({ chain_evm_id: 19260930, chain_id_wechsel_ab: AB }, 19260930, AB - 300))).resolves.toBe(19260930);
+  });
+
+  it('Gesamtgrenze: haengt eine Quelle, wird nicht signiert', async () => {
+    await expect(signierChainId({ status: () => new Promise(() => {}), rpc: async () => 1926, fristMs: 50 })).rejects.toThrow(KETTE_NICHT_BESTAETIGT);
+    await expect(signierChainId({ status: async () => ({ chain_evm_id: 1926 }), rpc: () => new Promise(() => {}), fristMs: 50 })).rejects.toThrow(KETTE_NICHT_BESTAETIGT);
+  });
+
   it('Ueberweisung in der Pause: wirft mit Hinweis; andere Unterschriften laufen weiter', async () => {
     const q = quellen({ chain_evm_id: 1926, chain_id_wechsel_ab: AB }, 1926, AB - 100);
     await expect(signierChainId({ ueberweisung: true, ...q })).rejects.toThrow(WECHSEL_PAUSE_MELDUNG);
@@ -149,6 +181,47 @@ describe('rpcChainId (eth_chainId)', () => {
       await expect(rpcChainId(['https://a.example/rpc'])).resolves.toBeNull();
     }
   });
+  it('uebergrosse Antwort: content-length vorab, Strom wird abgebrochen', async () => {
+    const text = jest.fn(async () => '{"result":"0x786"}');
+    (global as any).fetch = jest.fn(async () => ({ ok: true, status: 200, headers: { get: (k: string) => (k === 'content-length' ? '999999' : null) }, text }));
+    await expect(rpcChainId(['https://a.example/rpc'])).resolves.toBeNull();
+    expect(text).not.toHaveBeenCalled(); // gar nicht erst gelesen
+    for (const cl of ['-1', 'x', '1e9']) {
+      (global as any).fetch = jest.fn(async () => ({ ok: true, status: 200, headers: { get: () => cl }, text }));
+      await expect(rpcChainId(['https://a.example/rpc'])).resolves.toBeNull();
+    }
+    // Ohne content-length, als Strom: Abbruch nach 4 KB, nie bis zum Ende.
+    let gelesen = 0;
+    const cancel = jest.fn(async () => {});
+    const block = new Uint8Array(1024).fill(0x20);
+    (global as any).fetch = jest.fn(async () => ({
+      ok: true, status: 200, headers: { get: () => null }, text,
+      body: { getReader: () => ({ read: async () => { gelesen++; return { done: false, value: block }; }, cancel }) },
+    }));
+    await expect(rpcChainId(['https://a.example/rpc'])).resolves.toBeNull();
+    expect(cancel).toHaveBeenCalled();
+    expect(gelesen).toBe(5);
+    // Strom in Ordnung: wird gelesen.
+    const bytes = Uint8Array.from(Buffer.from('{"result":"0x125e602"}'));
+    let einmal = false;
+    (global as any).fetch = jest.fn(async () => ({
+      ok: true, status: 200, headers: { get: () => null },
+      body: { getReader: () => ({ read: async () => (einmal ? { done: true } : ((einmal = true), { done: false, value: bytes })), cancel }) },
+    }));
+    await expect(rpcChainId(['https://a.example/rpc'])).resolves.toBe(19260930);
+  });
+
+  it('haengende Antwort: Zeitgrenze gilt auch fuer das Lesen des Bodys', async () => {
+    (global as any).fetch = jest.fn(async () => ({ ok: true, status: 200, headers: { get: () => null }, text: () => new Promise(() => {}) }));
+    const t0 = Date.now();
+    await expect(rpcChainId(['https://a.example/rpc'], 50)).resolves.toBeNull();
+    expect(Date.now() - t0).toBeLessThan(2000);
+    // Kopfzeilen kommen nie: naechster Knoten, dann null.
+    (global as any).fetch = jest.fn(() => new Promise(() => {}));
+    await expect(rpcChainId(['https://a.example/rpc', 'https://b.example/rpc'], 50)).resolves.toBeNull();
+    expect((global as any).fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('Netzfehler: naechster Knoten; alle weg: null; hoechstens 4 Knoten', async () => {
     (global as any).fetch = jest.fn(async (url: string) => {
       if (url.includes('a.')) throw new Error('Network request failed');

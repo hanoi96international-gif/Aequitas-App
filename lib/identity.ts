@@ -219,7 +219,9 @@ export async function proveAndRegister(
   // Chain-ID erst JETZT, direkt vor der Unterschrift, live vom Knoten
   // (lib/ketteLive.ts): zwischen Vorpruefung und hier liegt der Beweis, und
   // rund um den Stichtag des Chain-ID-Wechsels kann sich die ID darin
-  // aendern. Unklar -> wirft, es wird nichts unterschrieben.
+  // aendern. Unklar -> wirft, es wird nichts unterschrieben. Zeitlich
+  // begrenzt: signierChainId hat eine Gesamtgrenze (SIGNIER_CHAIN_ID_FRIST_MS)
+  // ueber beide Abfragen samt Lesen der Antworten.
   const chainId = await signierChainId();
 
   let signature: string;
