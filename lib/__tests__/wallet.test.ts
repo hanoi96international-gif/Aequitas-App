@@ -116,3 +116,48 @@ describe('walletLink', () => {
     expect(walletLink({ peer: {} })).toBeNull();
   });
 });
+
+// Chain-ID-Wechsel 1926 -> 19260930: gesendet wird nur mit der live
+// gemeldeten ID (lib/ketteLive.ts), nie ueber einen Provider mit fester ID.
+describe('sendeUeberweisung (Chain-ID live)', () => {
+  const { sendeUeberweisung } = require('../wallet');
+  const ZIEL = '0x' + '22'.repeat(20);
+  function schluessel() {
+    const gesendet: any[] = [];
+    const verbunden: any[] = [];
+    const s: any = {
+      connect: jest.fn((p: any) => {
+        verbunden.push(p);
+        return { sendTransaction: jest.fn(async (tx: any) => { gesendet.push(tx); return { hash: '0xabc' }; }) };
+      }),
+    };
+    return { s, gesendet, verbunden };
+  }
+
+  it('signiert mit der ID, die der Knoten meldet -- vor und nach dem Stichtag', async () => {
+    for (const cid of [1926, 19260930]) {
+      const { s, gesendet, verbunden } = schluessel();
+      await expect(sendeUeberweisung(s, ZIEL, 5n, async () => cid)).resolves.toBe('0xabc');
+      expect(gesendet[0]).toEqual({ to: ZIEL, value: 5n, chainId: BigInt(cid) });
+      expect((await verbunden[0].getNetwork()).chainId).toBe(BigInt(cid));
+    }
+  });
+
+  it('Knoten unerreichbar oder fremde ID: nichts wird signiert', async () => {
+    for (const lesen of [async () => { throw new Error('Aequitas-Netz nicht bestätigt'); }, async () => 1, async () => 1927, async () => NaN]) {
+      const { s, gesendet } = schluessel();
+      await expect(sendeUeberweisung(s, ZIEL, 5n, lesen)).rejects.toThrow();
+      expect(s.connect).not.toHaveBeenCalled();
+      expect(gesendet).toHaveLength(0);
+    }
+  });
+
+  it('ein entsperrter Schluessel haengt an keinem Provider (kein Senden an der Live-Pruefung vorbei)', async () => {
+    const pk = '0x' + '33'.repeat(32);
+    await importWallet(pk);
+    const w = await unlockWallet();
+    expect(w.provider).toBeNull();
+    await expect(w.sendTransaction({ to: ZIEL, value: 1n })).rejects.toThrow();
+    lockWallet();
+  });
+});

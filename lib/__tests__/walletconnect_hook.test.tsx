@@ -32,7 +32,8 @@ function falscherSignClient(kettenAnfang: string[]) {
       if (topic !== TOPIC || !sitzung.namespaces.eip155.chains.includes(chainId)) throw new Error('Missing or invalid. request() chainId');
       if (request.method === 'wallet_addEthereumChain') {
         // MetaMask: anlegen, wechseln, fuer die Verbindung freigeben.
-        sitzung = { ...sitzung, namespaces: nsVon([...sitzung.namespaces.eip155.chains, 'eip155:1926']) };
+        const neu = `eip155:${parseInt(request.params[0].chainId, 16)}`;
+        sitzung = { ...sitzung, namespaces: nsVon([...sitzung.namespaces.eip155.chains, neu]) };
         setTimeout(() => emit('session_update', { topic: TOPIC, params: { namespaces: sitzung.namespaces } }), 50);
         return null;
       }
@@ -44,6 +45,15 @@ function falscherSignClient(kettenAnfang: string[]) {
 }
 
 let mockSzenario: ReturnType<typeof falscherSignClient>;
+// Was der Knoten als Chain-ID meldet (lib/ketteLive.ts), oder ein Fehler.
+let mockCid: number | Error = 1926;
+jest.mock('../ketteLive', () => ({
+  signierChainId: jest.fn(async () => {
+    if (mockCid instanceof Error) throw mockCid;
+    return mockCid;
+  }),
+}));
+beforeEach(() => { mockCid = 1926; });
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -116,6 +126,35 @@ describe('useWalletConnect mit MetaMask ohne Aequitas-Netz (Vorfall 1.8.8)', () 
     mockSzenario = falscherSignClient(['eip155:1', 'eip155:1926']);
     const { ref, unmount } = rendere();
     await act(async () => { await ref.wc!.ensureNetwork(); });
+    expect(mockSzenario.client.request).not.toHaveBeenCalled();
+    unmount();
+  });
+});
+
+describe('useWalletConnect beim Chain-ID-Wechsel (1926 -> 19260930)', () => {
+  it('nach dem Stichtag: Wallet mit nur 1926 bekommt das Netz mit 0x125e602, Unterschrift ueber eip155:19260930', async () => {
+    mockCid = 19260930;
+    mockSzenario = falscherSignClient(['eip155:1', 'eip155:1926']);
+    const { ref, unmount } = rendere();
+    await act(async () => { await ref.wc!.ensureNetwork(); });
+    const arg = mockSzenario.client.request.mock.calls[0][0];
+    expect(arg.request.method).toBe('wallet_addEthereumChain');
+    expect(arg.request.params[0]).toMatchObject({ chainId: '0x125e602', chainName: 'Aequitas Chain' });
+    await act(async () => { await new Promise((r) => setTimeout(r, 80)); });
+    await ref.wc!.signer!.signTypedData(
+      { name: 'Aequitas', version: '8', chainId: 19260930, verifyingContract: '0x20D271028f32577FCd07b4583A8e0E4eBBdB4F78' },
+      { Register: [{ name: 'x', type: 'uint256' }] },
+      { x: 1n },
+    );
+    expect(mockSzenario.client.request.mock.calls.at(-1)![0].chainId).toBe('eip155:19260930');
+    unmount();
+  });
+
+  it('Knoten meldet keine bestaetigte Chain-ID: keine Anfrage an die Wallet', async () => {
+    mockCid = new Error('Aequitas-Netz nicht bestätigt');
+    mockSzenario = falscherSignClient(['eip155:1']);
+    const { ref, unmount } = rendere();
+    await act(async () => { await expect(ref.wc!.ensureNetwork()).rejects.toThrow('nicht bestätigt'); });
     expect(mockSzenario.client.request).not.toHaveBeenCalled();
     unmount();
   });

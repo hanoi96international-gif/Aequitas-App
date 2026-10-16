@@ -24,6 +24,14 @@ const DIGEST = '0x0cfd835d1262f048ab9e759f064e7d6ebfb747599e40a606e5cd84dc13cc18
 const SIG =
   '0x9d5387fee26b5ec00237ff732f68821b31744e07c81b8b815f048c1c9ad8965d4032040a16fbf1ef18bd9c24bbdab9c76df4c03fa8637ce003f18a4dc4d05cd31c';
 
+// Derselbe Vektor fuer die Chain-ID nach dem Wechsel (19260930); Go:
+// TestV8_GoldenVektorNeueChainID (vertrag_v8_test.go).
+const CID = 1926;
+const CID_NEU = 19260930;
+const DIGEST_NEU = '0x7e1718f2076ab61ab691b4c469089eadca8e2e78f2219e2aa8e35989e0038953';
+const SIG_NEU =
+  '0x4616f2684cba8c7e02a48639f296f981b2a16c43ae47b4917041ca8beedb0f3347531350344bf14880c2a854c8602d8b2666b4e69cd219f936dff02cdde9f7651c';
+
 const N_HALB = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0n;
 const N = N_HALB * 2n + 1n;
 
@@ -31,39 +39,62 @@ function nachricht(human = ALICE.address) {
   return registerV8Nachricht(human, SIGNALE, FRIST);
 }
 
-async function unterschreibe(w: ethers.Wallet, kennung = KENNUNG, n = nachricht()) {
-  const td = registerV8TypedData(kennung, n);
+async function unterschreibe(w: ethers.Wallet, kennung = KENNUNG, n = nachricht(), cid = CID) {
+  const td = registerV8TypedData(kennung, n, cid);
   return w.signTypedData(td.domain, td.types as any, td.message as any);
 }
 
 describe('Pruefvektor mit Go', () => {
   it('Salt, Digest und Signatur stimmen byte-genau', async () => {
     expect(netzSalt(KENNUNG)).toBe('0x89654bb870598e4d718a433a7d674b5ddd48f78cb6eecd489c01d69fa8e8954f');
-    expect(registerV8Digest(KENNUNG, nachricht())).toBe(DIGEST);
+    expect(registerV8Digest(KENNUNG, nachricht(), CID)).toBe(DIGEST);
     const sig = await unterschreibe(ALICE);
     expect(sig).toBe(SIG);
-    expect(registerV8Signatur(KENNUNG, nachricht(), sig)).toBe(SIG);
+    expect(registerV8Signatur(KENNUNG, nachricht(), sig, CID)).toBe(SIG);
+  });
+});
+
+describe('Chain-ID-Wechsel (1926 -> 19260930)', () => {
+  it('Pruefvektor fuer die neue Chain-ID, byte-gleich zu Go', async () => {
+    expect(registerV8Digest(KENNUNG, nachricht(), CID_NEU)).toBe(DIGEST_NEU);
+    const sig = await unterschreibe(ALICE, KENNUNG, nachricht(), CID_NEU);
+    expect(sig).toBe(SIG_NEU);
+    expect(registerV8Signatur(KENNUNG, nachricht(), sig, CID_NEU)).toBe(SIG_NEU);
+  });
+  it('Wiederholung ueber den Wechsel: eine 1926-Unterschrift gilt nicht fuer 19260930 und umgekehrt', () => {
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG, CID_NEU)).toThrow('nicht von dieser Wallet');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG_NEU, CID)).toThrow('nicht von dieser Wallet');
+  });
+  it('jede andere Chain-ID: keine Domaene, nichts zu unterschreiben', () => {
+    for (const cid of [1, 0, 1927, 19260931, -1926, 1926.5, NaN, '1926', 1926n, undefined, null] as any[]) {
+      expect(() => registerV8TypedData(KENNUNG, nachricht(), cid)).toThrow('Chain-ID');
+      expect(() => registerV8Digest(KENNUNG, nachricht(), cid)).toThrow('Chain-ID');
+    }
+  });
+  it('Netzkennung bleibt eingefroren auf 1926, auch mit der neuen Chain-ID', () => {
+    expect(() => registerV8TypedData('aequitas-19260930-1790000000', nachricht(), CID_NEU)).toThrow();
+    expect(registerV8TypedData(KENNUNG, nachricht(), CID_NEU).domain.chainId).toBe(CID_NEU);
   });
 });
 
 describe('registerV8Signatur (Missbrauch)', () => {
   it('lehnt eine Unterschrift aus einem anderen Netz ab', async () => {
     const alt = await unterschreibe(ALICE, 'aequitas-1926-1700000000');
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), alt)).toThrow('nicht von dieser Wallet');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), alt, CID)).toThrow('nicht von dieser Wallet');
   });
   it('lehnt eine fremde Wallet ab', async () => {
     const fremd = await unterschreibe(MALLORY);
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), fremd)).toThrow('nicht von dieser Wallet');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), fremd, CID)).toThrow('nicht von dieser Wallet');
   });
   it('lehnt vertauschte Signale und eine andere Frist ab', () => {
     const vertauscht = registerV8Nachricht(ALICE.address, ['2001', '1001'], FRIST);
-    expect(() => registerV8Signatur(KENNUNG, vertauscht, SIG)).toThrow('nicht von dieser Wallet');
+    expect(() => registerV8Signatur(KENNUNG, vertauscht, SIG, CID)).toThrow('nicht von dieser Wallet');
     const spaeter = registerV8Nachricht(ALICE.address, SIGNALE, FRIST + 1);
-    expect(() => registerV8Signatur(KENNUNG, spaeter, SIG)).toThrow('nicht von dieser Wallet');
+    expect(() => registerV8Signatur(KENNUNG, spaeter, SIG, CID)).toThrow('nicht von dieser Wallet');
   });
   it('gleicht v 0/1 an (WalletConnect), aendert sonst nichts', () => {
     const v01 = SIG.slice(0, -2) + (parseInt(SIG.slice(-2), 16) - 27).toString(16).padStart(2, '0');
-    expect(registerV8Signatur(KENNUNG, nachricht(), v01)).toBe(SIG);
+    expect(registerV8Signatur(KENNUNG, nachricht(), v01, CID)).toBe(SIG);
   });
   it('lehnt hohes s ab (formbare Signatur)', () => {
     const b = ethers.getBytes(SIG);
@@ -71,14 +102,14 @@ describe('registerV8Signatur (Missbrauch)', () => {
     const hoch = ethers.toBeHex(N - s, 32).slice(2);
     const v = b[64] === 27 ? '1c' : '1b';
     const formbar = SIG.slice(0, 66) + hoch + v;
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), formbar)).toThrow('hohes s');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), formbar, CID)).toThrow('hohes s');
   });
   it('lehnt falsche Laenge, v und Unsinn ab', () => {
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG.slice(0, -2))).toThrow('65 Byte');
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG + '00')).toThrow('65 Byte');
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG.slice(0, -2) + '1d')).toThrow('v ungueltig');
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), 'kaputt')).toThrow('65 Byte');
-    expect(() => registerV8Signatur(KENNUNG, nachricht(), '0x' + '00'.repeat(64) + '1b')).toThrow('r/s');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG.slice(0, -2), CID)).toThrow('65 Byte');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG + '00', CID)).toThrow('65 Byte');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), SIG.slice(0, -2) + '1d', CID)).toThrow('v ungueltig');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), 'kaputt', CID)).toThrow('65 Byte');
+    expect(() => registerV8Signatur(KENNUNG, nachricht(), '0x' + '00'.repeat(64) + '1b', CID)).toThrow('r/s');
   });
 });
 

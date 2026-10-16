@@ -10,7 +10,8 @@ import {
   registerV8TypedData,
   registerVertrag,
 } from '@/src/domain/registerV8';
-import { CHAIN_ID_DEC, V7_CONTRACT } from './config';
+import { V7_CONTRACT } from './config';
+import { signierChainId } from './ketteLive';
 import { withTimeout, type AequitasSigner } from './signer';
 
 // 120 s: schliesst ggf. einen Netzwechsel in der Wallet ein (signer.ts, walletWechseln).
@@ -215,6 +216,14 @@ export async function proveAndRegister(
   const commitment = pubSignals[0];
   const nullifier = BigInt(zkNullifier).toString(16).padStart(64, '0');
 
+  // Chain-ID erst JETZT, direkt vor der Unterschrift, live vom Knoten
+  // (lib/ketteLive.ts): zwischen Vorpruefung und hier liegt der Beweis, und
+  // rund um den Stichtag des Chain-ID-Wechsels kann sich die ID darin
+  // aendern. Unklar -> wirft, es wird nichts unterschrieben. Zeitlich
+  // begrenzt: signierChainId hat eine Gesamtgrenze (SIGNIER_CHAIN_ID_FRIST_MS)
+  // ueber beide Abfragen samt Lesen der Antworten.
+  const chainId = await signierChainId();
+
   let signature: string;
   let deadline: number | undefined;
   if (vertrag === 'v8') {
@@ -226,7 +235,7 @@ export async function proveAndRegister(
     }
     deadline = registerV8Frist();
     const nachricht = registerV8Nachricht(signer.address, pubSignals, deadline);
-    const td = registerV8TypedData(kennung!, nachricht);
+    const td = registerV8TypedData(kennung!, nachricht, chainId);
     const roh = await withTimeout(
       signer.signTypedData(td.domain, td.types, td.message as unknown as Record<string, unknown>),
       SIGN_TIMEOUT_MS,
@@ -234,11 +243,13 @@ export async function proveAndRegister(
     );
     // Pruefen, bevor es rausgeht: v angleichen, hohes s und fremder
     // Unterzeichner schliessen ab (dieselbe Pruefung wie am Knoten).
-    signature = registerV8Signatur(kennung!, nachricht, roh);
+    signature = registerV8Signatur(kennung!, nachricht, roh, chainId);
   } else {
+    // V7: block.chainid im Vertrag -- der Knoten prueft mit der ID, die
+    // jetzt gilt (register.go, chainIDFuer(nowUnix())).
     const messageHash = ethers.solidityPackedKeccak256(
       ['uint256', 'address', 'string', 'uint256', 'bytes32'],
-      [CHAIN_ID_DEC, V7_CONTRACT, 'register', commitment, '0x' + nullifier]
+      [chainId, V7_CONTRACT, 'register', commitment, '0x' + nullifier]
     );
     signature = await withTimeout(signer.signMessage(messageHash), SIGN_TIMEOUT_MS, timeoutMessage);
   }

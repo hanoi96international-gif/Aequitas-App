@@ -1,7 +1,10 @@
 // Inhalt eines gescannten QR-Codes: eine reine Adresse oder ein Zahlungslink
-// nach EIP-681 ("ethereum:0x...@1926?value=<wei>"), wie ihn eine Kasse zeigt.
+// nach EIP-681 ("ethereum:0x...@<chainId>?value=<wei>"), wie ihn eine Kasse zeigt.
+// Zum Netz gehoeren beide Chain-IDs, 1926 und 19260930 (Wechsel, lib/kette.ts):
+// ein vor dem Stichtag gedruckter Code bleibt lesbar. Gezahlt wird ohnehin mit
+// der ID, die der Knoten beim Senden meldet.
 import { ethers } from 'ethers';
-import { CHAIN_ID_DEC } from './config';
+import { istAequitasChainId } from './kette';
 
 export interface Zahlungsziel {
   adresse: string;
@@ -16,7 +19,8 @@ export function leseZahlungsziel(roh: string): Zahlungsziel | null {
   const m = /^(?:ethereum:)?(?:pay-)?(0x[0-9a-fA-F]{40})(?:@(\d+))?(?:\/[^?]*)?(?:\?(.*))?$/.exec(text);
   if (!m || !ethers.isAddress(m[1])) return null;
   const ziel: Zahlungsziel = { adresse: ethers.getAddress(m[1]) };
-  if (m[2] && Number(m[2]) !== CHAIN_ID_DEC) ziel.fremdeKette = true;
+  // Genau eine der beiden IDs, ohne fuehrende Nullen; alles andere: nicht zahlen.
+  if (m[2] && !(m[2].length <= 12 && istAequitasChainId(Number(m[2])) && String(Number(m[2])) === m[2])) ziel.fremdeKette = true;
   if (m[3]) {
     const params = new URLSearchParams(m[3]);
     const wert = params.get('value');

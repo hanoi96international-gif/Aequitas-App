@@ -1,9 +1,18 @@
 import { ethers } from 'ethers';
-import { CHAIN_ID_DEC, CHAIN_ID_HEX } from './config';
+import { caipAusHex, chainCaip, chainIdHex, domaeneTraegt } from './kette';
+import { signierChainId } from './ketteLive';
 import * as wallet from './wallet';
 
-/** CAIP-2-Kennung der Aequitas-Kette, unter der WalletConnect Anfragen leitet. */
-export const AEQUITAS_CAIP = `eip155:${CHAIN_ID_DEC}`;
+// Die Aequitas-Kette hat zwei CAIP-Kennungen: eip155:1926 bis zum Stichtag
+// des Chain-ID-Wechsels, eip155:19260930 ab ihm (lib/kette.ts). Ueber welche
+// eine kettengebundene Anfrage geht, entscheidet die ID, die der Knoten
+// JETZT meldet (lib/ketteLive.ts) -- nie eine eingebaute Zahl.
+
+/** Liest die Chain-ID zum Signieren (Standard: signierChainId, live). */
+export type ChainIdLesen = (o: { ueberweisung?: boolean }) => Promise<number>;
+const chainIdLive: ChainIdLesen = (o) => signierChainId(o);
+
+export const DOMAENE_FALSCHE_KETTE = 'EIP-712-Domaene muss die Chain-ID tragen, die das Aequitas-Netz jetzt meldet';
 
 export const NETZ_NICHT_FREIGEGEBEN =
   'Deine Wallet kennt das Aequitas-Netz jetzt, hat es aber noch nicht für diese Verbindung freigegeben. Bitte „Erneut versuchen“ tippen und in der Wallet bestätigen.';
@@ -170,8 +179,8 @@ export const KEINE_KETTE_IN_SITZUNG =
  * ohne Handarbeit des Menschen ausser dem Bestaetigen in der Wallet.
  *
  * 1. Ist die Aequitas-Kette in der Sitzung freigegeben: fertig, keine Anfrage
- *    (die Wallet kennt das Netz; kettengebundene Anfragen gehen ueber 1926,
- *    MetaMask schaltet dafuer selbst um).
+ *    (die Wallet kennt das Netz; kettengebundene Anfragen gehen ueber die
+ *    live gemeldete Chain-ID, MetaMask schaltet dafuer selbst um).
  * 2. Sonst wallet_addEthereumChain ueber die freigegebenen Ketten (zuerst die,
  *    die die Wallet zuletzt als aktiv gemeldet hat).
  * 3. Auf die Freigabe in der Sitzung warten (session_update der Wallet).
@@ -188,7 +197,10 @@ export async function aequitasNetzEinrichten(o: {
   zeitJeAnfrageMs?: number;
   freigabeWarteMs?: number;
 }): Promise<void> {
-  const da = () => o.ketten().includes(AEQUITAS_CAIP);
+  // Nur fuer eine Kette des Netzes (1926 oder 19260930); sonst nichts senden.
+  const ziel = caipAusHex(o.kette.chainId);
+  if (!ziel) throw new Error('Chain-ID nicht im Aequitas-Netz');
+  const da = () => o.ketten().includes(ziel);
   if (da()) return;
   const alle = o.ketten();
   if (alle.length === 0) throw new Error(KEINE_KETTE_IN_SITZUNG);
@@ -239,12 +251,18 @@ export interface AequitasSigner {
   sendTransaction(params: { to: string; value: bigint }): Promise<string>;
 }
 
-export function localWalletSigner(address: string): AequitasSigner {
+export function localWalletSigner(address: string, chainIdLesen: ChainIdLesen = chainIdLive): AequitasSigner {
   return {
     address,
     kind: 'local',
     signMessage: (message: string) => wallet.signMessage(message),
-    signTypedData: (domain, types, message) => wallet.signTypedData(domain, types, message),
+    // Nur eine Domaene der Kette, die jetzt gilt (wie walletConnectSigner).
+    signTypedData: async (domain, types, message) => {
+      const cid = await chainIdLesen({});
+      if (!domaeneTraegt(domain.chainId, cid)) throw new Error(DOMAENE_FALSCHE_KETTE);
+      return wallet.signTypedData(domain, types, message);
+    },
+    // sendAEQ holt die Chain-ID selbst live (wallet.ts, sendeUeberweisung).
     sendTransaction: ({ to, value }) => wallet.sendAEQ(to, value),
   };
 }
@@ -255,7 +273,8 @@ export function localWalletSigner(address: string): AequitasSigner {
  * Wallet landet dort).
  *
  * Kettengebundene Anfragen (EIP-712 mit chainId, Ueberweisung) gehen
- * ausdruecklich ueber die Aequitas-Kette. Vorher liefen alle Anfragen ueber
+ * ausdruecklich ueber die Aequitas-Kette -- mit der Chain-ID, die der Knoten
+ * jetzt meldet (`chainIdLesen`, fail-closed). Vorher liefen alle Anfragen ueber
  * den Routing-Anker eip155:1 (walletconnect.ts); MetaMask Mobile nimmt diese
  * Routing-Kette als aktives Netz und lehnte die V8-Unterschrift ab ("active
  * chainId is different than the one provided") -- und eine Ueberweisung
@@ -266,34 +285,39 @@ export function walletConnectSigner(
   address: string,
   request: WcRequest,
   freigegebeneKetten: () => readonly string[],
-  // Richtet das Aequitas-Netz in der Wallet ein (walletconnect.ts,
-  // aequitasNetzEinrichten). Fehlt sie, wird nicht nachgeholfen.
-  walletWechseln?: () => Promise<void>,
+  // Richtet das Aequitas-Netz mit dieser Chain-ID in der Wallet ein
+  // (walletconnect.ts, aequitasNetzEinrichten). Fehlt sie, wird nicht
+  // nachgeholfen.
+  walletWechseln?: (chainId: number) => Promise<void>,
   // Schaltet eine Wallet, die das Netz schon freigegeben hat, aber auf
   // einem anderen steht, dorthin um (wallet_switchEthereumChain). Ohne
   // Angabe: walletWechseln.
-  walletUmschalten?: () => Promise<void>
+  walletUmschalten?: (chainId: number) => Promise<void>,
+  chainIdLesen: ChainIdLesen = chainIdLive,
 ): AequitasSigner {
   const umschalten = walletUmschalten ?? walletWechseln;
-  const aufAequitas = async (args: { method: string; params: unknown[] }) => {
-    if (!freigegebeneKetten().includes(AEQUITAS_CAIP)) {
+  const aufAequitas = async (args: { method: string; params: unknown[] }, cid: number) => {
+    const weg = chainCaip(cid);
+    if (!freigegebeneKetten().includes(weg)) {
       // Noch nicht freigegeben (Vorfall 01.10.2026: neue Verbindung, Netz in
-      // MetaMask unbekannt): erst die Wallet auf Aequitas bringen -- das
-      // wartet auch auf ihre Freigabe --, dann neu pruefen. Fail-closed.
-      if (walletWechseln) await walletWechseln();
-      if (!freigegebeneKetten().includes(AEQUITAS_CAIP)) throw new Error(NETZ_NICHT_FREIGEGEBEN);
-      return request(args, AEQUITAS_CAIP);
+      // MetaMask unbekannt; ebenso nach dem Chain-ID-Wechsel, solange die
+      // Wallet nur die alte ID kennt): erst die Wallet auf Aequitas bringen
+      // -- das wartet auch auf ihre Freigabe --, dann neu pruefen.
+      // Fail-closed.
+      if (walletWechseln) await walletWechseln(cid);
+      if (!freigegebeneKetten().includes(weg)) throw new Error(NETZ_NICHT_FREIGEGEBEN);
+      return request(args, weg);
     }
     try {
-      return await request(args, AEQUITAS_CAIP);
+      return await request(args, weg);
     } catch (e) {
       // Vorfall 01.10.2026 (MetaMask Mobile): "Invalid chainId". Die Kette
       // ist fuer die Sitzung freigegeben, aber in MetaMask ist ein anderes
-      // Netz ausgewaehlt; MetaMask lehnt dann jede Anfrage fuer 1926 ab.
+      // Netz ausgewaehlt; MetaMask lehnt dann jede Anfrage fuer Aequitas ab.
       // Einmal wechseln, einmal wiederholen -- nicht mehr.
       if (!umschalten || !istFalscheKette(e)) throw e;
-      await umschalten();
-      return request(args, AEQUITAS_CAIP);
+      await umschalten(cid);
+      return request(args, weg);
     }
   };
   return {
@@ -321,29 +345,24 @@ export function walletConnectSigner(
     },
     // getPayload fuegt EIP712Domain hinzu und schreibt bigints als
     // Dezimaltext -- genau das JSON, das eth_signTypedData_v4 erwartet.
-    // Die App unterschreibt nur Domaenen der Aequitas-Kette; eine andere
-    // chainId ist ein Fehler im Aufrufer und geht nicht an die Wallet.
+    // Die App unterschreibt nur Domaenen der Aequitas-Kette mit der ID, die
+    // jetzt gilt; eine andere chainId ist ein Fehler im Aufrufer und geht
+    // nicht an die Wallet.
     signTypedData: async (domain, types, message) => {
-      let kette: bigint | null = null;
-      try {
-        kette = domain.chainId === undefined || domain.chainId === null ? null : BigInt(domain.chainId);
-      } catch {
-        kette = null;
-      }
-      if (kette !== BigInt(CHAIN_ID_DEC)) {
-        throw new Error(`EIP-712-Domaene muss chainId ${CHAIN_ID_DEC} tragen`);
-      }
+      const cid = await chainIdLesen({});
+      if (!domaeneTraegt(domain.chainId, cid)) throw new Error(DOMAENE_FALSCHE_KETTE);
       const payload = ethers.TypedDataEncoder.getPayload(domain, types as any, message);
-      return aufAequitas({ method: 'eth_signTypedData_v4', params: [address, JSON.stringify(payload)] });
+      return aufAequitas({ method: 'eth_signTypedData_v4', params: [address, JSON.stringify(payload)] }, cid);
     },
     // chainId im Auftrag: steht die Wallet trotzdem auf einem anderen Netz,
     // lehnt sie ab, statt dort zu senden.
     sendTransaction: async ({ to, value }) => {
+      const cid = await chainIdLesen({ ueberweisung: true });
       const hexValue = '0x' + value.toString(16);
       return aufAequitas({
         method: 'eth_sendTransaction',
-        params: [{ from: address, to, value: hexValue, chainId: CHAIN_ID_HEX }],
-      });
+        params: [{ from: address, to, value: hexValue, chainId: chainIdHex(cid) }],
+      }, cid);
     },
   };
 }

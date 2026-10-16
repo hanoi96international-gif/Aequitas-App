@@ -34,11 +34,16 @@ function signerFuer(w: ethers.Wallet, adresse = w.address) {
   };
 }
 
-function knoten(status: Record<string, unknown>, beweis: Record<string, unknown> = BEWEIS) {
+// rpc: was /rpc auf eth_chainId antwortet (lib/ketteLive.ts).
+function knoten(status: Record<string, unknown>, beweis: Record<string, unknown> = BEWEIS, rpc: unknown = '0x786') {
   const bodies: Record<string, any> = {};
   const calls: string[] = [];
   (global as any).fetch = jest.fn(async (url: string, init?: RequestInit) => {
     calls.push(url);
+    if (url.endsWith('/rpc')) {
+      const text = JSON.stringify({ jsonrpc: '2.0', id: 1, result: rpc });
+      return { ok: true, status: 200, text: async () => text, json: async () => JSON.parse(text) } as any;
+    }
     const pfad = url.slice(A.length);
     if (init?.body) bodies[pfad] = JSON.parse(String(init.body));
     const json =
@@ -77,7 +82,7 @@ describe('proveAndRegister unter V8', () => {
 
     // Dieselbe Rechnung wie der Knoten: Digest aus festen Werten + Salt.
     const { registerV8Digest, registerV8Nachricht } = require('@/src/domain/registerV8');
-    const digest = registerV8Digest(KENNUNG, registerV8Nachricht(ALICE.address, BEWEIS.pubSignals, reg.deadline));
+    const digest = registerV8Digest(KENNUNG, registerV8Nachricht(ALICE.address, BEWEIS.pubSignals, reg.deadline), 1926);
     expect(ethers.recoverAddress(digest, reg.signature)).toBe(ALICE.address);
     const [domain, , message] = signer.signTypedData.mock.calls[0];
     expect(domain.salt).toBe(ethers.keccak256(ethers.toUtf8Bytes(KENNUNG)));
@@ -110,6 +115,49 @@ describe('proveAndRegister unter V8', () => {
     expect(calls.some((u) => u.endsWith('/prove'))).toBe(false);
     expect(signer.signTypedData).not.toHaveBeenCalled();
     expect(signer.signMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('proveAndRegister beim Chain-ID-Wechsel', () => {
+  afterEach(() => { jest.resetModules(); (global as any).fetch = undefined; });
+
+  it('nach dem Stichtag: V8-Domaene mit der live gemeldeten 19260930, Netzkennung bleibt 1926', async () => {
+    const { bodies } = knoten({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_700_000_000, netz_kennung: KENNUNG, register_vertrag: 'v8' }, BEWEIS, '0x125e602');
+    const signer = signerFuer(ALICE);
+    await registriere(signer);
+    const [domain] = signer.signTypedData.mock.calls[0];
+    expect(domain.chainId).toBe(19260930);
+    expect(domain.salt).toBe(ethers.keccak256(ethers.toUtf8Bytes(KENNUNG)));
+    const { registerV8Digest, registerV8Nachricht } = require('@/src/domain/registerV8');
+    const reg = bodies['/register'];
+    const digest = registerV8Digest(KENNUNG, registerV8Nachricht(ALICE.address, BEWEIS.pubSignals, reg.deadline), 19260930);
+    expect(ethers.recoverAddress(digest, reg.signature)).toBe(ALICE.address);
+  });
+
+  it('V7 nach dem Stichtag: personal_sign ueber die neue ID', async () => {
+    knoten({ chain_evm_id: 19260930, chain_id_wechsel_ab: 1_700_000_000, netz_kennung: KENNUNG, register_vertrag: 'v7' }, BEWEIS, '0x125e602');
+    const signer = signerFuer(ALICE);
+    await registriere(signer);
+    const nullifier = BigInt(BEWEIS.zkNullifier).toString(16).padStart(64, '0');
+    const erwartet = ethers.solidityPackedKeccak256(
+      ['uint256', 'address', 'string', 'uint256', 'bytes32'],
+      [19260930, '0x20D271028f32577FCd07b4583A8e0E4eBBdB4F78', 'register', BEWEIS.pubSignals[0], '0x' + nullifier],
+    );
+    expect(signer.signMessage).toHaveBeenCalledWith(erwartet);
+  });
+
+  it.each([
+    ['RPC meldet eine fremde ID', { netz_kennung: KENNUNG, register_vertrag: 'v8' }, '0x1'],
+    ['RPC und Status uneinig', { netz_kennung: KENNUNG, register_vertrag: 'v8' }, '0x125e602'],
+    ['RPC ohne Ergebnis', { netz_kennung: KENNUNG, register_vertrag: 'v8' }, null],
+    ['neue ID ohne Stichtag (widerspruechlich)', { chain_evm_id: 19260930, netz_kennung: KENNUNG, register_vertrag: 'v8' }, '0x125e602'],
+  ])('%s: keine Unterschrift', async (_name, status, rpc) => {
+    const { calls } = knoten(status, BEWEIS, rpc);
+    const signer = signerFuer(ALICE);
+    await expect(registriere(signer)).rejects.toThrow();
+    expect(signer.signTypedData).not.toHaveBeenCalled();
+    expect(signer.signMessage).not.toHaveBeenCalled();
+    expect(calls.some((u) => u.endsWith('/register'))).toBe(false);
   });
 });
 

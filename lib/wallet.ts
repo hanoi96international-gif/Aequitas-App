@@ -2,7 +2,9 @@ import { AppState } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { ethers } from 'ethers';
-import { RPC_FALLBACKS, RPC_URL } from './config';
+import { CHAIN_ID_ALT, RPC_FALLBACKS, RPC_URL } from './config';
+import { istAequitasChainId } from './kette';
+import { signierChainId } from './ketteLive';
 
 const WALLET_SECRET_KEY = 'aequitas_wallet_secret_v1';
 const WALLET_ADDRESS_KEY = 'aequitas_wallet_address_v1';
@@ -11,28 +13,60 @@ export type WalletInfo = { address: string; mnemonic?: string };
 
 type LocalSigner = ethers.Wallet | ethers.HDNodeWallet;
 
+// Ohne Provider: ein entsperrter Schluessel kann so NIE ueber einen Provider
+// mit fest eingebauter Chain-ID senden. Gesendet wird nur ueber
+// sendeUeberweisung (Chain-ID live vom Knoten).
 let cachedSigner: LocalSigner | null = null;
-let sharedProvider: ethers.AbstractProvider | null = null;
+// Je Chain-ID ein Provider -- nur fuer IDs aus AEQUITAS_CHAIN_IDS, also
+// hoechstens zwei Eintraege.
+const provider = new Map<number, ethers.AbstractProvider>();
 
-/** The chain over JSON-RPC. With RPC_FALLBACKS set, a FallbackProvider with
- * quorum 1: the first node that answers wins, and a dead Contabo1 no longer
- * takes the wallet down with it (see config.ts). Same network on every
- * candidate -- staticNetwork keeps ethers from probing eth_chainId first. */
-export function getProvider(): ethers.AbstractProvider {
-  if (!sharedProvider) {
-    const netz = ethers.Network.from(1926);
+function providerFuer(chainId: number): ethers.AbstractProvider {
+  if (!istAequitasChainId(chainId)) throw new Error('Chain-ID nicht im Aequitas-Netz');
+  let p = provider.get(chainId);
+  if (!p) {
+    const netz = ethers.Network.from(chainId);
     const einzel = (url: string) => new ethers.JsonRpcProvider(url, netz, { staticNetwork: netz });
     if (RPC_FALLBACKS.length === 0) {
-      sharedProvider = einzel(RPC_URL);
+      p = einzel(RPC_URL);
     } else {
-      sharedProvider = new ethers.FallbackProvider(
+      p = new ethers.FallbackProvider(
         [RPC_URL, ...RPC_FALLBACKS].map((url, i) => ({ provider: einzel(url), priority: i + 1, weight: 1, stallTimeout: 4000 })),
         netz,
         { quorum: 1 }
       );
     }
+    provider.set(chainId, p);
   }
-  return sharedProvider;
+  return p;
+}
+
+/** The chain over JSON-RPC, NUR ZUM LESEN (Kontostand, Nonce). With
+ * RPC_FALLBACKS set, a FallbackProvider with quorum 1: the first node that
+ * answers wins, and a dead Contabo1 no longer takes the wallet down with it
+ * (see config.ts). staticNetwork keeps ethers from probing eth_chainId first;
+ * die Chain-ID darin ist fuers Lesen ohne Bedeutung. Nie einen Schluessel
+ * damit verbinden: Senden geht nur ueber sendeUeberweisung. */
+export function getProvider(): ethers.AbstractProvider {
+  return providerFuer(CHAIN_ID_ALT);
+}
+
+/**
+ * Sendet eine Ueberweisung mit der Chain-ID, die der Knoten JETZT meldet
+ * (lib/ketteLive.ts: /api/status und eth_chainId, nur 1926 oder 19260930,
+ * Pause vor dem Stichtag beachtet). Unklar -> wirft vor dem Signieren.
+ * Der Provider traegt dieselbe ID; ethers lehnt eine abweichende ab.
+ */
+export async function sendeUeberweisung(
+  schluessel: LocalSigner,
+  to: string,
+  value: bigint,
+  chainIdLesen: () => Promise<number> = () => signierChainId({ ueberweisung: true }),
+): Promise<string> {
+  const chainId = await chainIdLesen();
+  if (!istAequitasChainId(chainId)) throw new Error('Chain-ID nicht im Aequitas-Netz');
+  const tx = await schluessel.connect(providerFuer(chainId)).sendTransaction({ to, value, chainId: BigInt(chainId) });
+  return tx.hash;
 }
 
 export async function hasStoredWallet(): Promise<boolean> {
@@ -112,7 +146,7 @@ export function generateMnemonic(): string {
 export async function persistMnemonic(mnemonic: string): Promise<WalletInfo> {
   const wallet = ethers.Wallet.fromPhrase(mnemonic.trim().toLowerCase());
   await persistWallet(wallet.privateKey, wallet.address);
-  cachedSigner = wallet.connect(getProvider());
+  cachedSigner = wallet;
   return { address: wallet.address, mnemonic };
 }
 
@@ -127,7 +161,7 @@ export async function importWallet(secret: string): Promise<WalletInfo> {
     ? ethers.Wallet.fromPhrase(trimmed.toLowerCase())
     : new ethers.Wallet(trimmed.startsWith('0x') ? trimmed : '0x' + trimmed);
   await persistWallet(wallet.privateKey, wallet.address);
-  cachedSigner = wallet.connect(getProvider());
+  cachedSigner = wallet;
   return { address: wallet.address };
 }
 
@@ -147,7 +181,7 @@ export async function unlockWallet(): Promise<LocalSigner> {
     authenticationPrompt: 'Entsperre deine Aequitas Wallet',
   });
   if (!privateKey) throw new Error('Keine Wallet auf diesem Gerät gefunden');
-  const wallet = new ethers.Wallet(privateKey, getProvider());
+  const wallet = new ethers.Wallet(privateKey);
   cachedSigner = wallet;
   return wallet;
 }
@@ -209,8 +243,7 @@ export async function signTypedData(
 
 export async function sendAEQ(to: string, amountWei: bigint): Promise<string> {
   const wallet = await unlockWallet();
-  const tx = await wallet.sendTransaction({ to, value: amountWei });
-  return tx.hash;
+  return sendeUeberweisung(wallet, to, amountWei);
 }
 
 export async function getNativeBalance(address: string): Promise<bigint> {

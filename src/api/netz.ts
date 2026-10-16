@@ -1,4 +1,5 @@
-import { CHAIN_ID_DEC } from '@/lib/config';
+import { NETZ_KENNUNG_CHAIN_ID } from '@/lib/config';
+import { kettenStandAusStatus } from '@/lib/kette';
 
 // Netzabgleich (docs/NEUBAU_ANALYSE.md G "Chain-ID- und Netzabgleich fail-closed").
 //
@@ -11,6 +12,8 @@ import { CHAIN_ID_DEC } from '@/lib/config';
 // Die Antwort kommt von einem Knoten und ist damit feindlich, bis sie
 // geprueft ist:
 //   - Falsche oder fehlende Chain-ID  -> 'fremdeKette' (nichts signieren).
+//     Richtig ist genau 1926 oder 19260930 mit einem dazu passenden
+//     chain_id_wechsel_ab (lib/kette.ts, kettenStandAusStatus).
 //   - Kennung vorhanden, aber nicht im erwarteten Format -> 'ungueltig'
 //     (nichts signieren; auch kein Speichern der Kennung).
 //   - Kennung fehlt ganz -> 'ok' ohne Kennung: aeltere Knoten kennen das Feld
@@ -28,7 +31,7 @@ export type NetzBefund =
   | { art: 'fremdeKette' }
   | { art: 'ungueltig' };
 
-const KENNUNG = new RegExp(`^aequitas-${CHAIN_ID_DEC}-\\d{1,12}$`);
+const KENNUNG = new RegExp(`^aequitas-${NETZ_KENNUNG_CHAIN_ID}-\\d{1,12}$`);
 
 export function gueltigeKennung(k: unknown): k is string {
   return typeof k === 'string' && k.length <= 40 && KENNUNG.test(k);
@@ -37,7 +40,7 @@ export function gueltigeKennung(k: unknown): k is string {
 export function pruefeNetz(status: unknown, gespeichert: string | null): NetzBefund {
   if (!status || typeof status !== 'object' || Array.isArray(status)) return { art: 'ungueltig' };
   const s = status as Record<string, unknown>;
-  if (s.chain_evm_id !== CHAIN_ID_DEC) return { art: 'fremdeKette' };
+  if (!kettenStandAusStatus(s)) return { art: 'fremdeKette' };
   const k = s.netz_kennung;
   if (k === undefined || k === null) return { art: 'ok', kennung: null };
   if (!gueltigeKennung(k)) return { art: 'ungueltig' };

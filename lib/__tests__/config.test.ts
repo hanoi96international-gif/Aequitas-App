@@ -51,10 +51,17 @@ describe('config', () => {
     expect(config.API_BASE).toBe('https://staging.example.com/api');
   });
 
-  it('matches the chain\'s actual mainnet chain ID (0x786 == 1926 decimal)', () => {
+  it('kennt genau die beiden Chain-IDs des Netzes (Wechsel 1926 -> 19260930) und haelt die Netzkennung eingefroren', () => {
     const config = require('../config');
-    expect(parseInt(config.CHAIN_ID_HEX, 16)).toBe(config.CHAIN_ID_DEC);
-    expect(config.CHAIN_ID_DEC).toBe(1926);
+    expect(config.AEQUITAS_CHAIN_IDS).toEqual([1926, 19260930]);
+    expect(config.CHAIN_ID_ALT).toBe(0x786);
+    expect(config.CHAIN_ID_NEU).toBe(0x125e602);
+    expect(Object.isFrozen(config.AEQUITAS_CHAIN_IDS)).toBe(true);
+    // "aequitas-1926-<genesis>" -- NETZ_SALT im V8-Vertrag ist immutable.
+    expect(config.NETZ_KENNUNG_CHAIN_ID).toBe(1926);
+    // Keine feste Signier-ID mehr: wer sie braucht, fragt den Knoten (lib/ketteLive.ts).
+    expect(config.CHAIN_ID_DEC).toBeUndefined();
+    expect(config.CHAIN_ID_HEX).toBeUndefined();
   });
 
   // ── Decommissioned-host guard ───────────────────────────────────────────

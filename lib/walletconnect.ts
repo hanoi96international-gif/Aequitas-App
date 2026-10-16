@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
-import { CHAIN_ID_DEC, CHAIN_ID_HEX, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
+import { CHAIN_ID_ALT, CHAIN_ID_NEU, NATIVE_CURRENCY, RPC_URL, WALLETCONNECT_PROJECT_ID, WEBAPP } from './config';
+import { AEQUITAS_CAIPS, chainCaip, chainIdHex, istAequitasCaip, kettenAngabenFuer } from './kette';
+import { signierChainId } from './ketteLive';
 import { walletConnectAufbauBeginnt } from './globalErrorHandler';
 import {
-  AEQUITAS_CAIP,
   WALLET_ANTWORTET_NICHT,
   adresseDerSitzung,
   aequitasNetzEinrichten,
@@ -12,22 +13,33 @@ import {
   walletConnectSigner,
   withTimeout,
   type AequitasSigner,
-  type KettenAngaben,
 } from './signer';
 import type { AppKitNetwork, Storage } from '@reown/appkit-react-native';
 
 type WcRequest = (args: { method: string; params: unknown[] }, chainId?: string) => Promise<any>;
 
 
-export const aequitasNetwork: AppKitNetwork = {
-  id: CHAIN_ID_DEC,
-  name: 'Aequitas Chain',
-  nativeCurrency: NATIVE_CURRENCY,
-  rpcUrls: { default: { http: [RPC_URL] } },
-  blockExplorers: { default: { name: 'Aequitas Explorer', url: WEBAPP } },
-  chainNamespace: 'eip155',
-  caipNetworkId: `eip155:${CHAIN_ID_DEC}`,
-};
+// Beide Chain-IDs des Netzes (Wechsel 1926 -> 19260930, lib/kette.ts) sind
+// AppKit bekannt, damit die Sitzung jede von ihnen fuehren kann. Welche
+// gilt, entscheidet vor jeder kettengebundenen Anfrage die ID, die der
+// Knoten live meldet (signer.ts) -- AppKits aktive Kette nie.
+function aequitasNetz(id: number): AppKitNetwork {
+  return {
+    id,
+    name: 'Aequitas Chain',
+    nativeCurrency: NATIVE_CURRENCY,
+    rpcUrls: { default: { http: [RPC_URL] } },
+    blockExplorers: { default: { name: 'Aequitas Explorer', url: WEBAPP } },
+    chainNamespace: 'eip155',
+    caipNetworkId: `eip155:${id}`,
+  };
+}
+// Vor dem Stichtag die alte ID. Nach dem Stichtag (und ohne die alte in den
+// Wallets) kann ein spaeteres Release defaultNetwork auf die neue setzen und
+// die alte streichen; bis dahin bleibt die Adresse auch ohne AppKits aktive
+// Kette lesbar (adresseDerSitzung).
+export const aequitasNetwork: AppKitNetwork = aequitasNetz(CHAIN_ID_ALT);
+export const aequitasNetworkNeu: AppKitNetwork = aequitasNetz(CHAIN_ID_NEU);
 
 /**
  * Root cause of the "Invalid chainId" error thrown INSTANTLY (no relay/wallet
@@ -120,7 +132,7 @@ export const appKit = (() => {
     walletConnectAufbauBeginnt();
     return createAppKit({
       projectId: WALLETCONNECT_PROJECT_ID,
-      networks: [aequitasNetwork, anchorNetwork],
+      networks: [aequitasNetwork, aequitasNetworkNeu, anchorNetwork],
       defaultNetwork: aequitasNetwork,
       adapters: [new EthersAdapter()],
       storage: asyncStorageAdapter,
@@ -180,14 +192,6 @@ export async function resetWalletConnectStorage(): Promise<void> {
   const AsyncStorage = require('@react-native-async-storage/async-storage').default;
   await AsyncStorage.clear();
 }
-
-const AEQUITAS_KETTE: KettenAngaben = {
-  chainId: CHAIN_ID_HEX,
-  chainName: 'Aequitas Chain',
-  nativeCurrency: NATIVE_CURRENCY,
-  rpcUrls: [RPC_URL],
-  blockExplorerUrls: [WEBAPP],
-};
 
 // Anfragen, bei denen der Mensch in der Wallet etwas bestaetigen muss.
 const BRAUCHT_WALLET = new Set([
@@ -317,36 +321,40 @@ export function useWalletConnect() {
     if (prov?.request) return prov.request({ method, params }, weg);
     return Promise.reject(new Error('No active WalletConnect provider'));
   };
-  // Ohne eigene Vorgabe: Aequitas, wenn freigegeben, sonst die zuletzt aktive
-  // bzw. erste freigegebene Kette (personal_sign ist kettenunabhaengig).
+  // Ohne eigene Vorgabe: eine Aequitas-Kette, wenn freigegeben, sonst die
+  // zuletzt aktive bzw. erste freigegebene Kette (personal_sign ist
+  // kettenunabhaengig; kettengebundene Anfragen geben ihren Weg selbst vor).
   const standardWeg = () => {
     const alle = ketten();
-    if (alle.includes(AEQUITAS_CAIP)) return AEQUITAS_CAIP;
+    const aeq = alle.find(istAequitasCaip);
+    if (aeq) return aeq;
     const w = walletKetteRef.current;
-    return w && alle.includes(w) ? w : alle[0] ?? AEQUITAS_CAIP;
+    return w && alle.includes(w) ? w : alle[0] ?? AEQUITAS_CAIPS[0];
   };
   const rawRequest: WcRequest | null = provider
     ? (args, chainId) => senden(args.method, args.params, chainId ?? standardWeg())
     : null;
 
-  const einrichten = () =>
+  // chainId: die live gemeldete ID (signer.ts / ensureNetwork), nie fest.
+  const einrichten = (chainId: number) =>
     aequitasNetzEinrichten({
       senden,
       ketten,
       walletKette: () => walletKetteRef.current,
-      kette: AEQUITAS_KETTE,
+      kette: kettenAngabenFuer(chainId),
     });
 
   // Wallet hat Aequitas freigegeben, steht aber auf einem anderen Netz und
   // lehnt ab (aeltere MetaMask): einmal ausdruecklich umschalten.
-  const umschalten = async () => {
+  const umschalten = async (chainId: number) => {
+    const ziel = chainCaip(chainId);
     const alle = ketten();
     const w = walletKetteRef.current;
-    const wege = [...new Set([...(w && alle.includes(w) ? [w] : []), AEQUITAS_CAIP, ...alle])].filter((k) => alle.includes(k));
+    const wege = [...new Set([...(w && alle.includes(w) ? [w] : []), ziel, ...alle])].filter((k) => alle.includes(k));
     let letzter: unknown = null;
     for (const weg of wege.slice(0, 8)) {
       try {
-        await withTimeout(senden('wallet_switchEthereumChain', [{ chainId: CHAIN_ID_HEX }], weg), 90_000, WALLET_ANTWORTET_NICHT);
+        await withTimeout(senden('wallet_switchEthereumChain', [{ chainId: chainIdHex(chainId) }], weg), 90_000, WALLET_ANTWORTET_NICHT);
         return;
       } catch (e) {
         if (istAbgelehnt(e) || (e as any)?.message === WALLET_ANTWORTET_NICHT) throw e;
@@ -373,12 +381,13 @@ export function useWalletConnect() {
   const signer: AequitasSigner | null =
     isConnected && address && rawRequest ? walletConnectSigner(address, rawRequest, ketten, einrichten, umschalten) : null;
 
-  // Beim Verbinden: Netz einrichten. Ist Aequitas in der Sitzung schon
-  // freigegeben, geht KEINE Anfrage an die Wallet (kein Aufspringen von
-  // MetaMask bei jedem App-Start).
+  // Beim Verbinden: Netz einrichten -- fuer die Chain-ID, die der Knoten
+  // jetzt meldet (ohne bestaetigte ID: Fehler, keine Anfrage an die Wallet).
+  // Ist sie in der Sitzung schon freigegeben, geht KEINE Anfrage an die
+  // Wallet (kein Aufspringen von MetaMask bei jedem App-Start).
   const ensureNetwork = async () => {
     if (!liveRef.current.provider) throw new Error('No active WalletConnect provider');
-    await einrichten();
+    await einrichten(await signierChainId());
   };
 
   return { open, close, disconnect, address, isConnected, signer, ensureNetwork, topic };

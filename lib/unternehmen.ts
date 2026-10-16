@@ -13,8 +13,8 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { ethers } from 'ethers';
-import { CHAIN_ID_DEC } from './config';
-import { ensureDeviceAuthentication, getProvider } from './wallet';
+import { istAequitasChainId } from './kette';
+import { ensureDeviceAuthentication, sendeUeberweisung } from './wallet';
 
 // Wie unternehmenKategorien in wirtschaft.go -- eine andere lehnt die Kette ab.
 export const KATEGORIEN = [
@@ -188,7 +188,8 @@ export async function speichern(wallet: ethers.HDNodeWallet | ethers.Wallet, nam
 export async function laden(adresse: string): Promise<ethers.Wallet | null> {
   await ensureDeviceAuthentication('Unternehmenskonto entsperren');
   const pk = await SecureStore.getItemAsync(schluesselKey(adresse));
-  return pk ? new ethers.Wallet(pk, getProvider()) : null;
+  // Ohne Provider: gesendet wird nur ueber sendeUeberweisung (Chain-ID live).
+  return pk ? new ethers.Wallet(pk) : null;
 }
 
 /** Vom Unternehmenskonto zahlen (Lohn, Lieferant, Entnahme). Gibt den Hash zurueck. */
@@ -198,8 +199,7 @@ export async function auszahlen(adresse: string, an: string, betragAeq: string):
   if (wei <= 0n) throw new Error('Betrag muss groesser als 0 sein');
   const w = await laden(adresse);
   if (!w) throw new Error('Schluessel dieses Unternehmens ist nicht auf diesem Geraet');
-  const tx = await w.sendTransaction({ to: ethers.getAddress(an), value: wei });
-  return tx.hash;
+  return sendeUeberweisung(w, ethers.getAddress(an), wei);
 }
 
 export async function vergessen(adresse: string): Promise<void> {
@@ -210,11 +210,16 @@ export async function vergessen(adresse: string): Promise<void> {
 
 // ------------------------------------------------------------ Kasse
 
-/** Zahlungslink nach EIP-681, wie ihn lib/zahlungslink.ts liest. */
-export function zahlungslink(adresse: string, betragAeq: string): string {
+/**
+ * Zahlungslink nach EIP-681, wie ihn lib/zahlungslink.ts liest. chainId ist
+ * die ID, die der Knoten jetzt meldet (lib/ketteLive.ts) -- eine fremde
+ * Wallet zahlt damit auf der Kette, die gerade gilt.
+ */
+export function zahlungslink(adresse: string, betragAeq: string, chainId: number): string {
+  if (!istAequitasChainId(chainId)) throw new Error('Chain-ID nicht im Aequitas-Netz');
   const wei = ethers.parseEther(betragAeq);
   if (wei <= 0n) throw new Error('Betrag muss groesser als 0 sein');
-  return `ethereum:${ethers.getAddress(adresse)}@${CHAIN_ID_DEC}?value=${wei.toString()}`;
+  return `ethereum:${ethers.getAddress(adresse)}@${chainId}?value=${wei.toString()}`;
 }
 
 export interface KassenEintrag {
