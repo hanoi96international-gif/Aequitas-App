@@ -5,6 +5,7 @@ const ru: Translations = {
     appName: 'AEQUITAS',
     copied: 'Скопировано',
     cancel: 'Отмена',
+    offline: 'Нет связи с сетью – данные могут быть устаревшими. Повторная попытка.',
   },
   tabs: {
     home: 'Главная',

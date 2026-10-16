@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +21,8 @@ import {
 import { withTimeout } from '@/lib/signer';
 import { theme, purpleTint, purpleTintBorder, tealTint, tealTintBorder, neonTint, neonTintBorder, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 import PriceChart from '@/components/PriceChart';
+import OfflineHinweis from '@/components/OfflineHinweis';
+import { useAbfrage } from '@/hooks/use-abfrage';
 
 type Direction = 'aeq_to_tusd' | 'tusd_to_aeq';
 type TradeTab = 'swap' | 'liquidity' | 'chart';
@@ -55,16 +57,20 @@ export default function Trade() {
   const loadPool = useCallback(async () => {
     try {
       setPool(await getPool());
+      return true;
     } catch {
-      // next poll tick retries
+      // der Takt (hooks/use-abfrage.ts) versucht es mit wachsender Pause neu
+      return false;
     }
   }, []);
 
   const loadPriceHistory = useCallback(async () => {
     try {
       setPriceHistory(await getPriceHistory());
+      return true;
     } catch {
-      // next poll tick retries
+      // der Takt (hooks/use-abfrage.ts) versucht es mit wachsender Pause neu
+      return false;
     }
   }, []);
 
@@ -75,28 +81,17 @@ export default function Trade() {
     }
     try {
       setLpPosition(await getLPPosition(address));
+      return true;
     } catch {
-      // next poll tick retries
+      // der Takt (hooks/use-abfrage.ts) versucht es mit wachsender Pause neu
+      return false;
     }
   }, [address]);
 
-  useEffect(() => {
-    loadPool();
-    const t = setInterval(loadPool, 15_000);
-    return () => clearInterval(t);
-  }, [loadPool]);
-
-  useEffect(() => {
-    loadLPPosition();
-    const t = setInterval(loadLPPosition, 15_000);
-    return () => clearInterval(t);
-  }, [loadLPPosition]);
-
-  useEffect(() => {
-    loadPriceHistory();
-    const t = setInterval(loadPriceHistory, 30_000);
-    return () => clearInterval(t);
-  }, [loadPriceHistory]);
+  // Nur bei Fokus und im Vordergrund; nach Fehlschlaegen laengere Pausen.
+  const poolOffline = useAbfrage(loadPool, 15_000);
+  useAbfrage(loadLPPosition, 15_000);
+  useAbfrage(loadPriceHistory, 30_000);
 
   const aeqReserve = parseFloat(pool?.reserve_aeq || '0');
   const tusdReserve = parseFloat(pool?.reserve_tusd || '0');
@@ -282,6 +277,7 @@ export default function Trade() {
     <SafeAreaView style={S.safe} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={theme.bg} />
       <ScrollView contentContainerStyle={S.content} showsVerticalScrollIndicator={false}>
+        <OfflineHinweis offline={poolOffline} />
         <View style={S.hero}>
           <Text style={S.heroTitle}>{t('trade.heroTitle')}</Text>
           <Text style={S.heroSub}>{t('trade.heroSub')}</Text>

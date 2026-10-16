@@ -5,6 +5,7 @@ import { localWalletSigner, withTimeout, type AequitasSigner } from '../lib/sign
 import { appKit, resetWalletConnectStorage, useWalletConnect } from '../lib/walletconnect';
 import { getBalance, getStatus, type BalanceResponse, type ChainStatus } from '../lib/api';
 import { useLanguage } from './LanguageContext';
+import { useAbfrageImVordergrund } from '../hooks/use-abfrage';
 
 type WalletMode = 'none' | 'local' | 'walletconnect';
 export type NetworkStatus = 'idle' | 'pending' | 'ready' | 'error';
@@ -62,7 +63,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [hydrating, setHydrating] = useState(true);
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>('idle');
   const [networkError, setNetworkError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -203,29 +203,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return null;
   }, [mode, localAddress, wcState?.signer]);
 
-  const refreshBalance = useCallback(async () => {
-    if (!address) return;
+  // true/false fuer den Takt (lib/abfrageTakt.ts): ein Fehlschlag verlaengert
+  // die Pause bis zur naechsten Abfrage.
+  const balanceLaden = useCallback(async () => {
+    if (!address) return true;
     try {
       const [b, s] = await Promise.all([getBalance(address), getStatus()]);
       setBalance(b);
       setStatus(s);
+      return true;
     } catch {
-      // transient network/API failure — next poll tick will retry
+      return false;
     }
   }, [address]);
 
+  const refreshBalance = useCallback(async () => {
+    await balanceLaden();
+  }, [balanceLaden]);
+
   useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (!address) {
-      setBalance(null);
-      return;
-    }
-    refreshBalance();
-    pollRef.current = setInterval(refreshBalance, 10_000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [address, refreshBalance]);
+    if (!address) setBalance(null);
+  }, [address]);
+
+  // Alle 10 s, nur im Vordergrund; nach Fehlschlaegen laengere Pausen.
+  useAbfrageImVordergrund(address ? balanceLaden : null, 10_000);
 
   const createLocalWallet = useCallback(async (mnemonic: string) => {
     const info = await localWallet.persistMnemonic(mnemonic);

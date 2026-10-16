@@ -9,6 +9,8 @@ import { erzeugerAnzeige, LEER, validatorNamenLesen, type ValidatorNamen } from 
 import { fmtAEQ, formatBalance } from '@/lib/format';
 import { theme, purpleTint, purpleTintBorder, tealTint, tealTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 import LanguagePicker from '@/components/LanguagePicker';
+import OfflineHinweis from '@/components/OfflineHinweis';
+import { useAbfrage } from '@/hooks/use-abfrage';
 
 function formatCountdown(totalSecs: number): string {
   const s = Math.max(0, Math.floor(totalSecs));
@@ -60,16 +62,15 @@ export default function Home() {
       .catch(() => {});
     try {
       setBlocks(await getCanonicalBlocks(10));
+      return true;
     } catch {
-      // next poll retries
+      // der Takt (hooks/use-abfrage.ts) versucht es mit wachsender Pause neu
+      return false;
     }
   }, []);
 
-  useEffect(() => {
-    loadBlocks();
-    const t = setInterval(loadBlocks, 10_000);
-    return () => clearInterval(t);
-  }, [loadBlocks]);
+  // Nur bei Fokus und im Vordergrund; nach Fehlschlaegen laengere Pausen.
+  const offline = useAbfrage(loadBlocks, 10_000);
 
   useEffect(() => {
     if (status?.ubi_next_payout_secs != null) setUbiLeft(status.ubi_next_payout_secs);
@@ -117,6 +118,7 @@ export default function Home() {
         {/* Header — like website: logo icon + wordmark + LIVE/GHOSTDAG badges,
             with the site's 2px blue-to-green strip above the navigation. */}
         <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={S.topStrip} />
+        <OfflineHinweis offline={offline} />
         <View style={S.header}>
           <View style={S.logoRow}>
             <LinearGradient colors={theme.gradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.logoIcon}>

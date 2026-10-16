@@ -5,6 +5,7 @@ const zh: Translations = {
     appName: 'AEQUITAS',
     copied: '已复制',
     cancel: '取消',
+    offline: '无法连接网络——数据可能不是最新的。正在重试。',
   },
   tabs: {
     home: '首页',
