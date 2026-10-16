@@ -130,3 +130,22 @@ describe('abfrageTakt', () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 });
+
+// Pruefung von #33, F1: ein neuer Takt meldet sein erstes Ergebnis immer --
+// sonst bleibt der Offline-Hinweis des vorigen Takts nach Fokuswechsel stehen.
+describe('abfrageTakt, neuer Takt nach offline', () => {
+  it('meldet den ersten Erfolg eines neuen Takts als online', async () => {
+    let offline = false;
+    const melde = (o: boolean) => {
+      offline = o;
+    };
+    const alt = starteTakt(async () => false, 1_000, melde);
+    await jest.advanceTimersByTimeAsync(10_000);
+    expect(offline).toBe(true);
+    alt.beenden();
+    const neu = starteTakt(async () => true, 1_000, melde);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(offline).toBe(false);
+    neu.beenden();
+  });
+});

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -74,13 +74,18 @@ export default function Trade() {
     }
   }, []);
 
+  // Eine spaete Antwort fuer eine fruehere Adresse darf die aktuelle nicht
+  // ueberschreiben (die laufende Anfrage wird beim Wechsel nicht abgebrochen).
+  const adresseRef = useRef(address);
+  adresseRef.current = address;
   const loadLPPosition = useCallback(async () => {
     if (!address) {
       setLpPosition(null);
       return;
     }
     try {
-      setLpPosition(await getLPPosition(address));
+      const lp = await getLPPosition(address);
+      if (adresseRef.current === address) setLpPosition(lp);
       return true;
     } catch {
       // der Takt (hooks/use-abfrage.ts) versucht es mit wachsender Pause neu

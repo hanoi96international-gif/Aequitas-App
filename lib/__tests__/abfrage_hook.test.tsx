@@ -82,4 +82,12 @@ describe('Bildschirme', () => {
     expect(lesen('contexts/WalletContext.tsx')).not.toMatch(/setInterval\(refreshBalance/);
     expect(trade).toMatch(/useAbfrage\(loadPool/);
   });
+
+  // Eine spaete Antwort fuer eine fruehere Adresse ueberschreibt den Stand
+  // der aktuellen nicht (Pruefung von #33).
+  it('verwerfen spaete Antworten fuer eine fruehere Adresse', () => {
+    const wallet = lesen('contexts/WalletContext.tsx');
+    expect(wallet).toMatch(/if \(adresseRef\.current !== address\) return true;\s*setBalance\(b\)/);
+    expect(lesen('app/(tabs)/trade.tsx')).toMatch(/if \(adresseRef\.current === address\) setLpPosition\(lp\)/);
+  });
 });

@@ -54,12 +54,15 @@ export function starteTakt(
   let aktiv = true;
   let beendet = false;
   let fehler = 0;
-  let offline = false;
+  // null: noch nichts gemeldet. Ein neuer Takt (Fokus zurueck, andere
+  // Adresse) meldet sein erstes Ergebnis darum immer -- sonst bliebe ein
+  // Offline-Hinweis des vorigen Takts stehen (Pruefung von #33, F1).
+  let offline: boolean | null = null;
 
   const melden = (jetztOffline: boolean) => {
     if (jetztOffline === offline || beendet) return;
     offline = jetztOffline;
-    meldeOffline?.(offline);
+    meldeOffline?.(jetztOffline);
   };
 
   const planen = () => {

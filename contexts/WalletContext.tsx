@@ -205,10 +205,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   // true/false fuer den Takt (lib/abfrageTakt.ts): ein Fehlschlag verlaengert
   // die Pause bis zur naechsten Abfrage.
+  // Eine spaete Antwort fuer eine fruehere Adresse (Wechsel, Trennen) darf
+  // den Stand der aktuellen nicht ueberschreiben.
+  const adresseRef = useRef(address);
+  adresseRef.current = address;
   const balanceLaden = useCallback(async () => {
     if (!address) return true;
     try {
       const [b, s] = await Promise.all([getBalance(address), getStatus()]);
+      if (adresseRef.current !== address) return true;
       setBalance(b);
       setStatus(s);
       return true;
