@@ -120,7 +120,16 @@ describe('walletLink', () => {
 // Chain-ID-Wechsel 1926 -> 19260930: gesendet wird nur mit der live
 // gemeldeten ID (lib/ketteLive.ts), nie ueber einen Provider mit fester ID.
 describe('sendeUeberweisung (Chain-ID live)', () => {
-  const { sendeUeberweisung } = require('../wallet');
+  // Ohne RPC-Ersatzadressen: mit ihnen ist der Provider ein FallbackProvider,
+  // dessen getNetwork() die echten Knoten nach ihrer Chain-ID fragt -- der
+  // Test hinge dann am Netz (im APK-Build sind EXPO_PUBLIC_RPC_FALLBACKS
+  // gesetzt: Zeitueberschreitung bzw. "no runners"). Geprueft wird hier nur,
+  // mit welcher ID signiert wird.
+  let sendeUeberweisung: typeof import('../wallet').sendeUeberweisung;
+  jest.isolateModules(() => {
+    jest.doMock('../config', () => ({ ...jest.requireActual('../config'), RPC_FALLBACKS: [] }));
+    ({ sendeUeberweisung } = require('../wallet'));
+  });
   const ZIEL = '0x' + '22'.repeat(20);
   function schluessel() {
     const gesendet: any[] = [];
