@@ -19,7 +19,7 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(async () => undefined),
   deleteItemAsync: jest.fn(async () => undefined),
 }));
-jest.mock('../attestation', () => ({ getAttestationPayload: async () => null }));
+jest.mock('../attestation', () => ({ attestierungAnhaengen: async () => undefined }));
 jest.mock('../api', () => ({ submitLivenessRenewal: jest.fn() }));
 
 const PRIV = '0x' + '11'.repeat(32);
