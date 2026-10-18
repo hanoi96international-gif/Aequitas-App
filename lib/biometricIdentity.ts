@@ -17,7 +17,7 @@ import * as Crypto from 'expo-crypto';
 // to, see the cleanupCaptureFiles() comment below.
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
-import { getAttestationPayload } from './attestation';
+import { attestierungAnhaengen } from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
 import { submitLivenessRenewal, type LivenessRenewal } from './api';
@@ -544,12 +544,9 @@ export async function registerBiometric(
     // sends nothing when unconfigured/unavailable -- e.g. no
     // EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER set, which also makes the
     // coordinator's own attestation_status read "not_configured" (see
-    // attestation.py).
-    const attestation = await getAttestationPayload();
-    if (attestation) {
-      form.append('attestation_platform', attestation.platform);
-      form.append('attestation_token', attestation.token);
-    }
+    // attestation.py). Gebunden an challengeNonce, hoechstens
+    // ATTESTIERUNG_FRIST_MS lang (lib/attestation.ts).
+    await attestierungAnhaengen(form, capture.challengeNonce);
 
     const resp = await fetchMitFrist(`${base}/register`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
@@ -871,11 +868,7 @@ export async function nachziehenBiometric(
     if (capture.imuSamples?.length) {
       form.append('imu_samples', JSON.stringify(capture.imuSamples));
     }
-    const attestation = await getAttestationPayload();
-    if (attestation) {
-      form.append('attestation_platform', attestation.platform);
-      form.append('attestation_token', attestation.token);
-    }
+    await attestierungAnhaengen(form, capture.challengeNonce);
     const resp = await fetchMitFrist(`${base}/nachziehen`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
@@ -1002,11 +995,7 @@ export async function erneuernBiometric(
     if (capture.imuSamples?.length) {
       form.append('imu_samples', JSON.stringify(capture.imuSamples));
     }
-    const attestation = await getAttestationPayload();
-    if (attestation) {
-      form.append('attestation_platform', attestation.platform);
-      form.append('attestation_token', attestation.token);
-    }
+    await attestierungAnhaengen(form, capture.challengeNonce);
     const resp = await fetchMitFrist(`${base}/erneuern`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);

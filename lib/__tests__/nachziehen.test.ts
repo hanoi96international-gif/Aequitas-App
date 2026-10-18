@@ -18,7 +18,7 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(async () => undefined),
   deleteItemAsync: jest.fn(async () => undefined),
 }));
-jest.mock('../attestation', () => ({ getAttestationPayload: async () => null }));
+jest.mock('../attestation', () => ({ attestierungAnhaengen: async () => undefined }));
 
 const PRIV = '0x' + '11'.repeat(32);
 const WALLET = '0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A';
