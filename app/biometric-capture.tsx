@@ -1777,6 +1777,12 @@ export default function BiometricCapture() {
                       case 'consent_outdated':
                       case 'missing_consent': return t('identity.biometricResultConsentOutdated');
                       case 'quorum_failed': return t('identity.biometricResultQuorumFailed');
+                      // Einzelbetrieb (coordinator/app/einzelbetrieb.py): die
+                      // Tagesgrenze ist erreicht, verglichen wurde nichts. Vorher
+                      // stand hier die allgemeine Meldung, und Testpersonen
+                      // versuchten es immer wieder -- frei wird erst der naechste
+                      // UTC-Tag.
+                      case 'tagesgrenze_einzelbetrieb': return t('identity.biometricResultDailyLimit');
                       default: return t('identity.biometricResultFailed');
                     }
                   })()}

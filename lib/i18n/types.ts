@@ -312,6 +312,7 @@ export interface Translations {
     biometricResultCaptureFailed: string;
     biometricResultLivenessFailed: string;
     biometricResultQuorumFailed: string;
+    biometricResultDailyLimit: string;
     alterNachholenTitel: string;
     alterNachholenText: string;
     alterNachholenBtn: string;
