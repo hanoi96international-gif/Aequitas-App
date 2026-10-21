@@ -23,6 +23,7 @@ import {
   type OffenerKettenschritt,
   requestChallenge,
   getOrCreateDeviceId,
+  bildserieFuerUpload,
   voucherFor,
   nachziehenBiometric,
   erneuernBiometric,
@@ -1343,7 +1344,9 @@ export default function BiometricCapture() {
       // Values are passed explicitly rather than read from state: the setState
       // calls just above have not landed in this closure yet, and submit()'s
       // parameters are authoritative for precisely that reason.
-      await submit(snapshotFaceUri, frames, imu);
+      // Auch das Video ausdruecklich: burstVideoUri (State) ist hier noch
+      // leer -- genau daran ging die Bildserie bis 1.12.1 verloren.
+      await submit(snapshotFaceUri, frames, imu, videoUri);
     } catch (e) {
       console.error('[biometric-capture] face video capture failed', e);
       burstChainCancelledRef.current = true;
@@ -1360,12 +1363,24 @@ export default function BiometricCapture() {
     // The IMU samples resolve one line before the only call site, so state has
     // not landed yet. Passing them is the difference between sending the motion
     // trace and silently sending an empty one.
-    imuParam?: typeof imuSamples
+    imuParam?: typeof imuSamples,
+    // Dasselbe fuer das Video: setBurstVideoUri ist bei diesem Aufruf noch
+    // nicht angekommen (Vorfall 21.10.2026, lib/biometricIdentity.ts
+    // bildserieFuerUpload).
+    videoParam?: string
   ) {
     const finalFaceUri = firstFrame ?? faceUri;
     const finalBurst = frames ?? burstUris;
     const finalImu = imuParam ?? imuSamples;
     if (!finalFaceUri || !consent || !address || !signer) return;
+    const serie = bildserieFuerUpload(videoParam ?? burstVideoUri, finalBurst);
+    if (!serie) {
+      // Ohne Bildserie lehnt der Vergleichsdienst ab (liveness_failed) --
+      // nicht senden, sonst kostet es einen Platz der Tagesgrenze.
+      setSubmitError(t('identity.biometricResultFailed'));
+      setStep('result');
+      return;
+    }
     setStep('submitting');
     setSubmitError('');
     try {
@@ -1374,8 +1389,7 @@ export default function BiometricCapture() {
         const er = await erneuernBiometric(
           {
             faceUri: finalFaceUri,
-            faceBurstUris: finalBurst,
-            faceBurstVideoUri: burstVideoUri ?? undefined,
+            ...serie,
             burstIntervalMs: BURST_INTERVAL_MS,
             imuSamples: finalImu,
             challengeNonce: challenge?.nonce,
@@ -1394,8 +1408,7 @@ export default function BiometricCapture() {
         const nz = await nachziehenBiometric(
           {
             faceUri: finalFaceUri,
-            faceBurstUris: finalBurst,
-            faceBurstVideoUri: burstVideoUri ?? undefined,
+            ...serie,
             burstIntervalMs: BURST_INTERVAL_MS,
             imuSamples: finalImu,
             challengeNonce: challenge?.nonce,
@@ -1418,11 +1431,10 @@ export default function BiometricCapture() {
       const res = await registerBiometric(
         {
           faceUri: finalFaceUri,
-          faceBurstUris: finalBurst,
-          // Der Coordinator zieht die Einzelbilder hieraus und ignoriert
-          // faceBurstUris, sobald das Video da ist. burstIntervalMs
-          // uebersteuert er ebenfalls mit dem echten Wert aus dem Videostrom.
-          faceBurstVideoUri: burstVideoUri ?? undefined,
+          // Der Coordinator zieht die Einzelbilder aus dem Video und ignoriert
+          // faceBurstUris, sobald es da ist. burstIntervalMs uebersteuert er
+          // ebenfalls mit dem echten Wert aus dem Videostrom.
+          ...serie,
           burstIntervalMs: BURST_INTERVAL_MS,
           imuSamples: finalImu,
           challengeNonce: challenge?.nonce,

@@ -264,6 +264,24 @@ export interface ImuSample {
  *  Removing the FIELDS rather than just the capture steps is deliberate. An
  *  optional field that nothing fills is an invitation to fill it again later,
  *  and the reason it must not be filled lives here, not in the screen. */
+/** Die Bildserie, die mit einer Gesichtsaufnahme hochgeht: das Video, sonst
+ *  die Einzelbilder. Ohne beides `null` -- dann wird nicht hochgeladen.
+ *
+ *  Vorfall 21.10.2026: Der Aufnahme-Bildschirm las das Video aus einem
+ *  React-State, der im selben Durchlauf gesetzt wurde und daher noch leer
+ *  war. Seit August ging so KEINE Aufnahme mit Bildserie an den Coordinator;
+ *  seit der Vergleichsdienst mindestens 10 Bilder verlangt (29.09.), endete
+ *  jeder Versuch mit liveness_failed -- und jeder verbrauchte einen Platz der
+ *  Tagesgrenze. Ohne Bildserie zu senden, kann nur scheitern; also gar nicht. */
+export function bildserieFuerUpload(
+  videoUri: string | null | undefined,
+  einzelbilder: readonly string[]
+): Pick<BiometricCapture, 'faceBurstUris' | 'faceBurstVideoUri'> | null {
+  if (videoUri) return { faceBurstUris: [...einzelbilder], faceBurstVideoUri: videoUri };
+  if (einzelbilder.length > 0) return { faceBurstUris: [...einzelbilder] };
+  return null;
+}
+
 export interface BiometricCapture {
   faceUri: string;
   faceBurstUris: string[];
