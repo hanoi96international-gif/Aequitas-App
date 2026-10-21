@@ -15,6 +15,10 @@ const pt: Translations = {
     identity: 'Identidade',
   },
   home: {
+    bindHinweisTitel: 'O teu servidor quer ligar-se',
+    bindHinweisText: 'O servidor {ip} aguarda a tua confirmação.',
+    bindHinweisMehrere: '{n} servidores aguardam a tua confirmação.',
+    bindHinweisLink: 'Verificar agora →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'AO VIVO',
     statLatestBlock: 'ÚLTIMO BLOCO',

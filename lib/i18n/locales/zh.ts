@@ -15,6 +15,10 @@ const zh: Translations = {
     identity: '身份',
   },
   home: {
+    bindHinweisTitel: '你的服务器想要连接',
+    bindHinweisText: '服务器 {ip} 正在等待你的确认。',
+    bindHinweisMehrere: '{n} 台服务器正在等待你的确认。',
+    bindHinweisLink: '立即查看 →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: '实时',
     statLatestBlock: '最新区块',

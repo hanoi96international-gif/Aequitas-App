@@ -15,6 +15,10 @@ const ar: Translations = {
     identity: 'الهوية',
   },
   home: {
+    bindHinweisTitel: 'خادمك يريد الاتصال',
+    bindHinweisText: 'الخادم {ip} ينتظر تأكيدك.',
+    bindHinweisMehrere: '{n} خوادم تنتظر تأكيدك.',
+    bindHinweisLink: 'تحقق الآن ←',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'مباشر',
     statLatestBlock: 'أحدث كتلة',

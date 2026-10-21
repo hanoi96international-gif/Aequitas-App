@@ -15,6 +15,10 @@ const tr: Translations = {
     identity: 'Kimlik',
   },
   home: {
+    bindHinweisTitel: 'Sunucun bağlanmak istiyor',
+    bindHinweisText: '{ip} sunucusu onayını bekliyor.',
+    bindHinweisMehrere: '{n} sunucu onayını bekliyor.',
+    bindHinweisLink: 'Şimdi kontrol et →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'CANLI',
     statLatestBlock: 'SON BLOK',

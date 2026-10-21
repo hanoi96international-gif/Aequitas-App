@@ -2,7 +2,8 @@ import React, { useCallback, useState } from 'react';
 import { Alert, Linking, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { QrScanner } from '@/components/QrScanner';
-import { bindungsanfrageAblehnen, holeBindungsanfragen, kontrollzahl, leseKnotenbindung, type Bindungsanfrage } from '@/lib/knotenBindung';
+import { bindungsanfrageAblehnen, kontrollzahl, leseKnotenbindung, type Bindungsanfrage } from '@/lib/knotenBindung';
+import { useBindungsanfragen } from '@/contexts/BindungsanfragenContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -56,18 +57,16 @@ export default function RunNode() {
 
   const { address, signer, status } = useWallet();
   const [scanOffen, setScanOffen] = useState(false);
-  const [anfragen, setAnfragen] = useState<Bindungsanfrage[]>([]);
-
-  // Offene Anfragen meiner Server: alle 5 s, solange dieser Tab offen ist.
+  // Offene Anfragen meiner Server (app-weit, contexts/BindungsanfragenContext);
+  // solange dieser Tab offen ist, alle 5 s nachladen.
+  const { anfragen, neuLaden, entfernen } = useBindungsanfragen();
   useFocusEffect(
     useCallback(() => {
       if (!address) return;
-      let aus = false;
-      const lesen = () => holeBindungsanfragen(address).then((a) => { if (!aus) setAnfragen(a); });
-      lesen();
-      const timer = setInterval(lesen, 5000);
-      return () => { aus = true; clearInterval(timer); };
-    }, [address]),
+      neuLaden();
+      const timer = setInterval(neuLaden, 5000);
+      return () => clearInterval(timer);
+    }, [address, neuLaden]),
   );
 
   function bestaetigen(a: Bindungsanfrage) {
@@ -79,7 +78,7 @@ export default function RunNode() {
     try {
       await bindungsanfrageAblehnen(signer, a.adresse);
     } finally {
-      setAnfragen((alt) => alt.filter((x) => x.adresse !== a.adresse));
+      entfernen(a.adresse);
     }
   }
 
@@ -93,6 +92,37 @@ export default function RunNode() {
     router.push({ pathname: '/knoten-binden', params: { adresse: b.adresse, wallet: b.wallet, beweis: b.beweis } });
   }
 
+  const bindKarte = (
+    <View style={S.card}>
+      <Text style={S.cardTitle}>{t('node.bindTitle')}</Text>
+      <Text style={S.faucetDesc}>{t('node.bindDesc')}</Text>
+      {anfragen.length === 0 ? (
+        <Text style={S.portNote}>{t('node.bindAnfrageLeer')}</Text>
+      ) : (
+        <>
+        {anfragen.length > 1 ? <Text style={S.warnung}>{t('node.bindMehrere')}</Text> : null}
+        {anfragen.map((a) => (
+          <View key={a.adresse} style={S.anfrage}>
+            <Text style={S.anfrageText}>{t('node.bindAnfrageVon').replace('{ip}', a.ip)}</Text>
+            <Text style={S.zahlLabel}>{t('node.bindKontrollzahl')}</Text>
+            <Text style={S.zahl}>{kontrollzahl(a.adresse)}</Text>
+            <Text style={S.anfrageHinweis}>{t('node.bindKontrollzahlHinweis')}</Text>
+            <TouchableOpacity style={S.scanBtn} onPress={() => bestaetigen(a)} activeOpacity={0.85}>
+              <Text style={S.pdfBtnText}>{t('node.bindConfirmBtn')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => ablehnen(a)} activeOpacity={0.7}>
+              <Text style={S.ablehnen}>{t('node.bindAblehnen')}</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+        </>
+      )}
+      <TouchableOpacity onPress={() => setScanOffen(true)} activeOpacity={0.7}>
+        <Text style={S.qrLink}>{t('node.bindQrStattdessen')}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <SafeAreaView style={S.safe} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={theme.bg} />
@@ -103,6 +133,10 @@ export default function RunNode() {
             {t('node.subtitle')} <Text style={{ color: theme.gold, fontWeight: '700' }}>{t('node.subtitleHighlight')}</Text>
           </Text>
         </View>
+
+        {/* Wartet ein Server, steht seine Anfrage ganz oben -- nicht unter der
+            Einrichtungsanleitung, die er schon hinter sich hat. */}
+        {anfragen.length > 0 ? bindKarte : null}
 
         <View style={S.privBar}>
           <Text style={S.privBarText}>{t('node.rewardBanner')}</Text>
@@ -125,34 +159,7 @@ export default function RunNode() {
           <Text style={S.portNote}>{t('node.portNote')}</Text>
         </View>
 
-        <View style={S.card}>
-          <Text style={S.cardTitle}>{t('node.bindTitle')}</Text>
-          <Text style={S.faucetDesc}>{t('node.bindDesc')}</Text>
-          {anfragen.length === 0 ? (
-            <Text style={S.portNote}>{t('node.bindAnfrageLeer')}</Text>
-          ) : (
-            <>
-            {anfragen.length > 1 ? <Text style={S.warnung}>{t('node.bindMehrere')}</Text> : null}
-            {anfragen.map((a) => (
-              <View key={a.adresse} style={S.anfrage}>
-                <Text style={S.anfrageText}>{t('node.bindAnfrageVon').replace('{ip}', a.ip)}</Text>
-                <Text style={S.zahlLabel}>{t('node.bindKontrollzahl')}</Text>
-                <Text style={S.zahl}>{kontrollzahl(a.adresse)}</Text>
-                <Text style={S.anfrageHinweis}>{t('node.bindKontrollzahlHinweis')}</Text>
-                <TouchableOpacity style={S.scanBtn} onPress={() => bestaetigen(a)} activeOpacity={0.85}>
-                  <Text style={S.pdfBtnText}>{t('node.bindConfirmBtn')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => ablehnen(a)} activeOpacity={0.7}>
-                  <Text style={S.ablehnen}>{t('node.bindAblehnen')}</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-            </>
-          )}
-          <TouchableOpacity onPress={() => setScanOffen(true)} activeOpacity={0.7}>
-            <Text style={S.qrLink}>{t('node.bindQrStattdessen')}</Text>
-          </TouchableOpacity>
-        </View>
+        {anfragen.length === 0 ? bindKarte : null}
 
         <View style={S.card}>
           <Text style={S.cardTitle}>{t('node.admissionTitle')}</Text>

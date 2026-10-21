@@ -15,6 +15,10 @@ const en: Translations = {
     identity: 'Identity',
   },
   home: {
+    bindHinweisTitel: 'Your server wants to connect',
+    bindHinweisText: 'Server {ip} is waiting for your confirmation.',
+    bindHinweisMehrere: '{n} servers are waiting for your confirmation.',
+    bindHinweisLink: 'Check now →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'LIVE',
     statLatestBlock: 'LATEST BLOCK',

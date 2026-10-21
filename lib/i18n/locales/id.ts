@@ -15,6 +15,10 @@ const id: Translations = {
     identity: 'Identitas',
   },
   home: {
+    bindHinweisTitel: 'Servermu ingin terhubung',
+    bindHinweisText: 'Server {ip} menunggu konfirmasimu.',
+    bindHinweisMehrere: '{n} server menunggu konfirmasimu.',
+    bindHinweisLink: 'Periksa sekarang →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'LANGSUNG',
     statLatestBlock: 'BLOK TERBARU',

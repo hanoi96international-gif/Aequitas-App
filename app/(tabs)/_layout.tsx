@@ -5,9 +5,12 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { theme } from '@/constants/aequitas-theme';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBindungsanfragen } from '@/contexts/BindungsanfragenContext';
 
 export default function TabLayout() {
   const { t } = useLanguage();
+  // Punkt am Node-Tab, solange ein Server auf die Bestaetigung wartet.
+  const { anfragen } = useBindungsanfragen();
   return (
     <Tabs
       screenOptions={{
@@ -39,6 +42,8 @@ export default function TabLayout() {
         options={{
           title: t('tabs.node'),
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="server.rack" color={color} />,
+          tabBarBadge: anfragen.length > 0 ? anfragen.length : undefined,
+          tabBarBadgeStyle: { backgroundColor: theme.gold, color: theme.bg, fontWeight: '700' },
         }}
       />
       <Tabs.Screen

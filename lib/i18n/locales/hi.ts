@@ -15,6 +15,10 @@ const hi: Translations = {
     identity: 'पहचान',
   },
   home: {
+    bindHinweisTitel: 'आपका सर्वर जुड़ना चाहता है',
+    bindHinweisText: 'सर्वर {ip} आपकी पुष्टि का इंतज़ार कर रहा है।',
+    bindHinweisMehrere: '{n} सर्वर आपकी पुष्टि का इंतज़ार कर रहे हैं।',
+    bindHinweisLink: 'अभी जाँचें →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'लाइव',
     statLatestBlock: 'नवीनतम ब्लॉक',

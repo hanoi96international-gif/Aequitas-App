@@ -15,6 +15,10 @@ const ru: Translations = {
     identity: 'Личность',
   },
   home: {
+    bindHinweisTitel: 'Ваш сервер хочет подключиться',
+    bindHinweisText: 'Сервер {ip} ждёт вашего подтверждения.',
+    bindHinweisMehrere: 'Серверов, ожидающих подтверждения: {n}.',
+    bindHinweisLink: 'Проверить →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'В ЭФИРЕ',
     statLatestBlock: 'ПОСЛЕДНИЙ БЛОК',
