@@ -219,6 +219,10 @@ export interface BalanceResponse {
   // Gestaffelter Zuschuss (grant_staffel.go in aequitas-chain). Fehlt, wenn
   // das Konto keine Staffel hat -- also fast immer.
   staffel?: Staffel | null;
+  // Jaehrlicher Lebensnachweis (aequitas-chain). Bewusst unknown: gelesen
+  // wird nur mit lebensnachweisLesen (lib/lebensnachweis.ts), das bei einem
+  // kaputten Objekt nichts liefert. Fehlt bei aelteren Knoten.
+  lebensnachweis?: unknown;
 }
 
 export interface Staffel {
@@ -258,6 +262,26 @@ export interface LivenessRenewalResponse {
 
 export function submitLivenessRenewal(renewal: LivenessRenewal) {
   return apiPost<LivenessRenewalResponse>('/liveness-renewal', renewal);
+}
+
+// Was der Coordinator nach bestandenem Lebensnachweis bescheinigt
+// (/lebensnachweis -> lebensnachweis) -- unveraendert an die Kette. Dieselbe
+// Form wie die Erneuerung, aber eine eigene Domaene
+// (aequitas-proof-of-life-v1): die Kette nimmt das eine nicht als das andere.
+export type ProofOfLife = LivenessRenewal;
+
+export interface ProofOfLifeResponse {
+  ok?: boolean;
+  wallet?: string;
+  // Schon nachgewiesen (dieselbe Bescheinigung noch einmal geschickt): zaehlt
+  // als Erfolg, wie schon_erneuert bei der Erneuerung.
+  schon_nachgewiesen?: boolean;
+  faellig_ab?: number;
+  error?: string;
+}
+
+export function submitProofOfLife(nachweis: ProofOfLife) {
+  return apiPost<ProofOfLifeResponse>('/proof-of-life', nachweis);
 }
 
 export interface PricePoint {

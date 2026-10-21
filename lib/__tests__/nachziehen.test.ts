@@ -107,7 +107,7 @@ describe('nachziehenBiometric: was an den Coordinator geht', () => {
       global.fetch = altFetch;
       bio._setCoordinatorCandidatesForTest(null);
     }
-    expect(gesendet.consent_version).toBe('einwilligung-v3-2026-10-02');
+    expect(gesendet.consent_version).toBe('einwilligung-v4-2026-10-21');
     expect(gesendet.alter_anfrage).toBe('a'.repeat(32));
     expect(gesendet.geburtsjahr).toBe('1990');
     expect(gesendet.land).toBe('DE');
@@ -116,6 +116,6 @@ describe('nachziehenBiometric: was an den Coordinator geht', () => {
   it('die Fassung ist dieselbe wie die Vorgabe von Coordinator und Vergleichsdiensten', () => {
     // aequitas-biometric-beta: CURRENT_CONSENT_VERSION in coordinator/app/einwilligung.py
     // und matching-service/app/config.py. Weicht sie ab, wird jede Aufnahme abgewiesen.
-    expect(require('../biometricIdentity').CONSENT_VERSION).toBe('einwilligung-v3-2026-10-02');
+    expect(require('../biometricIdentity').CONSENT_VERSION).toBe('einwilligung-v4-2026-10-21');
   });
 });

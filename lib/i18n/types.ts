@@ -17,6 +17,12 @@ export interface Translations {
     bindHinweisText: string;
     bindHinweisMehrere: string;
     bindHinweisLink: string;
+    // Jaehrlicher Lebensnachweis: Erinnerung auf der Startseite (components/Lebensnachweis.tsx).
+    lnHinweisTitel: string;
+    lnHinweisFaellig: string;
+    lnHinweisNachfrist: string;
+    lnHinweisPausiert: string;
+    lnHinweisLink: string;
     logoSub: string;
     badgeLive: string;
     statLatestBlock: string;
@@ -379,6 +385,44 @@ export interface Translations {
     staffelJetzt: string;
     erneuernResultNichtNoetig: string;
     erneuernResultSchon: string;
+    // Jaehrlicher Lebensnachweis (lib/lebensnachweis.ts, components/Lebensnachweis.tsx).
+    // biometricConsentLebensnachweis gehoert zur Einwilligung v4 und steht in jedem Ablauf.
+    biometricConsentLebensnachweis: string;
+    lnTitel: string;
+    lnZuletzt: string;
+    lnNochNicht: string;
+    lnFaellig: string;
+    lnNachfrist: string;
+    lnPausiert: string;
+    lnBtn: string;
+    lnNichtInDieserApp: string;
+    lnRegel: string;
+    lnConsentTitle: string;
+    lnConsentBody: string;
+    lnErgebnisBestaetigt: string;
+    lnErgebnisNaechster: string;
+    lnAltersHinweis: string;
+    lnNochmalSenden: string;
+    lnErgebnisZuFrueh: string;
+    lnErgebnisNichtAktiv: string;
+    lnErgebnisKeinMensch: string;
+    lnErgebnisAnderesGesicht: string;
+    lnErgebnisUnbekanntesGesicht: string;
+    lnErgebnisKeinQuorum: string;
+    lnErgebnisKetteNichtErreichbar: string;
+    lnErgebnisKetteAbgelehnt: string;
+    lnErgebnisUnsicher: string;
+    lnErgebnisSelbst: string;
+    lnErgebnisDienstVeraltet: string;
+    lnErgebnisSignatur: string;
+    lnErgebnisNonce: string;
+    lnErgebnisKeinSchluessel: string;
+    lnErgebnisEinwilligung: string;
+    lnErgebnisAufnahme: string;
+    lnErgebnisLebendigkeit: string;
+    lnErgebnisRisiko: string;
+    lnErgebnisBetrieb: string;
+    lnErgebnisFehler: string;
     biometricVouchTitle: string;
     biometricYourIdLabel: string;
     biometricCopyIdBtn: string;

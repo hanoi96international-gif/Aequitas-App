@@ -11,6 +11,7 @@ import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/l
 import { storedBioHash, deleteEnrollment, nachgezogenAt } from '@/lib/biometricIdentity';
 import { staffelErneuerungAb } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
+import { LebensnachweisKarte } from '@/components/Lebensnachweis';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, redTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
@@ -397,6 +398,10 @@ export default function Identity() {
             <Text style={S.nachziehDone}>{t('identity.nachziehenDone')}</Text>
           </View>
         )}
+
+        {/* Jaehrlicher Lebensnachweis: nur, wenn die Kette ihn fuer dieses
+            Konto meldet (components/Lebensnachweis.tsx). */}
+        {status === 'already_registered' ? <LebensnachweisKarte /> : null}
 
         {/* Gestaffelter Zuschuss (WP 2/3): part of the starting grant waits
             for a second liveness check from day 7 -- with the SAME face

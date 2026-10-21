@@ -20,7 +20,8 @@ import * as SecureStore from 'expo-secure-store';
 import { attestierungAnhaengen } from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
-import { submitLivenessRenewal, type LivenessRenewal } from './api';
+import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
+import { LEBENSNACHWEIS_FAELLIG_NACH_TAGE, type LebensnachweisKette } from './lebensnachweis';
 
 // ---------------------------------------------------------------------------
 // Which coordinator. COORDINATOR_BASE first, then COORDINATOR_FALLBACKS in
@@ -220,7 +221,19 @@ export async function coordinatorBase(opts: { fresh?: boolean } = {}): Promise<s
 // Altersschaetzung aus dem Gesicht. Coordinator und Vergleichsdienste nehmen
 // v2 nur noch an, solange die Altersschaetzung beobachtet wird -- und
 // schaetzen dann nicht (einwilligung.py dort).
-export const CONSENT_VERSION = 'einwilligung-v3-2026-10-02';
+// Erhoeht am 21.10.2026 auf v4: der Text nennt zusaetzlich den jaehrlichen
+// Lebensnachweis und das Auffrischen der Vorlage (die erste Vorlage bleibt
+// als Anker; eine aufgefrischte ersetzt nur die vorige aufgefrischte; eine
+// grobe Altersspanne wird verschluesselt dazu gespeichert). Der Coordinator
+// nimmt v3 weiter an (VORGAENGER_CONSENT_VERSIONEN). Die Einwilligung wird
+// vor JEDER Aufnahme neu eingeholt (biometric-capture.tsx, Schritt
+// 'consent') -- wer v3 zugestimmt hat, sieht vor dem ersten Lebensnachweis
+// also den v4-Text und sendet danach v4.
+// VOR DEM VERTEILEN: auch die Vergleichsdienste muessen v4 annehmen
+// (matching-service/app/config.py nannte am 21.10.2026 noch v3 als einzige
+// geltende Fassung) -- sonst wird jede Aufnahme mit consent_outdated
+// abgewiesen, auch Registrierungen.
+export const CONSENT_VERSION = 'einwilligung-v4-2026-10-21';
 
 const DEVICE_ID_KEY = 'aequitas_biometric_device_id_v1';
 
@@ -1034,4 +1047,172 @@ export async function erneuernBiometric(
     }
   }
   return ergebnis;
+}
+
+// ---------------------------------------------------------------------------
+// Jaehrlicher Lebensnachweis. Wie die Zweitpruefung: der Coordinator
+// bescheinigt nur, wenn DASSELBE Gesicht vor der Kamera steht, das diese
+// Wallet registriert hat (coordinator/app/lebensnachweis.py), und frischt
+// danach die Vorlage bei genau den Diensten auf, die es erkannt haben. Die
+// Bescheinigung geht unveraendert an /api/proof-of-life der Kette.
+//
+// Besitznachweis mit eigener Domaene -- eine Erneuerungs- oder Nachzieh-
+// Signatur gilt dort nicht (und umgekehrt):
+//   aequitas-lebensnachweis-v1|<wallet, lower-case>|<challenge nonce>
+//
+// Die Antwort heisst hier `status`, nicht `decision` (LebensnachweisResponse
+// im Coordinator). Eine bio_hash steht nie darin.
+// ---------------------------------------------------------------------------
+export const LEBENSNACHWEIS_DOMAIN = 'aequitas-lebensnachweis-v1';
+
+export function lebensnachweisMessage(walletAddress: string, nonce: string): string {
+  return `${LEBENSNACHWEIS_DOMAIN}|${walletAddress.trim().toLowerCase()}|${nonce}`;
+}
+
+export interface LebensnachweisResult {
+  // bescheinigt | zu_frueh | nicht_aktiv | kein_mensch | anderes_gesicht |
+  // unbekanntes_gesicht | kein_quorum | kette_nicht_erreichbar |
+  // lebendigkeit_unsicher | selbst_bescheinigung | vergleichsdienst_veraltet |
+  // signatur_ungueltig | nonce_ungueltig | kein_schluessel | missing_consent |
+  // consent_outdated | capture_failed | liveness_failed | risk_blocked | invalid_mode
+  status: string;
+  quorum_size?: number;
+  validator_count?: number;
+  votes?: RegisterVote[];
+  challenge_type?: string | null;
+  faellig_ab?: number | null;
+  lebensnachweis?: ProofOfLife | null;
+  // Wie viele Vergleichsdienste die Vorlage aufgefrischt haben. Ein
+  // Fehlschlag dort haelt den Nachweis nicht an.
+  vorlage?: { aufgefrischt: number; gesamt: number } | null;
+  // Weich und nur zur Transparenz: passt das Gesicht von heute zum Alter der
+  // Vorlage? Haelt nichts an.
+  alters_signal?: 'unauffaellig' | 'auffaellig' | null;
+  lebendigkeit?: unknown;
+  // Von der App gesetzt, nachdem sie die Bescheinigung an die Kette gegeben hat.
+  kette?: LebensnachweisKette;
+  kette_fehler?: string | null;
+  // Ab wann der naechste Nachweis moeglich ist -- nur nach einem Erfolg.
+  naechster_ab?: number | null;
+}
+
+const ADRESSE = /^0x[0-9a-f]{40}$/;
+const HEX = /^(0x)?[0-9a-fA-F]+$/;
+
+/** Ist das, was der Coordinator als Bescheinigung schickt, formal eine --
+ *  und fuer DIESE Wallet? Die Kette prueft die Signatur selbst; hier wird
+ *  nur verhindert, dass etwas Halbes oder Fremdes weitergereicht wird. */
+export function bescheinigungFuer(roh: unknown, walletAddress: string): ProofOfLife | null {
+  if (!roh || typeof roh !== 'object') return null;
+  const o = roh as Record<string, unknown>;
+  const wallet = walletAddress.trim().toLowerCase();
+  if (typeof o.wallet !== 'string' || !ADRESSE.test(o.wallet) || o.wallet !== wallet) return null;
+  if (typeof o.issued_at !== 'number' || !Number.isInteger(o.issued_at) || o.issued_at <= 0) return null;
+  if (typeof o.signature !== 'string' || !HEX.test(o.signature) || o.signature.length > 300) return null;
+  if (typeof o.public_key !== 'string' || !HEX.test(o.public_key) || o.public_key.length > 300) return null;
+  return { wallet: o.wallet, issued_at: o.issued_at, signature: o.signature, public_key: o.public_key };
+}
+
+/** Was die Kette zur Bescheinigung sagt. Rein -- getestet. Nur ok === true
+ *  ist ein Erfolg; "schon nachgewiesen" ist einer. */
+export function ketteLebensnachweisDeuten(
+  r: { ok?: unknown; schon_nachgewiesen?: unknown; faellig_ab?: unknown; error?: unknown } | null | undefined,
+): { kette: LebensnachweisKette; kette_fehler?: string | null; faellig_ab?: number } {
+  if (r?.ok === true) {
+    const ab = typeof r.faellig_ab === 'number' && Number.isInteger(r.faellig_ab) && r.faellig_ab > 0
+      ? { faellig_ab: r.faellig_ab }
+      : {};
+    return { kette: r.schon_nachgewiesen === true ? 'schon_nachgewiesen' : 'angenommen', ...ab };
+  }
+  return { kette: 'abgelehnt', kette_fehler: typeof r?.error === 'string' ? r.error.slice(0, 300) : null };
+}
+
+export async function lebensnachweisBiometric(
+  capture: BiometricCapture,
+  opts: {
+    deviceId: string;
+    walletAddress: string;
+    signer: AequitasSigner;
+    consent?: ConsentDecision;
+  }
+): Promise<LebensnachweisResult> {
+  let ergebnis: LebensnachweisResult;
+  try {
+    if (!capture.challengeNonce) {
+      throw new NachziehenNeedsChallenge();
+    }
+    const base = await basisFuerNonce(capture.challengeNonce);
+    const signature = await opts.signer.signMessage(
+      lebensnachweisMessage(opts.walletAddress, capture.challengeNonce)
+    );
+    const form = new FormData();
+    form.append('wallet_address', opts.walletAddress.toLowerCase());
+    form.append('wallet_signature', signature);
+    form.append('challenge_nonce', capture.challengeNonce);
+    form.append('device_id', opts.deviceId);
+    if (opts.consent?.biometricConsent) {
+      form.append('consent_version', CONSENT_VERSION);
+      form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    if (capture.faceBurstVideoUri) {
+      form.append(
+        'face_burst_video',
+        toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4')
+      );
+    }
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    await attestierungAnhaengen(form, capture.challengeNonce);
+    const resp = await fetchMitFrist(`${base}/lebensnachweis`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    const roh = await resp.json();
+    if (!roh || typeof roh !== 'object' || typeof roh.status !== 'string') {
+      throw new Error('Coordinator answer without status');
+    }
+    ergebnis = roh;
+  } finally {
+    await cleanupCaptureFiles(capture);
+  }
+
+  // Nur eine Bescheinigung geht an die Kette -- und nur, wenn sie formal
+  // stimmt und auf DIESE Wallet lautet.
+  if (ergebnis.status === 'bescheinigt') {
+    const nachweis = bescheinigungFuer(ergebnis.lebensnachweis, opts.walletAddress);
+    if (!nachweis) {
+      ergebnis.kette = 'abgelehnt';
+      ergebnis.kette_fehler = 'bescheinigung_unvollstaendig';
+      return ergebnis;
+    }
+    ergebnis.lebensnachweis = nachweis;
+    Object.assign(ergebnis, await lebensnachweisAnKette(nachweis));
+  }
+  return ergebnis;
+}
+
+/** Die Bescheinigung an die Kette (/api/proof-of-life) -- auch fuer ein
+ *  erneutes Senden ohne neue Aufnahme, wenn die Kette nicht erreichbar war. */
+export async function lebensnachweisAnKette(
+  nachweis: ProofOfLife,
+): Promise<Pick<LebensnachweisResult, 'kette' | 'kette_fehler' | 'naechster_ab'>> {
+  try {
+    const k = ketteLebensnachweisDeuten(await submitProofOfLife(nachweis));
+    const erfolg = k.kette === 'angenommen' || k.kette === 'schon_nachgewiesen';
+    return {
+      kette: k.kette,
+      kette_fehler: k.kette_fehler ?? null,
+      naechster_ab: erfolg ? k.faellig_ab ?? nachweis.issued_at + LEBENSNACHWEIS_FAELLIG_NACH_TAGE * 86400 : null,
+    };
+  } catch (e) {
+    // Die Bescheinigung bleibt eine Weile gueltig; der Mensch soll es gleich
+    // noch einmal senden, nicht hoeren, er sei gescheitert.
+    return { kette: 'nicht_erreichbar', kette_fehler: e instanceof Error ? e.message : String(e), naechster_ab: null };
+  }
 }

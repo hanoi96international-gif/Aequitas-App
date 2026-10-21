@@ -28,6 +28,9 @@ import {
   nachziehenBiometric,
   erneuernBiometric,
   type ErneuernResult,
+  lebensnachweisBiometric,
+  lebensnachweisAnKette,
+  type LebensnachweisResult,
   rememberNachgezogen,
   NachziehenNeedsChallenge,
   widerspruchEinlegen,
@@ -47,6 +50,7 @@ import { anfrageFuer, BUERGEN_NOETIG, qrInhalt, stand as buergenStand } from '@/
 import QRCode from 'react-native-qrcode-svg';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
 import { withTimeout } from '@/lib/signer';
+import { lebensnachweisMeldung } from '@/lib/lebensnachweis';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
 
@@ -627,9 +631,16 @@ export default function BiometricCapture() {
   // chain releases the staged grant afterwards. No age declaration either:
   // that was part of the registration.
   const erneuern = zweck === 'erneuern';
-  // Neither path mints anything at capture time, so neither asks for the
+  // ?zweck=lebensnachweis: der jaehrliche Lebensnachweis. Dieselbe Bindung
+  // wie die Zweitpruefung -- nur das Gesicht, das diese Wallet registriert
+  // hat, zaehlt (lib/biometricIdentity.ts, lebensnachweisBiometric). Kein
+  // Alter, kein Zuschuss; die Kette nimmt die Bescheinigung danach an.
+  const lebensnachweis = zweck === 'lebensnachweis';
+  // Kein Altersschritt: das wurde bei der Registrierung geprueft.
+  const ohneAlter = erneuern || lebensnachweis;
+  // None of these paths mints anything at capture time, so none asks for the
   // bonus consent nor offers the pending registration step.
-  const ohneZuschuss = nachziehen || erneuern;
+  const ohneZuschuss = nachziehen || erneuern || lebensnachweis;
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
@@ -925,6 +936,8 @@ export default function BiometricCapture() {
   const [registriert, setRegistriert] = useState<'neu' | 'schon' | null>(null);
   const [nachziehResult, setNachziehResult] = useState<NachziehenResult | null>(null);
   const [erneuerResult, setErneuerResult] = useState<ErneuernResult | null>(null);
+  const [lnResult, setLnResult] = useState<LebensnachweisResult | null>(null);
+  const [lnSendet, setLnSendet] = useState(false);
   const [submitError, setSubmitError] = useState('');
   // Eingeschrieben, aber noch nicht auf der Kette -- siehe
   // lib/biometricIdentity.ts, OffenerKettenschritt. Solange gesetzt, kann der
@@ -1061,9 +1074,10 @@ export default function BiometricCapture() {
       setConsentError(t('identity.biometricConsentRequired'));
       return;
     }
-    if (erneuern) {
+    if (ohneAlter) {
       // Kein Alter: das wurde bei der Registrierung geprueft, und /erneuern
-      // nimmt keine Angabe an. Die Einwilligung geht mit (consent_version).
+      // wie /lebensnachweis nehmen keine Angabe an. Die Einwilligung geht mit
+      // (consent_version).
       setConsent({ biometricConsent: true, bonusConsent: false, consentedAt: Date.now() / 1000 });
       setConsentError('');
       setStep('face_intro');
@@ -1385,6 +1399,22 @@ export default function BiometricCapture() {
     setSubmitError('');
     try {
       const deviceId = await getOrCreateDeviceId();
+      if (lebensnachweis) {
+        const ln = await lebensnachweisBiometric(
+          {
+            faceUri: finalFaceUri,
+            ...serie,
+            burstIntervalMs: BURST_INTERVAL_MS,
+            imuSamples: finalImu,
+            challengeNonce: challenge?.nonce,
+          },
+          { deviceId, walletAddress: address, signer, consent }
+        );
+        setLnResult(ln);
+        if (ln.kette === 'angenommen' || ln.kette === 'schon_nachgewiesen') refreshBalance().catch(() => undefined);
+        setStep('result');
+        return;
+      }
       if (erneuern) {
         const er = await erneuernBiometric(
           {
@@ -1540,9 +1570,12 @@ export default function BiometricCapture() {
             </View>
           ) : null}
           <View style={S.card}>
-            <Text style={S.title}>{erneuern ? t('identity.erneuernConsentTitle') : nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
-            <Text style={S.body}>{erneuern ? t('identity.erneuernConsentBody') : nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
-            {!erneuern && (
+            <Text style={S.title}>{lebensnachweis ? t('identity.lnConsentTitle') : erneuern ? t('identity.erneuernConsentTitle') : nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
+            <Text style={S.body}>{lebensnachweis ? t('identity.lnConsentBody') : erneuern ? t('identity.erneuernConsentBody') : nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
+            {/* Einwilligung v4: jaehrlicher Lebensnachweis und Auffrischen der
+                Vorlage -- Teil des Textes, dem in JEDEM Ablauf zugestimmt wird. */}
+            <Text style={S.body}>{t('identity.biometricConsentLebensnachweis')}</Text>
+            {!ohneAlter && (
             <>
             {/* Einwilligung v3: die Altersschaetzung gehoert zum Text, dem zugestimmt wird. */}
             <Text style={S.body}>{t('identity.biometricConsentAlter')}</Text>
@@ -1789,6 +1822,9 @@ export default function BiometricCapture() {
               <>
                 <Text style={S.body}>
                   {(() => {
+                    if (lebensnachweis) {
+                      return lebensnachweisText(lnResult, t);
+                    }
                     if (erneuern) {
                       return erneuernText(erneuerResult, t);
                     }
@@ -1873,6 +1909,24 @@ export default function BiometricCapture() {
                 ) : null}
               </>
             )}
+            {lebensnachweis && !submitError && lnResult ? (
+              <LebensnachweisZusatz
+                r={lnResult}
+                t={t}
+                sendet={lnSendet}
+                nochmalSenden={async () => {
+                  if (!lnResult.lebensnachweis) return;
+                  setLnSendet(true);
+                  try {
+                    const k = await lebensnachweisAnKette(lnResult.lebensnachweis);
+                    setLnResult({ ...lnResult, ...k });
+                    if (k.kette === 'angenommen' || k.kette === 'schon_nachgewiesen') refreshBalance().catch(() => undefined);
+                  } finally {
+                    setLnSendet(false);
+                  }
+                }}
+              />
+            ) : null}
             {(() => {
               // Immer dann, wenn der Coordinator eine Kennung ausgegeben hat --
               // er entscheidet, was widerspruchsfaehig ist (duplicate_detected
@@ -1983,6 +2037,7 @@ const S = StyleSheet.create({
     marginTop: -8, marginBottom: 12,
   },
 
+  lnHinweis: { color: theme.muted, fontSize: 12, lineHeight: 18, marginBottom: 12 },
   vouchCard: { marginTop: 16 },
   widerspruchBox: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -2096,6 +2151,46 @@ const S = StyleSheet.create({
   stepDotCheck: { color: '#fff', fontSize: 12, fontWeight: '700' },
   stepLine: { width: 28, height: 2, backgroundColor: theme.borderStrong, marginHorizontal: 4 },
 });
+
+// Nach dem Lebensnachweis: welche Meldung (lib/lebensnachweis.ts, dort fuer
+// jeden Status getestet), mit Datum, wo eines dazugehoert.
+function lebensnachweisText(r: LebensnachweisResult | null, t: TFunc): string {
+  const m = lebensnachweisMeldung(r);
+  const datum = m.datum ? new Date(m.datum * 1000).toLocaleDateString() : '—';
+  return t(`identity.${m.key}`, { date: datum });
+}
+
+/** Unter der Meldung: nach einem Erfolg der naechste Termin und, falls ein
+ *  Dienst es meldet, ein neutraler Hinweis zum Alterssignal (weich, haelt
+ *  nichts an). War die Kette nicht erreichbar, kann dieselbe Bescheinigung
+ *  ohne neue Aufnahme noch einmal gesendet werden. Keine bio_hash, nie. */
+function LebensnachweisZusatz({ r, t, sendet, nochmalSenden }: {
+  r: LebensnachweisResult;
+  t: TFunc;
+  sendet: boolean;
+  nochmalSenden: () => void;
+}) {
+  if (r.status !== 'bescheinigt') return null;
+  const erfolg = r.kette === 'angenommen' || r.kette === 'schon_nachgewiesen';
+  return (
+    <>
+      {erfolg && r.naechster_ab ? (
+        <Text style={S.body}>
+          {t('identity.lnErgebnisNaechster', { date: new Date(r.naechster_ab * 1000).toLocaleDateString() })}
+        </Text>
+      ) : null}
+      {r.alters_signal === 'auffaellig' ? (
+        <Text style={S.lnHinweis}>{t('identity.lnAltersHinweis')}</Text>
+      ) : null}
+      {r.kette === 'nicht_erreichbar' && r.lebensnachweis ? (
+        <>
+          <GradientButton label={t('identity.lnNochmalSenden')} onPress={nochmalSenden} disabled={sendet} />
+          {sendet ? <ActivityIndicator style={S.spinnerGap} color={theme.purple} /> : null}
+        </>
+      ) : null}
+    </>
+  );
+}
 
 // What to tell the person after a second liveness check. Kept outside the
 // component so every outcome is visible in one place.
