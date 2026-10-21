@@ -1734,7 +1734,14 @@ export default function BiometricCapture() {
                     instruction at a time, advancing as each one finishes
                     speaking -- see burstStageText's own comment. */}
                 <Text style={S.actionInstruction}>🎯 {burstStageText}</Text>
-                {countdown !== null ? <Text style={S.countdown}>{countdown}</Text> : null}
+                {countdown !== null ? (
+                  <>
+                    <Text style={S.countdown}>{countdown}</Text>
+                    {/* Testperson 21.10.2026: "Gibt sicher viele, die das
+                        missverstehen" -- erst bei 0 zu blinzeln ist zu spaet. */}
+                    <Text style={S.countdownHint}>{t('identity.biometricCountdownHint')}</Text>
+                  </>
+                ) : null}
               </>
             )}
           </View>
@@ -2044,6 +2051,7 @@ const S = StyleSheet.create({
     color: theme.neon, fontSize: 44, fontWeight: '900', textAlign: 'center', lineHeight: 50,
     marginTop: 6,
   },
+  countdownHint: { color: theme.text, fontSize: 13, textAlign: 'center', lineHeight: 18, opacity: 0.9 },
 
   // `bottom` is set per-instance (dynamic, measured overlay panel height --
   // see overlayHeight/onLayout above) instead of baked in here, so the
