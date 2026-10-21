@@ -304,6 +304,8 @@ export interface Translations {
     biometricBurstHoldOval: string;
     biometricBurstBlinkNow: string;
     biometricBurstHoldSeconds: string;
+    /** Unter der Countdown-Zahl: die Aufgabe gilt WAEHREND des Countdowns. */
+    biometricCountdownHint: string;
     biometricProcessing: string;
     biometricCameraPermissionDenied: string;
     biometricResultDuplicate: string;
