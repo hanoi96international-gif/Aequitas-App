@@ -26,7 +26,8 @@ describe('Aufnahme-Bildschirm', () => {
   });
   it('liest die Bildserie nirgends mehr direkt aus burstVideoUri', () => {
     expect(src).not.toMatch(/faceBurstVideoUri:\s*burstVideoUri/);
-    // Je Ablauf einmal: Registrierung, Nachziehen, Zweitpruefung, Lebensnachweis.
-    expect(src.match(/\.\.\.serie,/g)?.length).toBe(4);
+    // Je Ablauf einmal: Registrierung, Zwillings-Registrierung, Nachziehen,
+    // Zweitpruefung, Lebensnachweis.
+    expect(src.match(/\.\.\.serie,/g)?.length).toBe(5);
   });
 });

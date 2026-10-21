@@ -403,6 +403,20 @@ export default function Identity() {
             Konto meldet (components/Lebensnachweis.tsx). */}
         {status === 'already_registered' ? <LebensnachweisKarte /> : null}
 
+        {/* Eineiige Zwillinge: der schon registrierte Zwilling bestaetigt den
+            anderen (app/zwilling-bestaetigen.tsx, lib/zwilling.ts). */}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && (
+          <View style={S.nachziehCard}>
+            <Text style={S.nachziehTitle}>{t('identity.zwBestaetigenTitel')}</Text>
+            <Text style={S.deleteBody}>{t('identity.zwKarteText')}</Text>
+            <TouchableOpacity onPress={() => router.push('/zwilling-bestaetigen')} activeOpacity={0.85}>
+              <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                <Text style={S.btnPrimaryText}>{t('identity.zwBestaetigenBtnKarte')}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Gestaffelter Zuschuss (WP 2/3): part of the starting grant waits
             for a second liveness check from day 7 -- with the SAME face
             (coordinator /erneuern). Shown only when the chain reports a

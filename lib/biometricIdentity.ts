@@ -22,6 +22,16 @@ import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
 import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
 import { LEBENSNACHWEIS_FAELLIG_NACH_TAGE, type LebensnachweisKette } from './lebensnachweis';
+import {
+  istAnfrage,
+  startAntwortLesen,
+  zwillingQrInhalt,
+  zwillingRegisterMessage,
+  zwillingZustimmungMessage,
+  type StartAntwort,
+  type ZwillingQr,
+  type ZwillingRichtung,
+} from './zwilling';
 
 // ---------------------------------------------------------------------------
 // Which coordinator. COORDINATOR_BASE first, then COORDINATOR_FALLBACKS in
@@ -362,12 +372,15 @@ export interface IssuedChallenge {
  * hiccup, coordinator unreachable) rather than throwing -- the challenge
  * step is informational-only, so a failed request here should just skip
  * straight to capture without it, not block the whole flow. */
-export async function requestChallenge(): Promise<IssuedChallenge | null> {
+export async function requestChallenge(fest?: string): Promise<IssuedChallenge | null> {
   if (coordinatorCandidates().length === 0) return null;
+  // `fest`: die Challenge MUSS von diesem Coordinator kommen (Zwillinge: dort
+  // liegt die Anfrage). Nur einer der eigenen Kandidaten -- sonst keine.
+  if (fest !== undefined && !coordinatorCandidates().includes(fest)) return null;
   try {
     // fresh: a new flow starts here, so re-pick the coordinator now and let
     // every later call of this flow stick to it.
-    const base = await coordinatorBase({ fresh: true });
+    const base = fest ?? (await coordinatorBase({ fresh: true }));
     const resp = await fetchMitFrist(`${base}/challenge`, { method: 'POST' });
     if (!resp.ok) return null;
     const body = await resp.json();
@@ -503,6 +516,14 @@ let loeschenFuerTest: ((uri: string) => Promise<void>) | null = null;
 /** Tests only. */
 export function _setLoeschenFuerTest(fn: ((uri: string) => Promise<void>) | null): void {
   loeschenFuerTest = fn;
+}
+
+/** Verwirft Aufnahmedateien, die nie hochgeladen werden (Ablauf
+ *  abgebrochen) -- dieselbe Loeschung wie nach einem Upload. */
+export async function aufnahmeVerwerfen(uris: string[]): Promise<void> {
+  const [faceUri, ...rest] = uris.filter(Boolean);
+  if (!faceUri) return;
+  await cleanupCaptureFiles({ faceUri, faceBurstUris: rest, burstIntervalMs: 0 });
 }
 
 async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
@@ -1214,5 +1235,202 @@ export async function lebensnachweisAnKette(
     // Die Bescheinigung bleibt eine Weile gueltig; der Mensch soll es gleich
     // noch einmal senden, nicht hoeren, er sei gescheitert.
     return { kette: 'nicht_erreichbar', kette_fehler: e instanceof Error ? e.message : String(e), naechster_ab: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Eineiige Zwillinge (coordinator/app/zwilling.py; Format, Richtung und
+// Meldungen in lib/zwilling.ts).
+//
+// Die Anfrage lebt nur im Arbeitsspeicher DES Coordinators, der sie
+// ausgestellt hat -- wie ein Challenge-Nonce. Darum wird hier gemerkt,
+// welcher das war, und /zwilling/start, /challenge und /zwilling/register
+// gehen genau dorthin. Kennt die App den Aussteller nicht (App neu
+// gestartet), wird abgebrochen, nicht umgeleitet: ein anderer Coordinator
+// kennt die Anfrage nicht und bekaeme nur die Bilder.
+// ---------------------------------------------------------------------------
+const ZWILLING_KNOTEN_MAX = 4;
+let zwillingKnoten: { anfrage: string; base: string; richtung?: ZwillingRichtung }[] = [];
+
+/** Der Coordinator, der diese Anfrage ausgestellt hat -- oder null. */
+export function zwillingBasis(anfrage: string): string | null {
+  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.base ?? null;
+}
+
+/** Die Richtung, die /zwilling/start fuer diese Anfrage genannt hat -- aus
+ *  dem Speicher dieser App, nie aus Parametern eines Links. */
+export function zwillingRichtung(anfrage: string): ZwillingRichtung | null {
+  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.richtung ?? null;
+}
+
+/** Tests only. */
+export function _vergissZwillingKnotenFuerTest(): void {
+  zwillingKnoten = [];
+}
+
+export class ZwillingAnfrageUnbekannt extends Error {
+  constructor() {
+    super('zwilling: Anfrage ist dieser App unbekannt');
+    this.name = 'ZwillingAnfrageUnbekannt';
+  }
+}
+
+export interface ZwillingAnfrage {
+  anfrage: string;
+  gueltigSekunden: number;
+  base: string;
+  qr: string;
+}
+
+/** B legt eine Anfrage an. Wirft mit dem Grund des Coordinators
+ *  (zu_viele_anfragen, ausgelastet, ...) oder bei einer unlesbaren Antwort. */
+export async function zwillingAnfrageAnlegen(walletB: string): Promise<ZwillingAnfrage> {
+  const base = await coordinatorBase({ fresh: true });
+  const resp = await fetchMitFrist(`${base}/zwilling/anfrage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wallet: walletB.trim().toLowerCase() }),
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => null);
+    const grund = typeof body?.detail === 'string' ? body.detail.slice(0, 60) : `HTTP ${resp.status}`;
+    throw new Error(`zwilling_anfrage: ${grund}`);
+  }
+  const body = await resp.json();
+  const s = body?.gueltig_sekunden;
+  if (!istAnfrage(body?.anfrage) || typeof s !== 'number' || !Number.isInteger(s) || s <= 0 || s > 3600) {
+    throw new Error('zwilling_anfrage: Antwort unlesbar');
+  }
+  zwillingKnoten = [...zwillingKnoten, { anfrage: body.anfrage, base }].slice(-ZWILLING_KNOTEN_MAX);
+  return { anfrage: body.anfrage, gueltigSekunden: s, base, qr: zwillingQrInhalt(body.anfrage, walletB, base) };
+}
+
+/** B fragt, ob A zugestimmt hat (/zwilling/start) -- beim ausstellenden
+ *  Coordinator. null bei einer unlesbaren Antwort. */
+export async function zwillingStart(anfrage: string): Promise<StartAntwort | null> {
+  const base = zwillingBasis(anfrage);
+  if (!base) throw new ZwillingAnfrageUnbekannt();
+  const resp = await fetchMitFrist(`${base}/zwilling/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anfrage }),
+  });
+  if (!resp.ok) return null;
+  const a = startAntwortLesen(await resp.json().catch(() => null));
+  if (a?.status === 'bereit') {
+    const k = zwillingKnoten.find((e) => e.anfrage === anfrage);
+    if (k) k.richtung = a.richtung;
+  }
+  return a;
+}
+
+/** A stimmt zu. `qr` kommt aus zwillingQrLesen -- base ist damit einer der
+ *  eigenen Kandidaten. Signiert wird erst hier, nach der Bestaetigung. */
+export async function zwillingZustimmen(
+  qr: ZwillingQr,
+  walletA: string,
+  signer: AequitasSigner,
+): Promise<{ status: string }> {
+  const a = walletA.trim().toLowerCase();
+  // Sich selbst als Zwilling bestaetigen geht nicht; gar nicht erst signieren.
+  if (a === qr.walletB) return { status: 'eigene_wallet' };
+  if (!coordinatorCandidates().includes(qr.base)) return { status: 'anfrage_ungueltig' };
+  const signatur = await signer.signMessage(zwillingZustimmungMessage(a, qr.walletB, qr.anfrage));
+  const resp = await fetchMitFrist(`${qr.base}/zwilling/zustimmung`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anfrage: qr.anfrage, wallet: a, signatur }),
+  });
+  if (!resp.ok) throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+  const body = await resp.json().catch(() => null);
+  return { status: typeof body?.status === 'string' ? body.status : 'unbekannt' };
+}
+
+/** Die gemeinsame Aufnahme: ein Standbild mit beiden Gesichtern und eine
+ *  Bildserie (Video oder mindestens zwei Einzelbilder). */
+export interface ZwillingAufnahme {
+  bildUri: string;
+  videoUri?: string;
+  burstUris: string[];
+  intervalMs: number;
+}
+
+/** B registriert: eigene Aufnahme wie bei /register plus die gemeinsame.
+ *  Geht an den Coordinator der Anfrage, der auch den Nonce ausgestellt
+ *  haben muss -- sonst wird abgebrochen, bevor ein Bild das Geraet verlaesst. */
+export async function zwillingRegister(
+  capture: BiometricCapture,
+  gemeinsam: ZwillingAufnahme,
+  opts: {
+    anfrage: string;
+    deviceId: string;
+    walletAddress: string;
+    signer: AequitasSigner;
+    consent?: ConsentDecision;
+  },
+): Promise<BiometricRegisterResult> {
+  try {
+    if (!capture.challengeNonce) throw new NachziehenNeedsChallenge();
+    const anfrageBase = zwillingBasis(opts.anfrage);
+    if (!anfrageBase) throw new ZwillingAnfrageUnbekannt();
+    const base = await basisFuerNonce(capture.challengeNonce);
+    if (base !== anfrageBase) throw new NachziehenNeedsChallenge();
+    if (!gemeinsam.videoUri && gemeinsam.burstUris.length < 2) {
+      throw new Error('zwilling: gemeinsame Bildserie fehlt');
+    }
+    const wallet = opts.walletAddress.trim().toLowerCase();
+    const signature = await opts.signer.signMessage(
+      zwillingRegisterMessage(wallet, opts.anfrage, capture.challengeNonce)
+    );
+    const form = new FormData();
+    form.append('anfrage', opts.anfrage);
+    form.append('wallet_address', wallet);
+    form.append('wallet_signature', signature);
+    form.append('challenge_nonce', capture.challengeNonce);
+    form.append('device_id', opts.deviceId);
+    if (opts.consent?.biometricConsent) {
+      form.append('consent_version', CONSENT_VERSION);
+      form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    if (opts.consent?.alter) {
+      for (const [k, v] of formularFelder(opts.consent.alter)) form.append(k, v);
+    }
+    if (opts.consent?.alterAnfrage) form.append('alter_anfrage', opts.consent.alterAnfrage);
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    if (capture.faceBurstVideoUri) {
+      form.append('face_burst_video', toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4'));
+    }
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    form.append('zwilling_bild', toUploadFile(gemeinsam.bildUri, 'zwilling.jpg'));
+    if (gemeinsam.videoUri) {
+      form.append('zwilling_video', toUploadFile(gemeinsam.videoUri, 'zwilling.mp4', 'video/mp4'));
+    }
+    gemeinsam.burstUris.forEach((uri, i) => {
+      form.append('zwilling_burst', toUploadFile(uri, `zwilling_${i}.jpg`));
+    });
+    form.append('zwilling_interval_ms', String(gemeinsam.intervalMs));
+    await attestierungAnhaengen(form, capture.challengeNonce);
+    const resp = await fetchMitFrist(`${base}/zwilling/register`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    const ergebnis: BiometricRegisterResult = await resp.json();
+    if (!ergebnis || typeof ergebnis.decision !== 'string') throw new Error('Coordinator answer without decision');
+    merkeAbweisung(ergebnis.widerspruch_kennung, base);
+    return ergebnis;
+  } finally {
+    await cleanupCaptureFiles(capture);
+    await cleanupCaptureFiles({
+      faceUri: gemeinsam.bildUri,
+      faceBurstUris: gemeinsam.burstUris,
+      faceBurstVideoUri: gemeinsam.videoUri,
+      burstIntervalMs: gemeinsam.intervalMs,
+    });
   }
 }
