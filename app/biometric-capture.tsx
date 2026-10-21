@@ -1215,7 +1215,9 @@ export default function BiometricCapture() {
     // utterance (see that effect's own comment).
     Speech.stop();
     sayStage(t('identity.biometricBurstHoldOval'), () => {
-      sayStage(withSeconds(t('identity.biometricBurstBlinkNow'), BLINK_WINDOW_MS), () =>
+      // Ohne "· 3 Sekunden halten": Blinzeln haelt man nicht, und die kurze
+      // Ansage laesst der Aufnahme Luft bis BURST_MAX_DURATION_S.
+      sayStage(t('identity.biometricBurstBlinkNow'), () =>
         zaehleRunter(BLINK_WINDOW_MS, startDirectionStage)
       );
     });
