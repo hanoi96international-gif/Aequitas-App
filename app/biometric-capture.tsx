@@ -219,6 +219,14 @@ const BURST_DURATION_S = 5.5;
 // verlaengerte nur den ANGESAGTEN Wert auf "noch 2 Sekunden", nicht die
 // Aufnahme. Die Ansage war damit schlicht unwahr.
 const DIRECTION_WINDOW_MS = 3000;
+// Fenster fuer das Blinzeln, mit sichtbarem Countdown wie bei der Richtung.
+// Nutzerwunsch 21.10.2026: "fuer das Blinzeln einen Timer einbauen von 3 auf
+// 0, genau so wie beim nach links oder rechts gucken". Vorher stand "Jetzt
+// blinzeln" nur so lange da, wie die Ansage dauerte (~1 s), dann kam schon
+// die Richtung -- wer nach dem Ende der Ansage blinzelte, blinzelte in die
+// Kopfdrehung hinein. Die Aufnahme waechst dadurch um 3 s, bleibt aber auch
+// ohne Challenge (links + rechts) deutlich unter BURST_MAX_DURATION_S.
+const BLINK_WINDOW_MS = 3000;
 // Nur noch Notbremse, nicht mehr das, was die Laenge bestimmt: beendet wird
 // jetzt aktiv nach DIRECTION_WINDOW_MS. Grosszuegig, weil eine langsame
 // Stimme oder eine wortreichere Sprache die Ansagen deutlich strecken kann.
@@ -681,8 +689,19 @@ export default function BiometricCapture() {
   // continue to the next stage.
   const [burstStageText, setBurstStageText] = useState('');
   const burstChainCancelledRef = useRef(true);
+  // Sichtbarer Countdown der laufenden Stufe (Blinzeln, Richtung) in ganzen
+  // Sekunden; null = keiner. Seine Timer haengen wie die Sprachkette an
+  // burstChainCancelledRef und werden beim Verlassen geloescht.
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearCountdown = useCallback(() => {
+    countdownTimersRef.current.forEach(clearTimeout);
+    countdownTimersRef.current = [];
+    setCountdown(null);
+  }, []);
   useEffect(() => () => {
     burstChainCancelledRef.current = true;
+    countdownTimersRef.current.forEach(clearTimeout);
   }, []);
 
   // Active-flash liveness (see matching-service/app/flash_liveness.py) --
@@ -1133,6 +1152,7 @@ export default function BiometricCapture() {
       `${direction} · ${t('identity.biometricBurstHoldSeconds', { seconds: String(Math.round(ms / 1000)) })}`;
     const sayStage = (text: string, onDone?: () => void) => {
       if (burstChainCancelledRef.current) return;
+      clearCountdown();
       setBurstStageText(text);
       speakRaw(text, () => {
         if (!burstChainCancelledRef.current) onDone?.();
@@ -1143,15 +1163,30 @@ export default function BiometricCapture() {
     // laeuft asynchron und erreicht diese Stelle Sekunden spaeter, aber die
     // Pruefung auf null bleibt drin: bricht der Nutzer vorher ab, gibt es
     // keinen Recorder mehr, und maxDuration faengt den Fall ohnehin auf.
-    const stopAfterDirectionWindow = () => {
-      setTimeout(() => {
+    // Zaehlt `ms` sichtbar in ganzen Sekunden bis 0 herunter (3, 2, 1, 0)
+    // und ruft danach onDone. Die Zeit bis zum Aufruf ist genau `ms`.
+    const zaehleRunter = (ms: number, onDone: () => void) => {
+      let rest = Math.round(ms / 1000);
+      const schritt = () => {
         if (burstChainCancelledRef.current) return;
+        setCountdown(rest);
+        if (rest <= 0) {
+          onDone();
+          return;
+        }
+        rest -= 1;
+        countdownTimersRef.current.push(setTimeout(schritt, 1000));
+      };
+      schritt();
+    };
+    const stopAfterDirectionWindow = () => {
+      zaehleRunter(DIRECTION_WINDOW_MS, () => {
         try {
           activeRecorderRef.current?.stopRecording();
         } catch (e) {
           console.error('[biometric-capture] stopRecording failed', e);
         }
-      }, DIRECTION_WINDOW_MS);
+      });
     };
     const startDirectionStage = () => {
       // Die angesagte Sekundenzahl ist jetzt die, die tatsaechlich noch
@@ -1165,12 +1200,12 @@ export default function BiometricCapture() {
         );
       } else {
         sayStage(withSeconds(t('identity.biometricChallengeLookLeft'), DIRECTION_WINDOW_MS), () => {
-          setTimeout(() => {
+          zaehleRunter(DIRECTION_WINDOW_MS, () => {
             sayStage(
               withSeconds(t('identity.biometricChallengeLookRight'), DIRECTION_WINDOW_MS),
               stopAfterDirectionWindow
             );
-          }, DIRECTION_WINDOW_MS);
+          });
         });
       }
     };
@@ -1180,7 +1215,9 @@ export default function BiometricCapture() {
     // utterance (see that effect's own comment).
     Speech.stop();
     sayStage(t('identity.biometricBurstHoldOval'), () => {
-      sayStage(t('identity.biometricBurstBlinkNow'), startDirectionStage);
+      sayStage(withSeconds(t('identity.biometricBurstBlinkNow'), BLINK_WINDOW_MS), () =>
+        zaehleRunter(BLINK_WINDOW_MS, startDirectionStage)
+      );
     });
 
     try {
@@ -1273,6 +1310,7 @@ export default function BiometricCapture() {
       if (!snapshotFaceUri) {
         burstChainCancelledRef.current = true;
         clearFlashTimers();
+        clearCountdown();
         setSubmitError(t('identity.biometricResultFailed'));
         setStep('result');
         return;
@@ -1287,6 +1325,7 @@ export default function BiometricCapture() {
       // setFlashColor would still needlessly tint the next screen.
       burstChainCancelledRef.current = true;
       clearFlashTimers();
+      clearCountdown();
       // Straight to submit. The face is the only thing asked of a person now.
       //
       // Fingertip, ear and the acoustic chirp used to sit between here and
@@ -1307,6 +1346,7 @@ export default function BiometricCapture() {
       console.error('[biometric-capture] face video capture failed', e);
       burstChainCancelledRef.current = true;
       clearFlashTimers();
+      clearCountdown();
       setSubmitError(t('identity.biometricResultFailed'));
       setStep('result');
     }
@@ -1680,6 +1720,7 @@ export default function BiometricCapture() {
                     instruction at a time, advancing as each one finishes
                     speaking -- see burstStageText's own comment. */}
                 <Text style={S.actionInstruction}>🎯 {burstStageText}</Text>
+                {countdown !== null ? <Text style={S.countdown}>{countdown}</Text> : null}
               </>
             )}
           </View>
@@ -1984,6 +2025,10 @@ const S = StyleSheet.create({
   actionInstruction: {
     color: theme.neon, fontSize: 21, fontWeight: '800', textAlign: 'center', lineHeight: 26,
     marginTop: 8,
+  },
+  countdown: {
+    color: theme.neon, fontSize: 44, fontWeight: '900', textAlign: 'center', lineHeight: 50,
+    marginTop: 6,
   },
 
   // `bottom` is set per-instance (dynamic, measured overlay panel height --
