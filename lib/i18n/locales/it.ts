@@ -15,6 +15,10 @@ const it: Translations = {
     identity: 'Identità',
   },
   home: {
+    bindHinweisTitel: 'Il tuo server vuole connettersi',
+    bindHinweisText: 'Il server {ip} attende la tua conferma.',
+    bindHinweisMehrere: '{n} server attendono la tua conferma.',
+    bindHinweisLink: 'Controlla ora →',
     logoSub: 'PROOF OF HUMANITY',
     badgeLive: 'IN DIRETTA',
     statLatestBlock: 'ULTIMO BLOCCO',

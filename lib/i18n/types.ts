@@ -13,6 +13,10 @@ export interface Translations {
     identity: string;
   };
   home: {
+    bindHinweisTitel: string;
+    bindHinweisText: string;
+    bindHinweisMehrere: string;
+    bindHinweisLink: string;
     logoSub: string;
     badgeLive: string;
     statLatestBlock: string;

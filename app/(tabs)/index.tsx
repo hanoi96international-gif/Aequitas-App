@@ -10,6 +10,7 @@ import { fmtAEQ, formatBalance } from '@/lib/format';
 import { theme, purpleTint, purpleTintBorder, tealTint, tealTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 import LanguagePicker from '@/components/LanguagePicker';
 import OfflineHinweis from '@/components/OfflineHinweis';
+import BindungsHinweis from '@/components/BindungsHinweis';
 import { useAbfrage } from '@/hooks/use-abfrage';
 
 function formatCountdown(totalSecs: number): string {
@@ -140,6 +141,8 @@ export default function Home() {
             </View>
           </View>
         </View>
+
+        <BindungsHinweis />
 
         {/* Stats grid — mirror of the website's exp-stats row */}
         <View style={S.statsGrid}>

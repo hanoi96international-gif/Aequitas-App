@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { theme } from '@/constants/aequitas-theme';
 import { WalletProvider, useWallet } from '@/contexts/WalletContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
+import { BindungsanfragenProvider } from '@/contexts/BindungsanfragenContext';
 import { appKit } from '@/lib/walletconnect';
 import { WalletConnectErrorBoundary } from '@/components/WalletConnectErrorBoundary';
 import NetworkSetupOverlay from '@/components/NetworkSetupOverlay';
@@ -75,7 +76,9 @@ export default function RootLayout() {
   const content = (
     <LanguageProvider>
       <WalletProvider>
-        <AppShell />
+        <BindungsanfragenProvider>
+          <AppShell />
+        </BindungsanfragenProvider>
       </WalletProvider>
     </LanguageProvider>
   );
