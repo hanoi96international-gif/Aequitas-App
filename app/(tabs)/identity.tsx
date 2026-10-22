@@ -8,9 +8,10 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
-import { storedBioHash, deleteEnrollment, nachgezogenAt } from '@/lib/biometricIdentity';
+import { storedBioHash, deleteEnrollment, nachgezogenAt, zwillingWegAbgeschaltet } from '@/lib/biometricIdentity';
 import { staffelErneuerungAb } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
+import { LebensnachweisKarte } from '@/components/Lebensnachweis';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, redTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
@@ -395,6 +396,24 @@ export default function Identity() {
         {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && nachgezogen !== null && (
           <View style={S.nachziehCard}>
             <Text style={S.nachziehDone}>{t('identity.nachziehenDone')}</Text>
+          </View>
+        )}
+
+        {/* Jaehrlicher Lebensnachweis: nur, wenn die Kette ihn fuer dieses
+            Konto meldet (components/Lebensnachweis.tsx). */}
+        {status === 'already_registered' ? <LebensnachweisKarte /> : null}
+
+        {/* Eineiige Zwillinge: der schon registrierte Zwilling bestaetigt den
+            anderen (app/zwilling-bestaetigen.tsx, lib/zwilling.ts). */}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && !zwillingWegAbgeschaltet() && (
+          <View style={S.nachziehCard}>
+            <Text style={S.nachziehTitle}>{t('identity.zwBestaetigenTitel')}</Text>
+            <Text style={S.deleteBody}>{t('identity.zwKarteText')}</Text>
+            <TouchableOpacity onPress={() => router.push('/zwilling-bestaetigen')} activeOpacity={0.85}>
+              <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                <Text style={S.btnPrimaryText}>{t('identity.zwBestaetigenBtnKarte')}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         )}
 

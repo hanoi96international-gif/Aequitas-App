@@ -28,6 +28,18 @@ import {
   nachziehenBiometric,
   erneuernBiometric,
   type ErneuernResult,
+  lebensnachweisBiometric,
+  lebensnachweisAnKette,
+  type LebensnachweisResult,
+  aufnahmeDateiLoeschen,
+  zwillingBasis,
+  zwillingChallenge,
+  zwillingGesichter,
+  zwillingWegAbgeschaltet,
+  zwillingRegister,
+  ZwillingAnfrageUnbekannt,
+  ZwillingAndereWallet,
+  type ZwillingAufnahme,
   rememberNachgezogen,
   NachziehenNeedsChallenge,
   widerspruchEinlegen,
@@ -47,6 +59,19 @@ import { anfrageFuer, BUERGEN_NOETIG, qrInhalt, stand as buergenStand } from '@/
 import QRCode from 'react-native-qrcode-svg';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
 import { withTimeout } from '@/lib/signer';
+import { lebensnachweisMeldung } from '@/lib/lebensnachweis';
+import { AufnahmeDateien } from '@/lib/aufnahmeDateien';
+import {
+  zwillingAblauf,
+  ovalZustaende,
+  OVAL_TEXT,
+  type OvalZustand,
+  gruppenBildStatus,
+  istAnfrage,
+  zwillingRegisterMeldungKey,
+  type GruppenBild,
+  type ZwillingAufgabe,
+} from '@/lib/zwilling';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
 
@@ -175,7 +200,9 @@ function challengeInstruction(type: ChallengeType, t: TFunc): string {
 // demanded from a person and stored as biometric data under GDPR Art. 9.
 // Collecting a special category of personal data for a purpose it cannot serve
 // is the part that had to stop, not the length of the flow.
-type Step = 'consent' | 'face_intro' | 'face_burst' | 'submitting' | 'result';
+// Zwillinge: nach der eigenen Aufnahme (face_intro/face_burst) die
+// gemeinsame mit dem schon registrierten Zwilling (lib/zwilling.ts).
+type Step = 'consent' | 'face_intro' | 'face_burst' | 'zwilling_intro' | 'zwilling_burst' | 'submitting' | 'result';
 
 // Real-device follow-up ("search for something better for palmprint/eye
 // verification"): the burst duration was extended from 1.5s (enough for
@@ -454,6 +481,91 @@ function FaceGuide({
   );
 }
 
+// Zwillinge (und Mehrlinge): ein Oval je Mensch im gemeinsamen Bild (alle
+// Registrierten + B), die Person mit der Aufgabe hervorgehoben (Pfeil), bei
+// allen anderen "still halten", und die Vorpruefung "genau so viele
+// Gesichter, nebeneinander" -- auf Knopfdruck, aus demselben Grund wie
+// FaceGuide (keine Gesichtserkennung als zweiter Kamerastrom).
+function ZwillingGuide({
+  status,
+  checking,
+  onCheck,
+  overlayHeight,
+  aktiv,
+  gesichter,
+  zustaende,
+}: {
+  status: GruppenBild | null;
+  checking: boolean;
+  onCheck: () => void;
+  overlayHeight: number;
+  aktiv: boolean;
+  /** Wie viele Ovale (alle Registrierten + B, 2..4). */
+  gesichter: number;
+  /** Je Oval (Vorschau, 0 = links): dran (Pfeil), gedreht halten, still
+   *  halten -- null vor der Aufnahme (lib/zwilling.ts, ovalZustaende). */
+  zustaende: OvalZustand[] | null;
+}) {
+  const { t } = useLanguage();
+  const { width: windowWidth } = useWindowDimensions();
+  const ok = status === 'ok';
+  const hint = status === null
+    ? t('identity.zwGuideIdle')
+    : ok ? t('identity.zwGuideOk')
+      : status === 'zu_viele' ? t('identity.zwGuideZuViele')
+        : status === 'ueberlappen' ? t('identity.zwGuideUeberlappen') : t('identity.zwGuideZuWenige');
+  const n = Math.max(2, Math.min(4, gesichter));
+  const ovalWidth = Math.min((windowWidth - 24 - 12 * (n - 1)) / n, 170);
+  const ovalHeight = ovalWidth * (FACE_OVAL_BASE_HEIGHT / FACE_OVAL_BASE_WIDTH);
+  return (
+    <View style={[S.guideWrap, { bottom: overlayHeight }]} pointerEvents="box-none">
+      <View style={[S.guideOvalCenterer, S.zwOvale]} pointerEvents="none">
+        {Array.from({ length: n }, (_, i) => {
+          const z = zustaende?.[i] ?? null;
+          const dreht = z?.zustand === 'dran';
+          return (
+            <View key={i} style={S.zwOvalSpalte}>
+              <View
+                style={[
+                  S.faceOval,
+                  ok && S.faceOvalOk,
+                  dreht && S.zwOvalDreht,
+                  { width: ovalWidth, height: ovalHeight, borderRadius: ovalHeight / 2 },
+                ]}
+              />
+              {z ? (
+                z.zustand === 'dran' ? (
+                  <Text style={S.zwPfeil}>{z.seite === 'links' ? '⬅' : '➡'}</Text>
+                ) : (
+                  <Text style={S.zwStill}>{t(`identity.${OVAL_TEXT[z.zustand]}`)}</Text>
+                )
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+      {aktiv ? (
+        <View style={S.guideBottomGroup} pointerEvents="box-none">
+          <Text style={[S.guideHint, ok && S.guideHintOk]} pointerEvents="none">{hint}</Text>
+          <TouchableOpacity style={S.retryPill} onPress={onCheck} activeOpacity={0.8} disabled={checking}>
+            <Text style={S.retryPillText}>{checking ? t('identity.biometricPalmChecking') : t('identity.biometricPalmCheckBtn')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Ein Schritt der Folge als Satz (lang: angezeigt, kurz: angesagt) -- aus
+ *  Sicht der Menschen in der (gespiegelten) Vorschau (lib/zwilling.ts,
+ *  schrittInVorschau). */
+function schrittText(v: { oval: number; seite: 'links' | 'rechts' }, t: TFunc, kurz = false): string {
+  return t(kurz ? 'identity.zwSchrittKurz' : 'identity.zwSchritt', {
+    nr: String(v.oval + 1),
+    seite: v.seite === 'links' ? t('identity.zwSeiteLinks') : t('identity.zwSeiteRechts'),
+  });
+}
+
 // Real-user feedback ("groSSe Anleitungen auf dem Bildschirm, nicht klein
 // als Text unten... praktikabel fuer Menschen die es ohne Brille machen"):
 // the on-screen instruction that tells someone what to physically do RIGHT
@@ -616,20 +728,40 @@ export default function BiometricCapture() {
   );
 
   const { address, signer, refreshBalance } = useWallet();
+  // Jede Aufnahmedatei dieses Bildschirms (lib/aufnahmeDateien.ts): gemerkt,
+  // sobald sie entsteht, geloescht auf jedem Ausgang -- beim Ergebnis (auch
+  // nach einem Fehler) und beim Schliessen. Momentaufnahmen fuer die
+  // Positionspruefung sofort nach der Erkennung.
+  const dateien = useRef(new AufnahmeDateien(aufnahmeDateiLoeschen));
   // ?zweck=nachziehen: the same capture, but for an account that is ALREADY a
   // registered human and only adds its face to the gallery (see
   // lib/biometricIdentity.ts, nachziehenBiometric). No grant, no proof.
-  const { zweck } = useLocalSearchParams<{ zweck?: string }>();
+  const { zweck, anfrage: anfrageParam } = useLocalSearchParams<{ zweck?: string; anfrage?: string }>();
   const nachziehen = zweck === 'nachziehen';
+  // ?zweck=zwilling&anfrage=...: Registrierung als eineiiger Zwilling
+  // (app/zwilling.tsx -> hier). Der Parameter kann aus einem Link kommen;
+  // gilt nur eine Anfrage, die diese App selbst angelegt hat (ihr
+  // Coordinator ist gemerkt). Die Richtung der gemeinsamen Aufnahme kommt
+  // erst unmittelbar davor aus /zwilling/challenge.
+  const zwilling = zweck === 'zwilling';
+  const zwAnfrage = zwilling && istAnfrage(anfrageParam) && zwillingBasis(anfrageParam) ? anfrageParam : null;
+  const zwUngueltig = zwilling && !zwAnfrage;
   // ?zweck=erneuern: the second liveness check from day 7 (WP 3). Only the
   // face that registered this wallet counts (lib/biometricIdentity.ts,
   // erneuernBiometric). Nothing is enrolled, nothing is minted here -- the
   // chain releases the staged grant afterwards. No age declaration either:
   // that was part of the registration.
   const erneuern = zweck === 'erneuern';
-  // Neither path mints anything at capture time, so neither asks for the
+  // ?zweck=lebensnachweis: der jaehrliche Lebensnachweis. Dieselbe Bindung
+  // wie die Zweitpruefung -- nur das Gesicht, das diese Wallet registriert
+  // hat, zaehlt (lib/biometricIdentity.ts, lebensnachweisBiometric). Kein
+  // Alter, kein Zuschuss; die Kette nimmt die Bescheinigung danach an.
+  const lebensnachweis = zweck === 'lebensnachweis';
+  // Kein Altersschritt: das wurde bei der Registrierung geprueft.
+  const ohneAlter = erneuern || lebensnachweis;
+  // None of these paths mints anything at capture time, so none asks for the
   // bonus consent nor offers the pending registration step.
-  const ohneZuschuss = nachziehen || erneuern;
+  const ohneZuschuss = nachziehen || erneuern || lebensnachweis;
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
@@ -869,8 +1001,14 @@ export default function BiometricCapture() {
       // logic (getFaceGuideStatus) applies correctly, not just presence +
       // rough centering like the palm guide had to fall back to.
       const snapshot = await withTimeout(cameraRef.current.takeSnapshot(), PALM_TIMEOUT_MS, 'timeout');
-      const path = await snapshot.saveToTemporaryFileAsync('jpg', 80);
-      const faces = imageFaceDetector.detectFaces('file://' + path);
+      const snapUri = dateien.current.merke('file://' + (await snapshot.saveToTemporaryFileAsync('jpg', 80)));
+      let faces: Face[];
+      try {
+        faces = imageFaceDetector.detectFaces(snapUri);
+      } finally {
+        // Nur fuer die Positionspruefung: gleich wieder weg.
+        await dateien.current.sofort(snapUri);
+      }
       setFaceGuideStatus(faces.length > 0 ? getFaceGuideStatus(faces[0], snapshot.width, snapshot.height) : 'none');
       setFaceChecked(true);
     } catch (e) {
@@ -925,6 +1063,32 @@ export default function BiometricCapture() {
   const [registriert, setRegistriert] = useState<'neu' | 'schon' | null>(null);
   const [nachziehResult, setNachziehResult] = useState<NachziehenResult | null>(null);
   const [erneuerResult, setErneuerResult] = useState<ErneuernResult | null>(null);
+  const [lnResult, setLnResult] = useState<LebensnachweisResult | null>(null);
+  // Zwillinge: die eigene Aufnahme wartet hier, bis die gemeinsame fertig ist
+  // (ihre Dateien stehen in `dateien`).
+  const zwSoloRef = useRef<{ faceUri: string; videoUri: string; imu: ImuSample[] } | null>(null);
+  // Die Challenge der gemeinsamen Aufnahme -- erst geholt, wenn sie beginnt.
+  const [zwChallenge, setZwChallenge] = useState<(ZwillingAufgabe & { farbfolge: FlashColor[]; bis: number }) | null>(null);
+  // Wie viele Menschen im gemeinsamen Bild stehen -- wie bei der Anfrage
+  // angegeben (alle Registrierten + B).
+  const zwGesichter = zwAnfrage ? zwillingGesichter(zwAnfrage) ?? 2 : 2;
+  // Jeder Ausgang endet im Ergebnis oder im Schliessen: dort wird alles
+  // geloescht, was noch liegt (Pruefung 21.10.2026, MEDIUM-1). Was schon
+  // hochgeladen wurde, ist dort bereits geloescht -- das schadet nicht.
+  useEffect(() => {
+    if (step === 'result') {
+      zwSoloRef.current = null;
+      dateien.current.alleVerwerfen().catch(() => undefined);
+    }
+  }, [step]);
+  useEffect(() => () => {
+    dateien.current.alleVerwerfen().catch(() => undefined);
+  }, []);
+  const [zwStatus, setZwStatus] = useState<GruppenBild | null>(null);
+  // Welcher Schritt der Folge gerade laeuft (waehrend der gemeinsamen Aufnahme).
+  const [zwSchrittAktiv, setZwSchrittAktiv] = useState<number | null>(null);
+  const [zwPrueft, setZwPrueft] = useState(false);
+  const [lnSendet, setLnSendet] = useState(false);
   const [submitError, setSubmitError] = useState('');
   // Eingeschrieben, aber noch nicht auf der Kette -- siehe
   // lib/biometricIdentity.ts, OffenerKettenschritt. Solange gesetzt, kann der
@@ -1061,9 +1225,10 @@ export default function BiometricCapture() {
       setConsentError(t('identity.biometricConsentRequired'));
       return;
     }
-    if (erneuern) {
+    if (ohneAlter) {
       // Kein Alter: das wurde bei der Registrierung geprueft, und /erneuern
-      // nimmt keine Angabe an. Die Einwilligung geht mit (consent_version).
+      // wie /lebensnachweis nehmen keine Angabe an. Die Einwilligung geht mit
+      // (consent_version).
       setConsent({ biometricConsent: true, bonusConsent: false, consentedAt: Date.now() / 1000 });
       setConsentError('');
       setStep('face_intro');
@@ -1112,6 +1277,12 @@ export default function BiometricCapture() {
     // fires now instead of at submit time. A slow/failed request just
     // means `challenge` stays null and the face_burst step below shows no
     // extra instruction, same as an older client.
+    // Zwillinge: der Nonce MUSS vom Coordinator der Anfrage kommen.
+    if (zwilling) {
+      const base = zwAnfrage ? zwillingBasis(zwAnfrage) : null;
+      if (base) requestChallenge(base).then(setChallenge);
+      return;
+    }
     requestChallenge().then(setChallenge);
   }
 
@@ -1270,7 +1441,7 @@ export default function BiometricCapture() {
       // stopAfterDirectionWindow soll keinen abgeschlossenen Recorder mehr
       // anfassen.
       activeRecorderRef.current = null;
-      const videoUri = 'file://' + videoPath;
+      const videoUri = dateien.current.merke('file://' + videoPath);
 
       // Die Aufnahme wird NICHT mehr hier zerlegt. Sie geht als Video an den
       // Coordinator, der sie mit ffmpeg (PyAV) zerlegt -- siehe
@@ -1302,7 +1473,7 @@ export default function BiometricCapture() {
       try {
         if (cameraRef.current) {
           const snapshot = await withTimeout(cameraRef.current.takeSnapshot(), PALM_TIMEOUT_MS, 'timeout');
-          snapshotFaceUri = 'file://' + (await snapshot.saveToTemporaryFileAsync('jpg', 90));
+          snapshotFaceUri = dateien.current.merke('file://' + (await snapshot.saveToTemporaryFileAsync('jpg', 90)));
         }
       } catch (e) {
         console.error('[biometric-capture] face snapshot failed', e);
@@ -1346,10 +1517,181 @@ export default function BiometricCapture() {
       // parameters are authoritative for precisely that reason.
       // Auch das Video ausdruecklich: burstVideoUri (State) ist hier noch
       // leer -- genau daran ging die Bildserie bis 1.12.1 verloren.
+      if (zwilling) {
+        // Zwillinge: erst die gemeinsame Aufnahme, dann alles zusammen.
+        zwSoloRef.current = { faceUri: snapshotFaceUri, videoUri, imu };
+        setZwStatus(null);
+        setZwChallenge(null);
+        setStep('zwilling_intro');
+        void gemeinsameChallengeHolen();
+        return;
+      }
       await submit(snapshotFaceUri, frames, imu, videoUri);
     } catch (e) {
       console.error('[biometric-capture] face video capture failed', e);
       burstChainCancelledRef.current = true;
+      clearFlashTimers();
+      clearCountdown();
+      setSubmitError(t('identity.biometricResultFailed'));
+      setStep('result');
+    }
+  }
+
+  // ---- Zwillinge: gemeinsame Aufnahme ------------------------------------
+  // Die Challenge (Richtung + Farbfolge) erst JETZT, unmittelbar vor der
+  // gemeinsamen Aufnahme (/zwilling/challenge). Danach bleiben 5 Minuten bis
+  // zum Absenden.
+  async function gemeinsameChallengeHolen() {
+    if (!zwAnfrage) return;
+    let a: Awaited<ReturnType<typeof zwillingChallenge>> = null;
+    try {
+      a = await zwillingChallenge(zwAnfrage);
+    } catch (e) {
+      console.error('[biometric-capture] twin challenge failed', e);
+    }
+    if (a?.status === 'bereit') {
+      setZwChallenge({
+        gesichter: a.gesichter, folge: a.folge,
+        farbfolge: a.farbfolge, bis: Date.now() + a.gueltig_sekunden * 1000,
+      });
+      return;
+    }
+    // Ohne Challenge keine gemeinsame Aufnahme -- die eigene wird verworfen
+    // (Ergebnis: alle Dateien weg).
+    setSubmitError(t(a ? `identity.${zwillingRegisterMeldungKey(a.status)}` : 'identity.zwErgebnisKette'));
+    setStep('result');
+  }
+
+  // Eine Vorschau-Momentaufnahme, darin genau so viele Gesichter wie
+  // angefragt, nebeneinander? Dieselbe
+  // Erkennung wie checkFacePosition (nie als Stream an der Kamera). Die
+  // Datei ist gemerkt; wer sie nicht behaelt, loescht sie gleich.
+  async function gesichterPruefen(): Promise<{ status: GruppenBild; uri: string | null }> {
+    if (!cameraRef.current) return { status: 'zu_wenige', uri: null };
+    const snapshot = await withTimeout(cameraRef.current.takeSnapshot(), PALM_TIMEOUT_MS, 'timeout');
+    const uri = dateien.current.merke('file://' + (await snapshot.saveToTemporaryFileAsync('jpg', 90)));
+    try {
+      return { status: gruppenBildStatus(imageFaceDetector.detectFaces(uri).map((f) => f.bounds), zwGesichter), uri };
+    } catch (e) {
+      await dateien.current.sofort(uri);
+      throw e;
+    }
+  }
+
+  async function checkZwilling() {
+    if (!(await ensurePermission()) || cameraBusyRef.current) return;
+    cameraBusyRef.current = true;
+    setZwPrueft(true);
+    try {
+      const p = await gesichterPruefen();
+      // Nur zur Pruefung: gleich wieder weg.
+      await dateien.current.sofort(p.uri);
+      setZwStatus(p.status);
+    } catch (e) {
+      console.error('[biometric-capture] twin check failed', e);
+      setZwStatus('zu_wenige');
+    } finally {
+      cameraBusyRef.current = false;
+      setZwPrueft(false);
+    }
+  }
+
+  async function startZwillingCapture() {
+    const solo = zwSoloRef.current;
+    const ch = zwChallenge;
+    if (!ch || !solo || !(await ensurePermission()) || cameraBusyRef.current) return;
+    // Das Standbild unmittelbar vor der Serie -- und nur mit genau so vielen
+    // Gesichtern. Sonst zurueck, mit dem Grund (und das Bild ist weg).
+    let bildUri: string | null = null;
+    cameraBusyRef.current = true;
+    try {
+      const p = await gesichterPruefen();
+      setZwStatus(p.status);
+      if (p.status !== 'ok' || !p.uri) {
+        await dateien.current.sofort(p.uri);
+        return;
+      }
+      bildUri = p.uri;
+    } catch (e) {
+      console.error('[biometric-capture] twin still failed', e);
+      setZwStatus('zu_wenige');
+      return;
+    } finally {
+      cameraBusyRef.current = false;
+    }
+    setStep('zwilling_burst');
+    burstChainCancelledRef.current = false;
+    // Die Folge: jede Person dreht einmal allein, in Abschnitten, wie der
+    // Vergleichsdienst sie schneidet (lib/zwilling.ts, zwillingAblauf).
+    const ablauf = zwillingAblauf(ch);
+    const nachZeit = (ms: number, fn: () => void) => {
+      countdownTimersRef.current.push(setTimeout(() => { if (!burstChainCancelledRef.current) fn(); }, ms));
+    };
+    Speech.stop();
+    try {
+      // Feste Dauer: n * 2 s + 1 s. Die Farbfolge laeuft in gleich langen,
+      // lueckenlosen Abschnitten ueber die ganze Aufnahme, wie
+      // flash_liveness.py sie prueft -- wie bei der eigenen Aufnahme.
+      const recorder = await faceVideoOutput.createRecorder({ maxDuration: BURST_MAX_DURATION_S });
+      activeRecorderRef.current = recorder;
+      const videoPath = await withTimeout(
+        new Promise<string>((resolve, reject) => {
+          recorder.startRecording((filePath) => resolve(filePath), (error) => reject(error));
+          const dauerMs = ablauf.dauerMs;
+          const farben = ch.farbfolge;
+          clearFlashTimers();
+          if (farben.length > 0) {
+            const slotMs = dauerMs / farben.length;
+            setFlashColor(farben[0]);
+            flashTimersRef.current = farben.slice(1).map((farbe, i) =>
+              setTimeout(() => setFlashColor(farbe), Math.round(slotMs * (i + 1)))
+            );
+            flashTimersRef.current.push(setTimeout(() => setFlashColor(null), Math.round(dauerMs)));
+          }
+          // Je Abschnitt: wer dran ist (Oval hervorgehoben, Ansage), dann
+          // der Countdown bis zum Ende des Abschnitts.
+          for (const e of ablauf.ereignisse) {
+            nachZeit(e.atMs, () => {
+              setCountdown(e.rest);
+              if (e.ansage) {
+                setZwSchrittAktiv(e.schritt);
+                setBurstStageText(schrittText(e, t));
+                Speech.stop();
+                speakRaw(schrittText(e, t, true));
+              }
+            });
+          }
+          nachZeit(dauerMs, () => {
+            setZwSchrittAktiv(null);
+            try {
+              activeRecorderRef.current?.stopRecording();
+            } catch (e) {
+              console.error('[biometric-capture] stopRecording failed', e);
+            }
+          });
+        }),
+        VIDEO_RECORDING_TIMEOUT_MS,
+        'timeout'
+      );
+      activeRecorderRef.current = null;
+      const videoUri = dateien.current.merke('file://' + videoPath);
+      burstChainCancelledRef.current = true;
+      clearFlashTimers();
+      clearCountdown();
+      // Die Challenge gilt 5 Minuten: danach nichts mehr hochladen -- der
+      // Coordinator naehme es ohnehin nicht (aufnahme_abgelaufen).
+      if (Date.now() > ch.bis) {
+        setSubmitError(t('identity.zwErgebnisAufnahmeAbgelaufen'));
+        setStep('result');
+        return;
+      }
+      const gemeinsam: ZwillingAufnahme = { bildUri, videoUri, burstUris: [], intervalMs: BURST_INTERVAL_MS };
+      zwSoloRef.current = null;
+      await submit(solo.faceUri, [], solo.imu, solo.videoUri, gemeinsam);
+    } catch (e) {
+      console.error('[biometric-capture] twin video capture failed', e);
+      burstChainCancelledRef.current = true;
+      setZwSchrittAktiv(null);
       clearFlashTimers();
       clearCountdown();
       setSubmitError(t('identity.biometricResultFailed'));
@@ -1367,12 +1709,20 @@ export default function BiometricCapture() {
     // Dasselbe fuer das Video: setBurstVideoUri ist bei diesem Aufruf noch
     // nicht angekommen (Vorfall 21.10.2026, lib/biometricIdentity.ts
     // bildserieFuerUpload).
-    videoParam?: string
+    videoParam?: string,
+    // Zwillinge: die gemeinsame Aufnahme (Standbild + Video).
+    gemeinsam?: ZwillingAufnahme
   ) {
     const finalFaceUri = firstFrame ?? faceUri;
     const finalBurst = frames ?? burstUris;
     const finalImu = imuParam ?? imuSamples;
-    if (!finalFaceUri || !consent || !address || !signer) return;
+    if (!finalFaceUri || !consent || !address || !signer) {
+      // Bis 1.12.6 blieb der Bildschirm hier stehen und die Aufnahme liegen.
+      // Jetzt zum Ergebnis -- dort wird alles geloescht.
+      setSubmitError(t('identity.biometricResultFailed'));
+      setStep('result');
+      return;
+    }
     const serie = bildserieFuerUpload(videoParam ?? burstVideoUri, finalBurst);
     if (!serie) {
       // Ohne Bildserie lehnt der Vergleichsdienst ab (liveness_failed) --
@@ -1385,6 +1735,22 @@ export default function BiometricCapture() {
     setSubmitError('');
     try {
       const deviceId = await getOrCreateDeviceId();
+      if (lebensnachweis) {
+        const ln = await lebensnachweisBiometric(
+          {
+            faceUri: finalFaceUri,
+            ...serie,
+            burstIntervalMs: BURST_INTERVAL_MS,
+            imuSamples: finalImu,
+            challengeNonce: challenge?.nonce,
+          },
+          { deviceId, walletAddress: address, signer, consent }
+        );
+        setLnResult(ln);
+        if (ln.kette === 'angenommen' || ln.kette === 'schon_nachgewiesen') refreshBalance().catch(() => undefined);
+        setStep('result');
+        return;
+      }
       if (erneuern) {
         const er = await erneuernBiometric(
           {
@@ -1428,7 +1794,17 @@ export default function BiometricCapture() {
       // (Vorfall 01.10.2026, lib/identity.ts registrierungsVorpruefung).
       // Wirft bei unklarer Lage; dann wird nichts hochgeladen.
       await registrierungsVorpruefung();
-      const res = await registerBiometric(
+      const res = zwilling ? await zwillingRegister(
+        {
+          faceUri: finalFaceUri,
+          ...serie,
+          burstIntervalMs: BURST_INTERVAL_MS,
+          imuSamples: finalImu,
+          challengeNonce: challenge?.nonce,
+        },
+        gemeinsam ?? { bildUri: '', burstUris: [], intervalMs: BURST_INTERVAL_MS },
+        { anfrage: zwAnfrage ?? '', deviceId, walletAddress: address, signer, consent }
+      ) : await registerBiometric(
         {
           faceUri: finalFaceUri,
           // Der Coordinator zieht die Einzelbilder aus dem Video und ignoriert
@@ -1510,7 +1886,11 @@ export default function BiometricCapture() {
       setStep('result');
     } catch (e: any) {
       console.error('[biometric-capture] submit failed', e);
-      if (e instanceof NachziehenNeedsChallenge) {
+      if (zwilling && e instanceof ZwillingAndereWallet) {
+        setSubmitError(t('identity.zwErgebnisAndereWallet'));
+      } else if (zwilling && (e instanceof NachziehenNeedsChallenge || e instanceof ZwillingAnfrageUnbekannt)) {
+        setSubmitError(t('identity.zwErgebnisNeuAnfangen'));
+      } else if (e instanceof NachziehenNeedsChallenge) {
         setSubmitError(t('identity.nachziehenResultNoChallenge'));
       } else {
         setSubmitError(e?.message ?? t('identity.biometricResultFailed'));
@@ -1525,7 +1905,15 @@ export default function BiometricCapture() {
 
   return (
     <SafeAreaView style={S.safe}>
-      {step === 'consent' && (
+      {step === 'consent' && zwUngueltig && (
+        <View style={S.content}>
+          <View style={S.card}>
+            <Text style={S.errorText}>{t('identity.zwErgebnisNeuAnfangen')}</Text>
+            <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
+          </View>
+        </View>
+      )}
+      {step === 'consent' && !zwUngueltig && (
         <View style={S.content}>
           {offen && !ohneZuschuss ? (
             <View style={S.card}>
@@ -1540,9 +1928,13 @@ export default function BiometricCapture() {
             </View>
           ) : null}
           <View style={S.card}>
-            <Text style={S.title}>{erneuern ? t('identity.erneuernConsentTitle') : nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
-            <Text style={S.body}>{erneuern ? t('identity.erneuernConsentBody') : nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
-            {!erneuern && (
+            <Text style={S.title}>{lebensnachweis ? t('identity.lnConsentTitle') : erneuern ? t('identity.erneuernConsentTitle') : nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
+            <Text style={S.body}>{lebensnachweis ? t('identity.lnConsentBody') : erneuern ? t('identity.erneuernConsentBody') : nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
+            {/* Einwilligung v4: jaehrlicher Lebensnachweis und Auffrischen der
+                Vorlage -- Teil des Textes, dem in JEDEM Ablauf zugestimmt wird. */}
+            <Text style={S.body}>{t('identity.biometricConsentLebensnachweis')}</Text>
+            {zwilling ? <Text style={S.body}>{t('identity.zwConsentZusatz')}</Text> : null}
+            {!ohneAlter && (
             <>
             {/* Einwilligung v3: die Altersschaetzung gehoert zum Text, dem zugestimmt wird. */}
             <Text style={S.body}>{t('identity.biometricConsentAlter')}</Text>
@@ -1621,7 +2013,7 @@ export default function BiometricCapture() {
         </View>
       )}
 
-      {(step === 'face_intro' || step === 'face_burst') && (
+      {(step === 'face_intro' || step === 'face_burst' || step === 'zwilling_intro' || step === 'zwilling_burst') && (
         // Real-device report: every single burst frame failed with
         // "Camera is closed" / "Capture request is cancelled on closed
         // CameraGraph" -- face_intro and face_burst used to be two
@@ -1676,13 +2068,25 @@ export default function BiometricCapture() {
               {flashColor && (
                 <View style={[S.flashOverlay, { backgroundColor: FLASH_COLOR_RGBA[flashColor] }]} pointerEvents="none" />
               )}
-              <FaceGuide
-                status={faceGuideStatus}
-                checked={faceChecked}
-                checking={faceChecking}
-                onCheck={checkFacePosition}
-                overlayHeight={faceOverlayHeight}
-              />
+              {step === 'zwilling_intro' || step === 'zwilling_burst' ? (
+                <ZwillingGuide
+                  status={zwStatus}
+                  checking={zwPrueft}
+                  onCheck={checkZwilling}
+                  overlayHeight={faceOverlayHeight}
+                  aktiv={step === 'zwilling_intro'}
+                  gesichter={zwGesichter}
+                  zustaende={zwChallenge && zwSchrittAktiv !== null ? ovalZustaende(zwChallenge, zwSchrittAktiv) : null}
+                />
+              ) : (
+                <FaceGuide
+                  status={faceGuideStatus}
+                  checked={faceChecked}
+                  checking={faceChecking}
+                  onCheck={checkFacePosition}
+                  overlayHeight={faceOverlayHeight}
+                />
+              )}
             </>
           ) : (
             <View style={S.content}>
@@ -1719,9 +2123,29 @@ export default function BiometricCapture() {
               setFaceOverlayHeight((prev) => Math.max(prev, height));
             }}
           >
-            {step === 'face_intro' ? (
+            {step === 'zwilling_intro' ? (
+              <>
+                <Text style={S.overlayTitle}>{t('identity.zwGemeinsamTitel')}</Text>
+                <Text style={S.overlayHint}>{t('identity.zwGemeinsamHinweis')}</Text>
+                {zwChallenge ? (
+                  <>
+                    <Text style={S.actionInstruction}>🎯 {t('identity.zwFolgeHinweis')}</Text>
+                    {/* Jeder Vergleichsdienst verlangt je Gesicht ein Blinzeln
+                        und einen messbaren Puls (Vergleichsdienst 69aff98). */}
+                    <Text style={S.overlayHint}>👁 {t('identity.zwBlinzeln')}</Text>
+                  </>
+                ) : (
+                  <>
+                    <ActivityIndicator color={theme.purple} style={S.spinnerGap} />
+                    <Text style={S.overlayHint}>{t('identity.zwChallengeLaedt')}</Text>
+                  </>
+                )}
+                <GradientButton label={t('identity.zwGemeinsamStart')} onPress={startZwillingCapture} disabled={!zwChallenge || zwStatus !== 'ok' || zwPrueft} />
+              </>
+            ) : step === 'face_intro' ? (
               <>
                 <Text style={S.overlayTitle}>{t('identity.biometricFaceTitle')}</Text>
+                {zwilling ? <Text style={S.overlayHint}>{t('identity.zwPhase1Hinweis')}</Text> : null}
                 <Text style={S.overlayHint}>{t('identity.biometricFaceHint')}</Text>
                 <Text style={S.overlayHintSecondary}>👓 {t('identity.biometricFaceGlassesHint')}</Text>
                 <GradientButton label={t('identity.biometricCaptureBtn')} onPress={startFaceCapture} />
@@ -1734,6 +2158,8 @@ export default function BiometricCapture() {
                     instruction at a time, advancing as each one finishes
                     speaking -- see burstStageText's own comment. */}
                 <Text style={S.actionInstruction}>🎯 {burstStageText}</Text>
+                {/* Waehrend der ganzen gemeinsamen Aufnahme: blinzeln. */}
+                {step === 'zwilling_burst' ? <Text style={S.overlayHintSecondary}>👁 {t('identity.zwBlinzeln')}</Text> : null}
                 {countdown !== null ? (
                   <>
                     <Text style={S.countdown}>{countdown}</Text>
@@ -1768,6 +2194,9 @@ export default function BiometricCapture() {
                 <Text style={S.body}>
                   {registriert === 'schon' ? t('identity.registrierungSchonText') : t('identity.registrierungErfolgText')}
                 </Text>
+                {/* Zwillinge bekommen den Startzuschuss gestaffelt (zwilling.py);
+                    die Karte dazu steht danach im Identitaets-Tab. */}
+                {zwilling && registriert === 'neu' ? <Text style={S.body}>{t('identity.zwErfolgGestaffelt')}</Text> : null}
               </>
             ) : null}
             {submitError ? (
@@ -1789,6 +2218,9 @@ export default function BiometricCapture() {
               <>
                 <Text style={S.body}>
                   {(() => {
+                    if (lebensnachweis) {
+                      return lebensnachweisText(lnResult, t);
+                    }
                     if (erneuern) {
                       return erneuernText(erneuerResult, t);
                     }
@@ -1812,6 +2244,9 @@ export default function BiometricCapture() {
                         case 'commit_quorum_failed': return t('identity.biometricResultQuorumFailed');
                         default: return t('identity.biometricResultFailed');
                       }
+                    }
+                    if (zwilling && result?.decision !== 'new_enrollment') {
+                      return t(`identity.${zwillingRegisterMeldungKey(result?.decision)}`);
                     }
                     switch (result?.decision) {
                       case 'duplicate_detected': return t('identity.biometricResultDuplicate');
@@ -1873,6 +2308,39 @@ export default function BiometricCapture() {
                 ) : null}
               </>
             )}
+            {/* Lebensnachweis nimmt nur die geltende Einwilligung (v4). Meldet der
+                Coordinator sie als fehlend oder veraltet, wird sie erneut
+                gezeigt -- ohne den Bildschirm zu verlassen. */}
+            {lebensnachweis && !submitError && (lnResult?.status === 'consent_outdated' || lnResult?.status === 'missing_consent') ? (
+              <GradientButton
+                label={t('identity.lnEinwilligungErneut')}
+                onPress={() => {
+                  setLnResult(null);
+                  setConsent(null);
+                  setBiometricChecked(false);
+                  setChallenge(null);
+                  setStep('consent');
+                }}
+              />
+            ) : null}
+            {lebensnachweis && !submitError && lnResult ? (
+              <LebensnachweisZusatz
+                r={lnResult}
+                t={t}
+                sendet={lnSendet}
+                nochmalSenden={async () => {
+                  if (!lnResult.lebensnachweis) return;
+                  setLnSendet(true);
+                  try {
+                    const k = await lebensnachweisAnKette(lnResult.lebensnachweis);
+                    setLnResult({ ...lnResult, ...k });
+                    if (k.kette === 'angenommen' || k.kette === 'schon_nachgewiesen') refreshBalance().catch(() => undefined);
+                  } finally {
+                    setLnSendet(false);
+                  }
+                }}
+              />
+            ) : null}
             {(() => {
               // Immer dann, wenn der Coordinator eine Kennung ausgegeben hat --
               // er entscheidet, was widerspruchsfaehig ist (duplicate_detected
@@ -1881,10 +2349,25 @@ export default function BiometricCapture() {
               const kennung = nachziehen ? nachziehResult?.widerspruch_kennung : result?.widerspruch_kennung;
               return !submitError && kennung ? <WiderspruchKarte kennung={kennung} t={t} /> : null;
             })()}
+            {/* Zwillinge: jede Anfrage gilt fuer genau einen Versuch -- ein
+                neuer braucht einen neuen Code und eine neue Bestaetigung. */}
+            {zwilling && !registriert && !kettenFertig && !offen && !zwillingWegAbgeschaltet() ? (
+              <GradientButton label={t('identity.zwNeuerCode')} onPress={() => router.replace('/zwilling')} />
+            ) : null}
+            {/* Eineiige Zwillinge treffen sich im Abgleich gegenseitig. Ein
+                ruhiges Angebot neben dem Widerspruch, kein Ersatz dafuer. */}
+            {!zwilling && !nachziehen && !ohneZuschuss && !submitError && !registriert && result?.decision === 'duplicate_detected'
+              && !zwillingWegAbgeschaltet() ? (
+              <View style={S.widerspruchBox}>
+                <Text style={S.title}>{t('identity.zwAngebotTitel')}</Text>
+                <Text style={S.body}>{t('identity.zwAngebotText')}</Text>
+                <GradientButton label={t('identity.zwAngebotBtn')} onPress={() => router.replace('/zwilling')} />
+              </View>
+            ) : null}
             <GradientButton label={t('identity.biometricBackBtn')} onPress={close} />
           </View>
 
-          {(nachziehen ? nachziehResult?.decision : result?.decision) === 'age_proof_required' && address ? (
+          {!zwilling && (nachziehen ? nachziehResult?.decision : result?.decision) === 'age_proof_required' && address ? (
             <AltersbuergschaftKarte wallet={address} t={t} nochmal={() => { setResult(null); setNachziehResult(null); setStep('consent'); }} />
           ) : null}
 
@@ -1983,6 +2466,13 @@ const S = StyleSheet.create({
     marginTop: -8, marginBottom: 12,
   },
 
+  lnHinweis: { color: theme.muted, fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  zwOvale: { flexDirection: 'row', gap: 12 },
+  zwOvalSpalte: { alignItems: 'center' },
+  zwOvalDreht: { borderColor: theme.gold, borderStyle: 'solid', borderWidth: 4 },
+  zwPfeil: { color: theme.gold, fontSize: 34, fontWeight: '900', marginTop: 6 },
+  zwStill: { color: theme.text, fontSize: 12, fontWeight: '700', marginTop: 8, textAlign: 'center', maxWidth: 110,
+    backgroundColor: 'rgba(11,13,20,0.75)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   vouchCard: { marginTop: 16 },
   widerspruchBox: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -2096,6 +2586,46 @@ const S = StyleSheet.create({
   stepDotCheck: { color: '#fff', fontSize: 12, fontWeight: '700' },
   stepLine: { width: 28, height: 2, backgroundColor: theme.borderStrong, marginHorizontal: 4 },
 });
+
+// Nach dem Lebensnachweis: welche Meldung (lib/lebensnachweis.ts, dort fuer
+// jeden Status getestet), mit Datum, wo eines dazugehoert.
+function lebensnachweisText(r: LebensnachweisResult | null, t: TFunc): string {
+  const m = lebensnachweisMeldung(r);
+  const datum = m.datum ? new Date(m.datum * 1000).toLocaleDateString() : '—';
+  return t(`identity.${m.key}`, { date: datum });
+}
+
+/** Unter der Meldung: nach einem Erfolg der naechste Termin und, falls ein
+ *  Dienst es meldet, ein neutraler Hinweis zum Alterssignal (weich, haelt
+ *  nichts an). War die Kette nicht erreichbar, kann dieselbe Bescheinigung
+ *  ohne neue Aufnahme noch einmal gesendet werden. Keine bio_hash, nie. */
+function LebensnachweisZusatz({ r, t, sendet, nochmalSenden }: {
+  r: LebensnachweisResult;
+  t: TFunc;
+  sendet: boolean;
+  nochmalSenden: () => void;
+}) {
+  if (r.status !== 'bescheinigt') return null;
+  const erfolg = r.kette === 'angenommen' || r.kette === 'schon_nachgewiesen';
+  return (
+    <>
+      {erfolg && r.naechster_ab ? (
+        <Text style={S.body}>
+          {t('identity.lnErgebnisNaechster', { date: new Date(r.naechster_ab * 1000).toLocaleDateString() })}
+        </Text>
+      ) : null}
+      {r.alters_signal === 'auffaellig' ? (
+        <Text style={S.lnHinweis}>{t('identity.lnAltersHinweis')}</Text>
+      ) : null}
+      {r.kette === 'nicht_erreichbar' && r.lebensnachweis ? (
+        <>
+          <GradientButton label={t('identity.lnNochmalSenden')} onPress={nochmalSenden} disabled={sendet} />
+          {sendet ? <ActivityIndicator style={S.spinnerGap} color={theme.purple} /> : null}
+        </>
+      ) : null}
+    </>
+  );
+}
 
 // What to tell the person after a second liveness check. Kept outside the
 // component so every outcome is visible in one place.

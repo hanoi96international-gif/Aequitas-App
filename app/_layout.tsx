@@ -41,6 +41,8 @@ function Navigation() {
         <Stack.Screen name="unternehmen" options={{ headerShown: false }} />
         <Stack.Screen name="verzeichnis" options={{ headerShown: false }} />
         <Stack.Screen name="alter-buergen" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="zwilling" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="zwilling-bestaetigen" options={{ presentation: 'modal', headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );

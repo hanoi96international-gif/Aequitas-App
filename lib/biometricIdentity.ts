@@ -10,7 +10,7 @@
 // on current behavior until deliberately turned on, and not before Phase 0
 // accuracy validation + Phase 2 legal review are actually done.
 import { formularFelder, type Altersangabe } from './altersregel';
-import { fetchMitFrist, FRIST_ALLE_DIENSTE_MS, FRIST_AUFNAHME_MS } from './frist';
+import { fetchMitFrist, jsonMitFrist, FRIST_ALLE_DIENSTE_MS, FRIST_AUFNAHME_MS } from './frist';
 import * as Crypto from 'expo-crypto';
 // Legacy (function-based) API -- deleteAsync/idempotent isn't exposed by the
 // new File/Directory class API this SDK version defaults `expo-file-system`
@@ -20,7 +20,22 @@ import * as SecureStore from 'expo-secure-store';
 import { attestierungAnhaengen } from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
-import { submitLivenessRenewal, type LivenessRenewal } from './api';
+import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
+import { LEBENSNACHWEIS_FAELLIG_NACH_TAGE, type LebensnachweisKette } from './lebensnachweis';
+import {
+  istAnfrage,
+  challengeAntwortLesen,
+  startAntwortLesen,
+  zwillingQrInhalt,
+  zwillingRegisterMessage,
+  zwillingZustimmungMessage,
+  type ChallengeAntwort,
+  type Farbe,
+  type StartAntwort,
+  type ZwillingQr,
+  istGesichterZahl,
+  type ZwillingSchritt,
+} from './zwilling';
 
 // ---------------------------------------------------------------------------
 // Which coordinator. COORDINATOR_BASE first, then COORDINATOR_FALLBACKS in
@@ -220,7 +235,18 @@ export async function coordinatorBase(opts: { fresh?: boolean } = {}): Promise<s
 // Altersschaetzung aus dem Gesicht. Coordinator und Vergleichsdienste nehmen
 // v2 nur noch an, solange die Altersschaetzung beobachtet wird -- und
 // schaetzen dann nicht (einwilligung.py dort).
-export const CONSENT_VERSION = 'einwilligung-v3-2026-10-02';
+// Erhoeht am 21.10.2026 auf v4: der Text nennt zusaetzlich den jaehrlichen
+// Lebensnachweis und das Auffrischen der Vorlage (die erste Vorlage bleibt
+// als Anker; eine aufgefrischte ersetzt nur die vorige aufgefrischte; eine
+// grobe Altersspanne wird verschluesselt dazu gespeichert). Der Coordinator
+// nimmt v3 weiter an (VORGAENGER_CONSENT_VERSIONEN). Die Einwilligung wird
+// vor JEDER Aufnahme neu eingeholt (biometric-capture.tsx, Schritt
+// 'consent') -- wer v3 zugestimmt hat, sieht vor dem ersten Lebensnachweis
+// also den v4-Text und sendet danach v4.
+// Coordinator UND Vergleichsdienste nehmen v4 als geltende Fassung an
+// (aequitas-biometric-beta dd8ac58, matching-service/app/config.py), v3
+// weiter als Vorgaenger.
+export const CONSENT_VERSION = 'einwilligung-v4-2026-10-21';
 
 const DEVICE_ID_KEY = 'aequitas_biometric_device_id_v1';
 
@@ -349,12 +375,15 @@ export interface IssuedChallenge {
  * hiccup, coordinator unreachable) rather than throwing -- the challenge
  * step is informational-only, so a failed request here should just skip
  * straight to capture without it, not block the whole flow. */
-export async function requestChallenge(): Promise<IssuedChallenge | null> {
+export async function requestChallenge(fest?: string): Promise<IssuedChallenge | null> {
   if (coordinatorCandidates().length === 0) return null;
+  // `fest`: die Challenge MUSS von diesem Coordinator kommen (Zwillinge: dort
+  // liegt die Anfrage). Nur einer der eigenen Kandidaten -- sonst keine.
+  if (fest !== undefined && !coordinatorCandidates().includes(fest)) return null;
   try {
     // fresh: a new flow starts here, so re-pick the coordinator now and let
     // every later call of this flow stick to it.
-    const base = await coordinatorBase({ fresh: true });
+    const base = fest ?? (await coordinatorBase({ fresh: true }));
     const resp = await fetchMitFrist(`${base}/challenge`, { method: 'POST' });
     if (!resp.ok) return null;
     const body = await resp.json();
@@ -490,6 +519,14 @@ let loeschenFuerTest: ((uri: string) => Promise<void>) | null = null;
 /** Tests only. */
 export function _setLoeschenFuerTest(fn: ((uri: string) => Promise<void>) | null): void {
   loeschenFuerTest = fn;
+}
+
+/** Loescht eine Aufnahmedatei, idempotent (eine fehlende Datei ist kein
+ *  Fehler) -- dieselbe Loeschung wie nach einem Upload. Fuer
+ *  lib/aufnahmeDateien.ts. */
+export async function aufnahmeDateiLoeschen(uri: string): Promise<void> {
+  if (loeschenFuerTest) await loeschenFuerTest(uri);
+  else await FileSystem.deleteAsync(uri, { idempotent: true });
 }
 
 async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
@@ -1034,4 +1071,460 @@ export async function erneuernBiometric(
     }
   }
   return ergebnis;
+}
+
+// ---------------------------------------------------------------------------
+// Jaehrlicher Lebensnachweis. Wie die Zweitpruefung: der Coordinator
+// bescheinigt nur, wenn DASSELBE Gesicht vor der Kamera steht, das diese
+// Wallet registriert hat (coordinator/app/lebensnachweis.py), und frischt
+// danach die Vorlage bei genau den Diensten auf, die es erkannt haben. Die
+// Bescheinigung geht unveraendert an /api/proof-of-life der Kette.
+//
+// Besitznachweis mit eigener Domaene -- eine Erneuerungs- oder Nachzieh-
+// Signatur gilt dort nicht (und umgekehrt):
+//   aequitas-lebensnachweis-v1|<wallet, lower-case>|<challenge nonce>
+//
+// Die Antwort heisst hier `status`, nicht `decision` (LebensnachweisResponse
+// im Coordinator). Eine bio_hash steht nie darin.
+// ---------------------------------------------------------------------------
+export const LEBENSNACHWEIS_DOMAIN = 'aequitas-lebensnachweis-v1';
+
+export function lebensnachweisMessage(walletAddress: string, nonce: string): string {
+  return `${LEBENSNACHWEIS_DOMAIN}|${walletAddress.trim().toLowerCase()}|${nonce}`;
+}
+
+export interface LebensnachweisResult {
+  // bescheinigt | zu_frueh | nicht_aktiv | kein_mensch | anderes_gesicht |
+  // unbekanntes_gesicht | kein_quorum | kette_nicht_erreichbar |
+  // lebendigkeit_unsicher | selbst_bescheinigung | vergleichsdienst_veraltet |
+  // signatur_ungueltig | nonce_ungueltig | kein_schluessel | missing_consent |
+  // consent_outdated | capture_failed | liveness_failed | risk_blocked | invalid_mode
+  status: string;
+  quorum_size?: number;
+  validator_count?: number;
+  votes?: RegisterVote[];
+  challenge_type?: string | null;
+  faellig_ab?: number | null;
+  lebensnachweis?: ProofOfLife | null;
+  // Wie viele Vergleichsdienste die Vorlage aufgefrischt haben. Ein
+  // Fehlschlag dort haelt den Nachweis nicht an.
+  vorlage?: { aufgefrischt: number; gesamt: number } | null;
+  // Weich und nur zur Transparenz: passt das Gesicht von heute zum Alter der
+  // Vorlage? Haelt nichts an.
+  alters_signal?: 'unauffaellig' | 'auffaellig' | null;
+  lebendigkeit?: unknown;
+  // Von der App gesetzt, nachdem sie die Bescheinigung an die Kette gegeben hat.
+  kette?: LebensnachweisKette;
+  kette_fehler?: string | null;
+  // Ab wann der naechste Nachweis moeglich ist -- nur nach einem Erfolg.
+  naechster_ab?: number | null;
+}
+
+const ADRESSE = /^0x[0-9a-f]{40}$/;
+const HEX = /^(0x)?[0-9a-fA-F]+$/;
+
+/** Ist das, was der Coordinator als Bescheinigung schickt, formal eine --
+ *  und fuer DIESE Wallet? Die Kette prueft die Signatur selbst; hier wird
+ *  nur verhindert, dass etwas Halbes oder Fremdes weitergereicht wird. */
+export function bescheinigungFuer(roh: unknown, walletAddress: string): ProofOfLife | null {
+  if (!roh || typeof roh !== 'object') return null;
+  const o = roh as Record<string, unknown>;
+  const wallet = walletAddress.trim().toLowerCase();
+  if (typeof o.wallet !== 'string' || !ADRESSE.test(o.wallet) || o.wallet !== wallet) return null;
+  if (typeof o.issued_at !== 'number' || !Number.isInteger(o.issued_at) || o.issued_at <= 0) return null;
+  if (typeof o.signature !== 'string' || !HEX.test(o.signature) || o.signature.length > 300) return null;
+  if (typeof o.public_key !== 'string' || !HEX.test(o.public_key) || o.public_key.length > 300) return null;
+  return { wallet: o.wallet, issued_at: o.issued_at, signature: o.signature, public_key: o.public_key };
+}
+
+/** Was die Kette zur Bescheinigung sagt. Rein -- getestet. Nur ok === true
+ *  ist ein Erfolg; "schon nachgewiesen" ist einer. */
+export function ketteLebensnachweisDeuten(
+  r: { ok?: unknown; schon_nachgewiesen?: unknown; faellig_ab?: unknown; error?: unknown } | null | undefined,
+): { kette: LebensnachweisKette; kette_fehler?: string | null; faellig_ab?: number } {
+  if (r?.ok === true) {
+    const ab = typeof r.faellig_ab === 'number' && Number.isInteger(r.faellig_ab) && r.faellig_ab > 0
+      ? { faellig_ab: r.faellig_ab }
+      : {};
+    return { kette: r.schon_nachgewiesen === true ? 'schon_nachgewiesen' : 'angenommen', ...ab };
+  }
+  return { kette: 'abgelehnt', kette_fehler: typeof r?.error === 'string' ? r.error.slice(0, 300) : null };
+}
+
+export async function lebensnachweisBiometric(
+  capture: BiometricCapture,
+  opts: {
+    deviceId: string;
+    walletAddress: string;
+    signer: AequitasSigner;
+    consent?: ConsentDecision;
+  }
+): Promise<LebensnachweisResult> {
+  let ergebnis: LebensnachweisResult;
+  try {
+    if (!capture.challengeNonce) {
+      throw new NachziehenNeedsChallenge();
+    }
+    const base = await basisFuerNonce(capture.challengeNonce);
+    const signature = await opts.signer.signMessage(
+      lebensnachweisMessage(opts.walletAddress, capture.challengeNonce)
+    );
+    const form = new FormData();
+    form.append('wallet_address', opts.walletAddress.toLowerCase());
+    form.append('wallet_signature', signature);
+    form.append('challenge_nonce', capture.challengeNonce);
+    form.append('device_id', opts.deviceId);
+    if (opts.consent?.biometricConsent) {
+      form.append('consent_version', CONSENT_VERSION);
+      form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    if (capture.faceBurstVideoUri) {
+      form.append(
+        'face_burst_video',
+        toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4')
+      );
+    }
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    await attestierungAnhaengen(form, capture.challengeNonce);
+    const resp = await fetchMitFrist(`${base}/lebensnachweis`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    const roh = await resp.json();
+    if (!roh || typeof roh !== 'object' || typeof roh.status !== 'string') {
+      throw new Error('Coordinator answer without status');
+    }
+    ergebnis = roh;
+  } finally {
+    await cleanupCaptureFiles(capture);
+  }
+
+  // Nur eine Bescheinigung geht an die Kette -- und nur, wenn sie formal
+  // stimmt und auf DIESE Wallet lautet.
+  if (ergebnis.status === 'bescheinigt') {
+    const nachweis = bescheinigungFuer(ergebnis.lebensnachweis, opts.walletAddress);
+    if (!nachweis) {
+      ergebnis.kette = 'abgelehnt';
+      ergebnis.kette_fehler = 'bescheinigung_unvollstaendig';
+      return ergebnis;
+    }
+    ergebnis.lebensnachweis = nachweis;
+    Object.assign(ergebnis, await lebensnachweisAnKette(nachweis));
+  }
+  return ergebnis;
+}
+
+/** Die Bescheinigung an die Kette (/api/proof-of-life) -- auch fuer ein
+ *  erneutes Senden ohne neue Aufnahme, wenn die Kette nicht erreichbar war. */
+export async function lebensnachweisAnKette(
+  nachweis: ProofOfLife,
+): Promise<Pick<LebensnachweisResult, 'kette' | 'kette_fehler' | 'naechster_ab'>> {
+  try {
+    const k = ketteLebensnachweisDeuten(await submitProofOfLife(nachweis));
+    const erfolg = k.kette === 'angenommen' || k.kette === 'schon_nachgewiesen';
+    return {
+      kette: k.kette,
+      kette_fehler: k.kette_fehler ?? null,
+      naechster_ab: erfolg ? k.faellig_ab ?? nachweis.issued_at + LEBENSNACHWEIS_FAELLIG_NACH_TAGE * 86400 : null,
+    };
+  } catch (e) {
+    // Die Bescheinigung bleibt eine Weile gueltig; der Mensch soll es gleich
+    // noch einmal senden, nicht hoeren, er sei gescheitert.
+    return { kette: 'nicht_erreichbar', kette_fehler: e instanceof Error ? e.message : String(e), naechster_ab: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Eineiige Zwillinge (coordinator/app/zwilling.py; Format, Aufgabe und
+// Meldungen in lib/zwilling.ts).
+//
+// Die Anfrage lebt nur im Arbeitsspeicher DES Coordinators, der sie
+// ausgestellt hat -- wie ein Challenge-Nonce. Darum wird hier gemerkt,
+// welcher das war, und /zwilling/start, /zwilling/challenge, /challenge und
+// /zwilling/register
+// gehen genau dorthin. Kennt die App den Aussteller nicht (App neu
+// gestartet), wird abgebrochen, nicht umgeleitet: ein anderer Coordinator
+// kennt die Anfrage nicht und bekaeme nur die Bilder.
+// ---------------------------------------------------------------------------
+const ZWILLING_KNOTEN_MAX = 4;
+let zwillingKnoten: {
+  anfrage: string;
+  base: string;
+  // Fuer diese Wallet wurde die Anfrage angelegt -- registriert wird nur mit
+  // ihr (Pruefung 21.10.2026, LOW-2).
+  walletB: string;
+  // Wie viele Menschen im gemeinsamen Bild stehen (alle Registrierten + B).
+  gesichter: number;
+  // Aus /zwilling/challenge, unmittelbar vor der gemeinsamen Aufnahme.
+  folge?: ZwillingSchritt[];
+  farbfolge?: Farbe[];
+}[] = [];
+
+/** Der Coordinator, der diese Anfrage ausgestellt hat -- oder null. */
+export function zwillingBasis(anfrage: string): string | null {
+  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.base ?? null;
+}
+
+/** Die Folge, die /zwilling/challenge fuer diese Anfrage genannt hat --
+ *  aus dem Speicher dieser App, nie aus /zwilling/start oder einem Link. */
+export function zwillingFolge(anfrage: string): ZwillingSchritt[] | null {
+  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.folge ?? null;
+}
+
+/** Wie viele Gesichter im gemeinsamen Bild stehen sollen -- wie bei der
+ *  Anfrage angegeben, aus dem Speicher dieser App. */
+export function zwillingGesichter(anfrage: string): number | null {
+  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.gesichter ?? null;
+}
+
+/** Tests only. */
+export function _vergissZwillingKnotenFuerTest(): void {
+  zwillingKnoten = [];
+}
+
+// Der Zwillingsweg ist beim Coordinator abgeschaltet (ZWILLINGE_AKTIV, bis
+// zum Feldtest). Gemerkt, sobald irgendeine Antwort das sagt -- ohne eigene
+// Statusabfrage. Dann bietet die App den Weg nicht mehr an; der Widerspruch
+// bleibt. Nur im Speicher: nach einem Neustart wird beim naechsten Versuch
+// wieder gefragt (und wieder abgewiesen).
+let zwillingNichtAktiv = false;
+
+/** Hat ein Coordinator in dieser Sitzung "zwilling_nicht_aktiv" gemeldet? */
+export function zwillingWegAbgeschaltet(): boolean {
+  return zwillingNichtAktiv;
+}
+
+function merkeZwillingStatus(status: unknown): void {
+  if (status === 'zwilling_nicht_aktiv') zwillingNichtAktiv = true;
+}
+
+/** Tests only. */
+export function _setZwillingNichtAktivFuerTest(wert: boolean): void {
+  zwillingNichtAktiv = wert;
+}
+
+export class ZwillingNichtAktiv extends Error {
+  constructor() {
+    super('zwilling_anfrage: zwilling_nicht_aktiv');
+    this.name = 'ZwillingNichtAktiv';
+  }
+}
+
+export class ZwillingAnfrageUnbekannt extends Error {
+  constructor() {
+    super('zwilling: Anfrage ist dieser App unbekannt');
+    this.name = 'ZwillingAnfrageUnbekannt';
+  }
+}
+
+export class ZwillingAndereWallet extends Error {
+  constructor() {
+    super('zwilling: die Anfrage gehoert zu einer anderen Wallet');
+    this.name = 'ZwillingAndereWallet';
+  }
+}
+
+export interface ZwillingAnfrage {
+  anfrage: string;
+  gueltigSekunden: number;
+  base: string;
+  qr: string;
+}
+
+/** B legt eine Anfrage an. Wirft mit dem Grund des Coordinators
+ *  (zu_viele_anfragen, ausgelastet, ...) oder bei einer unlesbaren Antwort. */
+export async function zwillingAnfrageAnlegen(walletB: string, gesichter: number): Promise<ZwillingAnfrage> {
+  // Alle schon registrierten Mitglieder + B (zwilling.py, "ALLE MITGLIEDER IM
+  // BILD"), 2..4 -- sonst gar nicht erst fragen.
+  if (!istGesichterZahl(gesichter)) throw new Error('zwilling_anfrage: gesichter_ungueltig');
+  const base = await coordinatorBase({ fresh: true });
+  const w = walletB.trim().toLowerCase();
+  const { ok, status, body } = await jsonMitFrist(`${base}/zwilling/anfrage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wallet: w, gesichter }),
+  });
+  if (!ok) {
+    if (body?.detail === 'zwilling_nicht_aktiv') {
+      merkeZwillingStatus('zwilling_nicht_aktiv');
+      throw new ZwillingNichtAktiv();
+    }
+    const grund = typeof body?.detail === 'string' ? body.detail.slice(0, 60) : `HTTP ${status}`;
+    throw new Error(`zwilling_anfrage: ${grund}`);
+  }
+  const s = body?.gueltig_sekunden;
+  if (!istAnfrage(body?.anfrage) || typeof s !== 'number' || !Number.isInteger(s) || s <= 0 || s > 3600) {
+    throw new Error('zwilling_anfrage: Antwort unlesbar');
+  }
+  const qr = zwillingQrInhalt(body.anfrage, w, base);
+  zwillingKnoten = [...zwillingKnoten, { anfrage: body.anfrage, base, walletB: w, gesichter }].slice(-ZWILLING_KNOTEN_MAX);
+  return { anfrage: body.anfrage, gueltigSekunden: s, base, qr };
+}
+
+/** B fragt, ob A zugestimmt hat (/zwilling/start) -- beim ausstellenden
+ *  Coordinator, mit Frist bis zur gelesenen Antwort. null bei einer
+ *  unlesbaren Antwort. Verraet nichts ueber die gemeinsame Aufnahme. */
+export async function zwillingStart(anfrage: string): Promise<StartAntwort | null> {
+  const base = zwillingBasis(anfrage);
+  if (!base) throw new ZwillingAnfrageUnbekannt();
+  const { ok, body } = await jsonMitFrist(`${base}/zwilling/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anfrage }),
+  });
+  const a = ok ? startAntwortLesen(body) : null;
+  merkeZwillingStatus(a?.status);
+  return a;
+}
+
+/** Die Challenge der gemeinsamen Aufnahme (/zwilling/challenge): wer sich wohin dreht (alle anderen halten still) und die
+ *  Farbfolge. Unmittelbar vor der gemeinsamen Aufnahme holen -- danach
+ *  bleiben 5 Minuten bis zum Absenden. Einmal gezogen und fest. null bei
+ *  einer unlesbaren Antwort. */
+export async function zwillingChallenge(anfrage: string): Promise<ChallengeAntwort | null> {
+  const base = zwillingBasis(anfrage);
+  if (!base) throw new ZwillingAnfrageUnbekannt();
+  const { ok, body } = await jsonMitFrist(`${base}/zwilling/challenge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anfrage }),
+  });
+  const a = ok ? challengeAntwortLesen(body) : null;
+  merkeZwillingStatus(a?.status);
+  if (a?.status === 'bereit') {
+    const k = zwillingKnoten.find((e) => e.anfrage === anfrage);
+    // Eine Aufgabe fuer eine andere Zahl von Menschen als angefragt passt
+    // nicht zu diesem Bild -- nicht verwenden.
+    if (!k || k.gesichter !== a.gesichter) return null;
+    k.folge = a.folge;
+    k.farbfolge = a.farbfolge;
+  }
+  return a;
+}
+
+/** A stimmt zu. `qr` kommt aus zwillingQrLesen -- base ist damit einer der
+ *  eigenen Kandidaten. Signiert wird erst hier, und nur, wenn A der
+ *  Einwilligung fuer die gemeinsame Aufnahme ausdruecklich zugestimmt hat
+ *  (Pruefung 21.10.2026, MEDIUM-2). Die Fassung steht in der Signatur. */
+export async function zwillingZustimmen(
+  qr: ZwillingQr,
+  walletA: string,
+  signer: AequitasSigner,
+  einwilligung: { zugestimmt: boolean },
+): Promise<{ status: string }> {
+  if (einwilligung?.zugestimmt !== true) return { status: 'einwilligung_fehlt' };
+  const a = walletA.trim().toLowerCase();
+  // Sich selbst als Zwilling bestaetigen geht nicht; gar nicht erst signieren.
+  if (a === qr.walletB) return { status: 'eigene_wallet' };
+  if (!coordinatorCandidates().includes(qr.base)) return { status: 'anfrage_ungueltig' };
+  const signatur = await signer.signMessage(zwillingZustimmungMessage(a, qr.walletB, qr.anfrage, CONSENT_VERSION));
+  const { ok, status, body } = await jsonMitFrist(`${qr.base}/zwilling/zustimmung`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anfrage: qr.anfrage, wallet: a, signatur, einwilligung: CONSENT_VERSION }),
+  });
+  if (!ok) throw new Error(`Coordinator request failed (HTTP ${status})`);
+  merkeZwillingStatus(body?.status);
+  return { status: typeof body?.status === 'string' ? body.status : 'unbekannt' };
+}
+
+/** Die gemeinsame Aufnahme: ein Standbild mit beiden Gesichtern und eine
+ *  Bildserie (Video oder mindestens zwei Einzelbilder). */
+export interface ZwillingAufnahme {
+  bildUri: string;
+  videoUri?: string;
+  burstUris: string[];
+  intervalMs: number;
+}
+
+/** B registriert: eigene Aufnahme wie bei /register plus die gemeinsame.
+ *  Geht an den Coordinator der Anfrage, der auch den Nonce ausgestellt
+ *  haben muss -- sonst wird abgebrochen, bevor ein Bild das Geraet verlaesst. */
+export async function zwillingRegister(
+  capture: BiometricCapture,
+  gemeinsam: ZwillingAufnahme,
+  opts: {
+    anfrage: string;
+    deviceId: string;
+    walletAddress: string;
+    signer: AequitasSigner;
+    consent?: ConsentDecision;
+  },
+): Promise<BiometricRegisterResult> {
+  try {
+    if (!capture.challengeNonce) throw new NachziehenNeedsChallenge();
+    const knoten = zwillingKnoten.find((k) => k.anfrage === opts.anfrage);
+    if (!knoten) throw new ZwillingAnfrageUnbekannt();
+    const anfrageBase = knoten.base;
+    // Die Anfrage gilt nur fuer die Wallet, fuer die sie angelegt wurde --
+    // eine inzwischen gewechselte Wallet laedt nichts hoch.
+    if (opts.walletAddress.trim().toLowerCase() !== knoten.walletB) throw new ZwillingAndereWallet();
+    const base = await basisFuerNonce(capture.challengeNonce);
+    if (base !== anfrageBase) throw new NachziehenNeedsChallenge();
+    if (!gemeinsam.videoUri && gemeinsam.burstUris.length < 2) {
+      throw new Error('zwilling: gemeinsame Bildserie fehlt');
+    }
+    const wallet = opts.walletAddress.trim().toLowerCase();
+    const signature = await opts.signer.signMessage(
+      zwillingRegisterMessage(wallet, opts.anfrage, capture.challengeNonce)
+    );
+    const form = new FormData();
+    form.append('anfrage', opts.anfrage);
+    form.append('wallet_address', wallet);
+    form.append('wallet_signature', signature);
+    form.append('challenge_nonce', capture.challengeNonce);
+    form.append('device_id', opts.deviceId);
+    if (opts.consent?.biometricConsent) {
+      form.append('consent_version', CONSENT_VERSION);
+      form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    if (opts.consent?.alter) {
+      for (const [k, v] of formularFelder(opts.consent.alter)) form.append(k, v);
+    }
+    if (opts.consent?.alterAnfrage) form.append('alter_anfrage', opts.consent.alterAnfrage);
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    if (capture.faceBurstVideoUri) {
+      form.append('face_burst_video', toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4'));
+    }
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    form.append('zwilling_bild', toUploadFile(gemeinsam.bildUri, 'zwilling.jpg'));
+    if (gemeinsam.videoUri) {
+      form.append('zwilling_video', toUploadFile(gemeinsam.videoUri, 'zwilling.mp4', 'video/mp4'));
+    }
+    gemeinsam.burstUris.forEach((uri, i) => {
+      form.append('zwilling_burst', toUploadFile(uri, `zwilling_${i}.jpg`));
+    });
+    form.append('zwilling_interval_ms', String(gemeinsam.intervalMs));
+    await attestierungAnhaengen(form, capture.challengeNonce);
+    const resp = await fetchMitFrist(`${base}/zwilling/register`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    const ergebnis: BiometricRegisterResult = await resp.json();
+    if (!ergebnis || typeof ergebnis.decision !== 'string') throw new Error('Coordinator answer without decision');
+    merkeZwillingStatus(ergebnis.decision);
+    merkeAbweisung(ergebnis.widerspruch_kennung, base);
+    return ergebnis;
+  } finally {
+    await cleanupCaptureFiles(capture);
+    await cleanupCaptureFiles({
+      faceUri: gemeinsam.bildUri,
+      faceBurstUris: gemeinsam.burstUris,
+      faceBurstVideoUri: gemeinsam.videoUri,
+      burstIntervalMs: gemeinsam.intervalMs,
+    });
+  }
 }

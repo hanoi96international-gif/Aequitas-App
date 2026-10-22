@@ -11,6 +11,7 @@ import { theme, purpleTint, purpleTintBorder, tealTint, tealTintBorder, neonTint
 import LanguagePicker from '@/components/LanguagePicker';
 import OfflineHinweis from '@/components/OfflineHinweis';
 import BindungsHinweis from '@/components/BindungsHinweis';
+import { LebensnachweisHinweis } from '@/components/Lebensnachweis';
 import { useAbfrage } from '@/hooks/use-abfrage';
 
 function formatCountdown(totalSecs: number): string {
@@ -143,6 +144,7 @@ export default function Home() {
         </View>
 
         <BindungsHinweis />
+        <LebensnachweisHinweis />
 
         {/* Stats grid — mirror of the website's exp-stats row */}
         <View style={S.statsGrid}>

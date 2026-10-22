@@ -37,3 +37,30 @@ export async function fetchMitFrist(
     clearTimeout(t);
   }
 }
+
+/** Wie fetchMitFrist, aber die Frist gilt bis die Antwort GELESEN ist -- nicht
+ * nur bis zu den Kopfzeilen (Pruefung 21.10.2026, LOW-3). Ein Dienst, der die
+ * Kopfzeilen schickt und den Koerper nie, haelt sonst jede Schleife auf, die
+ * darauf wartet. body ist null, wenn der Koerper kein JSON ist. */
+export async function jsonMitFrist(
+  url: string,
+  init: RequestInit = {},
+  ms: number = FRIST_MS,
+): Promise<{ ok: boolean; status: number; body: any }> {
+  const ctrl = new AbortController();
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const frist = new Promise<never>((_, reject) => {
+    t = setTimeout(() => {
+      ctrl.abort();
+      reject(new Error(`Frist abgelaufen (${ms} ms)`));
+    }, ms);
+  });
+  frist.catch(() => undefined);
+  try {
+    const resp = await Promise.race([fetch(url, { ...init, signal: ctrl.signal }), frist]);
+    const body = await Promise.race([resp.json().catch(() => null), frist]);
+    return { ok: resp.ok, status: resp.status, body };
+  } finally {
+    clearTimeout(t);
+  }
+}
