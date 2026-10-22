@@ -460,8 +460,6 @@ export interface Translations {
     zwGemeinsamHinweis: string;
     zwGemeinsamStart: string;
     zwBeideGeradeaus: string;
-    zwAnweisungAuseinander: string;
-    zwAnweisungZueinander: string;
     zwGuideIdle: string;
     zwGuideOk: string;
     zwGuideZuViele: string;
@@ -492,6 +490,19 @@ export interface Translations {
     zwChallengeLaedt: string;
     zwDeineWallet: string;
     zwWalletVergleichen: string;
+    // Pruefung 22.10.2026: alle Mitglieder im Bild, ungleiche Aufgabe.
+    zwAnzahlFrage: string;
+    zwAnzahlErklaerung: string;
+    zwAnzahlImBild: string;
+    zwGesichterUngueltig: string;
+    zwAlleImBild: string;
+    zwAufgabe: string;
+    zwSeiteLinks: string;
+    zwSeiteRechts: string;
+    zwAlleStill: string;
+    zwGuideUeberlappen: string;
+    zwErgebnisGruppeUnvollstaendig: string;
+    lnEinwilligungErneut: string;
     biometricVouchTitle: string;
     biometricYourIdLabel: string;
     biometricCopyIdBtn: string;

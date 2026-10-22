@@ -16,7 +16,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { zwillingAnfrageAnlegen, zwillingStart, type ZwillingAnfrage } from '@/lib/biometricIdentity';
-import { walletGruppiert, wartenAufStart, ZWILLING_GRUPPE_MAX } from '@/lib/zwilling';
+import { gesichterAusRegistrierten, walletGruppiert, wartenAufStart, ZWILLING_GRUPPE_MAX } from '@/lib/zwilling';
 import { theme } from '@/constants/aequitas-theme';
 
 const NACHFRAGE_MS = 3000;
@@ -29,6 +29,10 @@ export default function Zwilling() {
   const [lage, setLage] = useState<Lage>('start');
   const [anfrage, setAnfrage] = useState<ZwillingAnfrage | null>(null);
   const [fehler, setFehler] = useState('');
+  // Wie viele aus der Gruppe schon registriert sind (1..3). ALLE muessen mit
+  // ins gemeinsame Bild (zwilling.py, "ALLE MITGLIEDER IM BILD").
+  const [registriert, setRegistriert] = useState(1);
+  const gesichter = gesichterAusRegistrierten(registriert) ?? 2;
   // Abbruch der Nachfrage: beim Schliessen und bei jedem neuen Code.
   const lauf = useRef(0);
 
@@ -40,7 +44,7 @@ export default function Zwilling() {
     setLage('legt_an');
     setFehler('');
     try {
-      const a = await zwillingAnfrageAnlegen(address);
+      const a = await zwillingAnfrageAnlegen(address, gesichter);
       if (meinLauf !== lauf.current) return;
       setAnfrage(a);
       setLage('wartet');
@@ -59,10 +63,12 @@ export default function Zwilling() {
     } catch (e: any) {
       if (meinLauf !== lauf.current) return;
       setAnfrage(null);
-      setFehler(String(e?.message ?? '').includes('zu_viele_anfragen') ? t('identity.zwZuVieleAnfragen') : t('identity.zwAnfrageFehler'));
+      const m = String(e?.message ?? '');
+      setFehler(m.includes('zu_viele_anfragen') ? t('identity.zwZuVieleAnfragen')
+        : m.includes('gesichter_ungueltig') ? t('identity.zwGesichterUngueltig') : t('identity.zwAnfrageFehler'));
       setLage('fehler');
     }
-  }, [address, t]);
+  }, [address, gesichter, t]);
 
   function schliessen() {
     lauf.current += 1;
@@ -100,6 +106,28 @@ export default function Zwilling() {
           {lage === 'fehler' ? <Text style={S.fehler}>{fehler}</Text> : null}
 
           {lage === 'start' || lage === 'abgelaufen' || lage === 'ungueltig' || lage === 'fehler' ? (
+            <>
+              <Text style={S.frage}>{t('identity.zwAnzahlFrage')}</Text>
+              <View style={S.anzahlReihe}>
+                {[1, 2, 3].map((n) => (
+                  <TouchableOpacity
+                    key={n}
+                    style={[S.anzahl, registriert === n && S.anzahlAn]}
+                    onPress={() => setRegistriert(n)}
+                    activeOpacity={0.8}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: registriert === n }}
+                    testID={`zwilling-anzahl-${n}`}
+                  >
+                    <Text style={[S.anzahlText, registriert === n && S.anzahlTextAn]}>{n}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={S.body}>{t('identity.zwAnzahlErklaerung')}</Text>
+              <Text style={S.imBild}>{t('identity.zwAnzahlImBild', { n: String(gesichter) })}</Text>
+            </>
+          ) : null}
+          {lage === 'start' || lage === 'abgelaufen' || lage === 'ungueltig' || lage === 'fehler' ? (
             <TouchableOpacity style={S.btn} onPress={anlegen} activeOpacity={0.85} disabled={!address}>
               <Text style={S.btnText}>{lage === 'start' ? t('identity.zwCodeErstellen') : t('identity.zwNeuerCode')}</Text>
             </TouchableOpacity>
@@ -123,6 +151,13 @@ const S = StyleSheet.create({
   warteZeile: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   warteText: { color: theme.text, fontSize: 13, flex: 1, lineHeight: 19 },
   abstand: { marginVertical: 16 },
+  frage: { color: theme.text, fontSize: 14, fontWeight: '700', marginTop: 6, marginBottom: 10 },
+  anzahlReihe: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  anzahl: { flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radiusSm, paddingVertical: 12, alignItems: 'center' },
+  anzahlAn: { borderColor: theme.purple, backgroundColor: theme.purple + '33' },
+  anzahlText: { color: theme.text, fontSize: 18, fontWeight: '700' },
+  anzahlTextAn: { color: theme.purple },
+  imBild: { color: theme.text, fontSize: 13, fontWeight: '600', marginBottom: 4 },
   schluessel: { color: theme.muted, fontSize: 12, marginBottom: 4 },
   wallet: { color: theme.text, fontSize: 15, fontWeight: '600', fontFamily: theme.fontMono, lineHeight: 22, marginBottom: 14 },
   fehler: { color: '#ff6b6b', fontSize: 13, lineHeight: 19, marginBottom: 8 },

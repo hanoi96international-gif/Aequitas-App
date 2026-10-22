@@ -106,57 +106,88 @@ export function zwillingQrLesen(roh: unknown, kandidaten: readonly string[]): Zw
 }
 
 // ---------------------------------------------------------------------------
-// Richtung der gegenlaeufigen Drehung
+// Wer im Bild steht, und die Aufgabe der gemeinsamen Aufnahme
 //
-// Vertrag (zwilling.py): "links_rechts" heisst, das LINKE Gesicht im Bild
-// dreht sich nach links, das rechte nach rechts -- beides in Bildrichtung
-// (seit ec9931a dort ausdruecklich: voneinander weg bzw. zueinander hin).
-// Die Richtung kommt NUR aus /zwilling/challenge, unmittelbar vor der
-// gemeinsamen Aufnahme -- nie aus /zwilling/start und nie aus einem Link.
+// ALLE MITGLIEDER IM BILD (zwilling.py, Pruefung 22.10.2026): in der
+// gemeinsamen Aufnahme stehen alle schon registrierten Mitglieder der Gruppe
+// UND der Neue -- gesichter = Zahl der Registrierten + 1, 2 bis 4. Eine
+// weitere Identitaet braucht so immer einen weiteren lebendigen Menschen im
+// selben Bild.
 //
-// Gesagt wird das den beiden aber nicht mit links und rechts. Die Vorschau
-// der Frontkamera ist gespiegelt, das hochgeladene Video oft nicht, und wer
-// in die Kamera schaut, hat sein eigenes Links ohnehin auf der anderen Seite.
-// "Das linke Gesicht dreht sich nach links" heisst in JEDER dieser Lagen
-// dasselbe: beide drehen sich voneinander WEG, jeder zu seiner Aussenseite.
-// "rechts_links" heisst: beide drehen sich ZUEINANDER. Eine Spiegelung
-// vertauscht Ort und Richtung zugleich und laesst das unveraendert -- siehe
-// drehungJePerson und den Test dazu.
+// UNGLEICHE AUFGABE: genau die Person an `position` (0 = ganz links im
+// GESPEICHERTEN Bild) dreht den Kopf, so dass ihre Nase zum Bildrand
+// `richtung` wandert; alle anderen halten still. Ein Spiegelbild kann nicht
+// stillhalten, waehrend sein Original sich dreht. Jeder Vergleichsdienst
+// nimmt die Aufgabe auch gespiegelt an (Position n-1-k, Seite getauscht),
+// weil nicht sicher ist, ob die Frontkamera gespiegelt speichert.
+//
+// Gezeigt wird die Aufgabe in der (gespiegelten) Vorschau, so wie die
+// Menschen sich darin sehen -- wie in einem Spiegel: wer aus eigener Sicht
+// ganz links steht, steht dort links, und wer den Kopf nach seinem eigenen
+// links dreht, dessen Nase wandert dort nach links. Abgebildet wird unter der
+// Annahme, dass die Kamera UNGESPIEGELT speichert (so wie sie die Menschen
+// von vorn sieht); stimmt das auf einem Geraet nicht, ergibt dieselbe
+// Bewegung genau die gespiegelte Lesart -- die der Dienst ebenfalls annimmt.
+// Siehe aufgabeAkzeptiert und den Test dazu.
 // ---------------------------------------------------------------------------
 
-export type ZwillingRichtung = 'links_rechts' | 'rechts_links';
+export const ZWILLING_GESICHTER_MIN = 2;
 export type Seite = 'links' | 'rechts';
 
-export function zwillingRichtungLesen(x: unknown): ZwillingRichtung | null {
-  return x === 'links_rechts' || x === 'rechts_links' ? x : null;
+export function istGesichterZahl(x: unknown): x is number {
+  return typeof x === 'number' && Number.isInteger(x) && x >= ZWILLING_GESICHTER_MIN && x <= ZWILLING_GRUPPE_MAX;
 }
 
-/** Was die beiden tun: auseinander (jeder nach aussen) oder zueinander. */
-export function zwillingDrehung(richtung: ZwillingRichtung): 'auseinander' | 'zueinander' {
-  return richtung === 'links_rechts' ? 'auseinander' : 'zueinander';
+/** Aus "wie viele von euch sind schon registriert" (1..3) die Zahl der
+ *  Gesichter im gemeinsamen Bild -- oder null. */
+export function gesichterAusRegistrierten(registriert: unknown): number | null {
+  if (typeof registriert !== 'number' || !Number.isInteger(registriert)) return null;
+  const g = registriert + 1;
+  return istGesichterZahl(g) ? g : null;
 }
 
-/** Der Text-Schluessel fuer die Anweisung (lib/i18n, Abschnitt identity). */
-export function zwillingAnweisungKey(richtung: ZwillingRichtung): 'zwAnweisungAuseinander' | 'zwAnweisungZueinander' {
-  return zwillingDrehung(richtung) === 'auseinander' ? 'zwAnweisungAuseinander' : 'zwAnweisungZueinander';
+export function seiteLesen(x: unknown): Seite | null {
+  return x === 'links' || x === 'rechts' ? x : null;
 }
 
 const andere = (s: Seite): Seite => (s === 'links' ? 'rechts' : 'links');
 
-/** Fuer die Pruefung der Zuordnung: wohin sich die Person dreht, die -- aus
- *  Sicht der beiden selbst, in die Kamera blickend -- links bzw. rechts
- *  steht, und zwar in IHRER eigenen Links-Rechts-Richtung. `gespiegelt`: ob
- *  das Bild, in dem der Vertrag gilt, gespiegelt ist (wie die Vorschau) oder
- *  nicht (wie die Kamera es sieht). */
-export function drehungJePerson(richtung: ZwillingRichtung, gespiegelt: boolean): Record<Seite, Seite> {
-  // Bildseite -> Seite aus Sicht der Personen. Ungespiegelt sieht die Kamera
-  // die Personen von vorn: ihr Bild-Links ist deren Rechts.
-  const eigen = (bild: Seite): Seite => (gespiegelt ? bild : andere(bild));
-  const drehtLinkesBildGesicht: Seite = richtung === 'links_rechts' ? 'links' : 'rechts';
-  return {
-    [eigen('links')]: eigen(drehtLinkesBildGesicht),
-    [eigen('rechts')]: eigen(andere(drehtLinkesBildGesicht)),
-  } as Record<Seite, Seite>;
+export interface ZwillingAufgabe {
+  gesichter: number;
+  /** 0 = ganz links im gespeicherten Bild. */
+  position: number;
+  /** Bildrand, zu dem die Nase wandert (gespeichertes Bild). */
+  richtung: Seite;
+}
+
+/** Die Aufgabe so, wie sie in der gespiegelten Vorschau zu zeigen ist:
+ *  welches Oval (0 = links auf dem Bildschirm) und zu welcher Seite -- das
+ *  ist zugleich die Seite aus eigener Sicht der Person. */
+export function aufgabeInVorschau(a: ZwillingAufgabe): { oval: number; seite: Seite } {
+  return { oval: a.gesichter - 1 - a.position, seite: andere(a.richtung) };
+}
+
+/** Was ein Vergleichsdienst annimmt: die Aufgabe oder ihre gespiegelte
+ *  Lesart (coordinator/app/zwilling.py, "ALLE MITGLIEDER IM BILD"). */
+export function aufgabeAkzeptiert(a: ZwillingAufgabe, gesehen: { position: number; richtung: Seite }): boolean {
+  return (gesehen.position === a.position && gesehen.richtung === a.richtung)
+    || (gesehen.position === a.gesichter - 1 - a.position && gesehen.richtung === andere(a.richtung));
+}
+
+/** Was eine Kamera speichert, wenn die Person an Stelle `eigeneStelle` (von
+ *  ihrer eigenen linken Seite aus gezaehlt, 0-basiert) den Kopf nach ihrer
+ *  eigenen Seite `eigeneSeite` dreht -- fuer die Pruefung der Abbildung.
+ *  Ungespiegelt sieht die Kamera die Menschen von vorn: links und rechts
+ *  sind vertauscht. */
+export function gespeichertesBild(
+  gesichter: number,
+  eigeneStelle: number,
+  eigeneSeite: Seite,
+  gespiegelt: boolean,
+): { position: number; richtung: Seite } {
+  return gespiegelt
+    ? { position: eigeneStelle, richtung: eigeneSeite }
+    : { position: gesichter - 1 - eigeneStelle, richtung: andere(eigeneSeite) };
 }
 
 // ---------------------------------------------------------------------------
@@ -190,11 +221,12 @@ export type Farbe = 'red' | 'green' | 'blue';
 export const ZWILLING_FARBFOLGE_LAENGE = 4;
 
 export type ChallengeAntwort =
-  | { status: 'bereit'; richtung: ZwillingRichtung; farbfolge: Farbe[]; gueltig_sekunden: number }
+  | ({ status: 'bereit'; farbfolge: Farbe[]; gueltig_sekunden: number } & ZwillingAufgabe)
   | { status: 'nicht_gestartet' | 'nicht_zugestimmt' | 'anfrage_ungueltig' };
 
-/** Liest die Antwort von /zwilling/challenge -- fail-closed: eine fremde
- *  Richtung, eine Farbfolge mit unbekannter Farbe oder falscher Laenge, eine
+/** Liest die Antwort von /zwilling/challenge -- fail-closed: eine Zahl der
+ *  Gesichter ausserhalb 2..4, eine Position ausserhalb des Bildes, eine fremde
+ *  Seite, eine Farbfolge mit unbekannter Farbe oder falscher Laenge, eine
  *  unplausible Frist ergeben null. */
 export function challengeAntwortLesen(roh: unknown): ChallengeAntwort | null {
   if (!roh || typeof roh !== 'object') return null;
@@ -203,14 +235,18 @@ export function challengeAntwortLesen(roh: unknown): ChallengeAntwort | null {
     return { status: o.status };
   }
   if (o.status !== 'bereit') return null;
-  const richtung = zwillingRichtungLesen(o.richtung);
+  const richtung = seiteLesen(o.richtung);
   const s = sekunden(o.gueltig_sekunden);
-  if (!richtung || s === null || typeof o.flash_sequence !== 'string') return null;
+  const g = o.gesichter;
+  const p = o.position;
+  if (!richtung || s === null || !istGesichterZahl(g)) return null;
+  if (typeof p !== 'number' || !Number.isInteger(p) || p < 0 || p >= g) return null;
+  if (typeof o.flash_sequence !== 'string') return null;
   const farben = o.flash_sequence.split(',');
   if (farben.length !== ZWILLING_FARBFOLGE_LAENGE || !farben.every((f) => f === 'red' || f === 'green' || f === 'blue')) {
     return null;
   }
-  return { status: 'bereit', richtung, farbfolge: farben as Farbe[], gueltig_sekunden: s };
+  return { status: 'bereit', gesichter: g, position: p, richtung, farbfolge: farben as Farbe[], gueltig_sekunden: s };
 }
 
 export type WartenErgebnis =
@@ -286,6 +322,7 @@ export function zwillingRegisterMeldungKey(decision: unknown): IdentityKey {
     case 'kein_zwilling_noetig': return 'zwErgebnisKeinZwillingNoetig';
     case 'anderes_gesicht': return 'zwErgebnisAnderesGesicht';
     case 'gruppe_voll': return 'zwErgebnisGruppeVoll';
+    case 'gruppe_unvollstaendig': return 'zwErgebnisGruppeUnvollstaendig';
     case 'aufnahme_abgelaufen': return 'zwErgebnisAufnahmeAbgelaufen';
     case 'nicht_gestartet':
     case 'nicht_zugestimmt':
@@ -319,12 +356,20 @@ export function zwillingRegisterMeldungKey(decision: unknown): IdentityKey {
 // Gemeinsame Aufnahme: genau zwei Gesichter
 // ---------------------------------------------------------------------------
 
-export type ZweiGesichter = 'ok' | 'zu_wenige' | 'zu_viele';
+export type GruppenBild = 'ok' | 'zu_wenige' | 'zu_viele' | 'ueberlappen';
 
-/** Die Vorpruefung auf dem Geraet: genau zwei Gesichter im Bild. Die
- *  eigentliche Pruefung (getrennt, lebendig, gegenlaeufig) macht jeder
- *  Vergleichsdienst selbst. */
-export function zweiGesichterStatus(anzahl: number): ZweiGesichter {
-  if (!Number.isInteger(anzahl) || anzahl < 2) return 'zu_wenige';
-  return anzahl === 2 ? 'ok' : 'zu_viele';
+export interface Rahmen { x: number; y: number; width: number; height: number }
+
+/** Die Vorpruefung auf dem Geraet: genau `soll` Gesichter, nebeneinander und
+ *  ohne Ueberlappung. Die eigentliche Pruefung (getrennt, lebendig, Aufgabe)
+ *  macht jeder Vergleichsdienst selbst. */
+export function gruppenBildStatus(rahmen: readonly Rahmen[], soll: number): GruppenBild {
+  if (!istGesichterZahl(soll) || rahmen.length < soll) return 'zu_wenige';
+  if (rahmen.length > soll) return 'zu_viele';
+  const sortiert = [...rahmen].sort((a, b) => a.x - b.x);
+  for (let i = 1; i < sortiert.length; i++) {
+    const links = sortiert[i - 1];
+    if (!(links.x + links.width <= sortiert[i].x)) return 'ueberlappen';
+  }
+  return 'ok';
 }

@@ -142,45 +142,102 @@ describe('QR-Code', () => {
   });
 });
 
-describe('Richtung -> Anweisung', () => {
-  it('links_rechts heisst auseinander, rechts_links zueinander', () => {
-    expect(zw.zwillingDrehung('links_rechts')).toBe('auseinander');
-    expect(zw.zwillingDrehung('rechts_links')).toBe('zueinander');
-    expect(zw.zwillingAnweisungKey('links_rechts')).toBe('zwAnweisungAuseinander');
-    expect(zw.zwillingAnweisungKey('rechts_links')).toBe('zwAnweisungZueinander');
+describe('Alle Mitglieder im Bild: Zahl der Gesichter', () => {
+  it('aus der Zahl der Registrierten (1..3) wird 2..4', () => {
+    expect(zw.gesichterAusRegistrierten(1)).toBe(2);
+    expect(zw.gesichterAusRegistrierten(2)).toBe(3);
+    expect(zw.gesichterAusRegistrierten(3)).toBe(4);
+    for (const x of [0, 4, -1, 1.5, NaN, '1', null]) expect(zw.gesichterAusRegistrierten(x)).toBeNull();
   });
 
-  it('die Zuordnung je Person haengt nicht davon ab, ob das Bild gespiegelt ist', () => {
-    for (const r of ['links_rechts', 'rechts_links'] as const) {
-      expect(zw.drehungJePerson(r, true)).toEqual(zw.drehungJePerson(r, false));
+  it('nur 2..4 ist eine Zahl von Gesichtern', () => {
+    expect([2, 3, 4].every(zw.istGesichterZahl)).toBe(true);
+    for (const x of [1, 5, 0, 2.5, '2', true, null]) expect(zw.istGesichterZahl(x)).toBe(false);
+  });
+});
+
+describe('Ungleiche Aufgabe -> Anweisung in der Vorschau', () => {
+  const seiten = ['links', 'rechts'] as const;
+
+  it.each([2, 3, 4])('%i Personen: jede Position und Seite ergibt genau ein Oval und eine Seite, immer gleich', (n) => {
+    const gesehen = new Set<string>();
+    for (let position = 0; position < n; position++) {
+      for (const richtung of seiten) {
+        const a = { gesichter: n, position, richtung };
+        const v = zw.aufgabeInVorschau(a);
+        expect(v).toEqual(zw.aufgabeInVorschau(a)); // deterministisch
+        expect(v.oval).toBeGreaterThanOrEqual(0);
+        expect(v.oval).toBeLessThan(n);
+        gesehen.add(`${v.oval}:${v.seite}`);
+      }
+    }
+    // Eins zu eins: jede Aufgabe eine andere Anweisung.
+    expect(gesehen.size).toBe(2 * n);
+  });
+
+  it.each([2, 3, 4])('%i Personen: wer der Anweisung folgt, besteht -- ob die Kamera gespiegelt speichert oder nicht', (n) => {
+    for (let position = 0; position < n; position++) {
+      for (const richtung of seiten) {
+        const a = { gesichter: n, position, richtung };
+        const v = zw.aufgabeInVorschau(a);
+        // In der gespiegelten Vorschau sehen sich die Menschen wie im
+        // Spiegel: Oval v.oval von links ist die Person an Stelle v.oval von
+        // ihrer eigenen linken Seite; sie dreht nach ihrer eigenen v.seite.
+        for (const gespiegelt of [false, true]) {
+          const bild = zw.gespeichertesBild(n, v.oval, v.seite, gespiegelt);
+          expect(zw.aufgabeAkzeptiert(a, bild)).toBe(true);
+        }
+        // Ungespiegelt gespeichert trifft es die Aufgabe genau, nicht nur die
+        // gespiegelte Lesart.
+        expect(zw.gespeichertesBild(n, v.oval, v.seite, false)).toEqual({ position, richtung });
+      }
     }
   });
 
-  it('auseinander: jeder dreht sich zu seiner eigenen Aussenseite; zueinander: zur Mitte', () => {
-    // Aus Sicht der beiden: wer links steht, dreht nach links (aussen) usw.
-    expect(zw.drehungJePerson('links_rechts', false)).toEqual({ links: 'links', rechts: 'rechts' });
-    expect(zw.drehungJePerson('rechts_links', false)).toEqual({ links: 'rechts', rechts: 'links' });
+  it('Missbrauch: eine andere Person oder die andere Seite besteht nicht', () => {
+    const a = { gesichter: 3, position: 0, richtung: 'links' as const };
+    expect(zw.aufgabeAkzeptiert(a, { position: 1, richtung: 'links' })).toBe(false);
+    expect(zw.aufgabeAkzeptiert(a, { position: 0, richtung: 'rechts' })).toBe(false);
+    expect(zw.aufgabeAkzeptiert(a, { position: 2, richtung: 'links' })).toBe(false);
+    // Die gespiegelte Lesart schon (Position n-1-k, Seite getauscht).
+    expect(zw.aufgabeAkzeptiert(a, { position: 2, richtung: 'rechts' })).toBe(true);
   });
 
-  it('Gegenprobe ungespiegelt: das LINKE Gesicht im Bild dreht sich im Bild nach links', () => {
-    // Ungespiegelt ist Bild-Links das Rechts der Personen. Das linke
-    // Bildgesicht ist also die Person, die (aus eigener Sicht) rechts steht;
-    // sie dreht nach ihrem Rechts -- im Bild nach links.
-    expect(zw.drehungJePerson('links_rechts', false).rechts).toBe('rechts');
+  it('Beispiel: zwei Personen, Position 0 (links im gespeicherten Bild), Richtung links', () => {
+    // Ungespiegelt ist links im Bild die Person, die aus eigener Sicht
+    // rechts steht; in der Vorschau steht sie rechts (Oval 1) und dreht nach
+    // ihrem eigenen rechts.
+    expect(zw.aufgabeInVorschau({ gesichter: 2, position: 0, richtung: 'links' })).toEqual({ oval: 1, seite: 'rechts' });
+    expect(zw.aufgabeInVorschau({ gesichter: 4, position: 3, richtung: 'rechts' })).toEqual({ oval: 0, seite: 'links' });
   });
 
-  it('unbekannte Richtungen werden nicht angenommen', () => {
-    expect(zw.zwillingRichtungLesen('links_rechts')).toBe('links_rechts');
-    expect(zw.zwillingRichtungLesen('oben_unten')).toBeNull();
-    expect(zw.zwillingRichtungLesen(undefined)).toBeNull();
+  it('unbekannte Seiten werden nicht angenommen', () => {
+    expect(zw.seiteLesen('links')).toBe('links');
+    for (const x of ['links_rechts', 'oben', undefined, 1]) expect(zw.seiteLesen(x)).toBeNull();
+  });
+});
+
+describe('Vorpruefung: genau n Gesichter, nebeneinander', () => {
+  const r = (x: number, w = 100) => ({ x, y: 50, width: w, height: 130 });
+
+  it.each([
+    [2, [r(0), r(150)], 'ok'],
+    [3, [r(300), r(0), r(150)], 'ok'], // Reihenfolge der Erkennung egal
+    [4, [r(0), r(110), r(220), r(330)], 'ok'],
+    [2, [r(0)], 'zu_wenige'],
+    [3, [r(0), r(150)], 'zu_wenige'],
+    [2, [r(0), r(150), r(300)], 'zu_viele'],
+    [2, [r(0), r(80)], 'ueberlappen'],
+    [3, [r(0), r(150), r(200)], 'ueberlappen'],
+    [2, [], 'zu_wenige'],
+    [5, [r(0), r(110), r(220), r(330), r(440)], 'zu_wenige'], // 5 ist keine erlaubte Zahl
+    [1, [r(0)], 'zu_wenige'],
+  ] as const)('soll %i, %j -> %s', (soll, rahmen, erwartet) => {
+    expect(zw.gruppenBildStatus(rahmen, soll)).toBe(erwartet);
   });
 
-  it('genau zwei Gesichter', () => {
-    expect(zw.zweiGesichterStatus(2)).toBe('ok');
-    expect(zw.zweiGesichterStatus(0)).toBe('zu_wenige');
-    expect(zw.zweiGesichterStatus(1)).toBe('zu_wenige');
-    expect(zw.zweiGesichterStatus(3)).toBe('zu_viele');
-    expect(zw.zweiGesichterStatus(NaN)).toBe('zu_wenige');
+  it('beruehren ist kein Ueberlappen', () => {
+    expect(zw.gruppenBildStatus([r(0), r(100)], 2)).toBe('ok');
   });
 });
 
@@ -264,22 +321,34 @@ describe('Warten auf die Zustimmung: begrenzt', () => {
     expect(zw.startAntwortLesen(roh)).toBeNull();
   });
 
-  it('Antwort von /zwilling/challenge: Richtung und Farbfolge', () => {
-    expect(zw.challengeAntwortLesen({ status: 'bereit', richtung: 'rechts_links', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }))
-      .toEqual({ status: 'bereit', richtung: 'rechts_links', farbfolge: ['red', 'green', 'blue', 'red'], gueltig_sekunden: 300 });
+  it('Antwort von /zwilling/challenge: Aufgabe und Farbfolge', () => {
+    expect(zw.challengeAntwortLesen({ status: 'bereit', gesichter: 3, position: 2, richtung: 'rechts', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }))
+      .toEqual({ status: 'bereit', gesichter: 3, position: 2, richtung: 'rechts', farbfolge: ['red', 'green', 'blue', 'red'], gueltig_sekunden: 300 });
     for (const status of ['nicht_gestartet', 'nicht_zugestimmt', 'anfrage_ungueltig']) {
       expect(zw.challengeAntwortLesen({ status })).toEqual({ status });
     }
   });
 
+  const ok = { status: 'bereit', gesichter: 2, position: 0, richtung: 'links', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 };
   it.each([
-    [{ status: 'bereit', richtung: 'oben_unten', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }],
-    [{ status: 'bereit', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }],
-    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue', gueltig_sekunden: 300 }],
-    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue,red,green', gueltig_sekunden: 300 }],
-    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue,pink', gueltig_sekunden: 300 }],
-    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: ['red', 'green', 'blue', 'red'], gueltig_sekunden: 300 }],
-    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue,red' }],
+    [{ ...ok, position: 2 }], // Position >= gesichter
+    [{ ...ok, gesichter: 4, position: 4 }],
+    [{ ...ok, position: -1 }],
+    [{ ...ok, position: 0.5 }],
+    [{ ...ok, position: '0' }],
+    [{ ...ok, position: undefined }],
+    [{ ...ok, gesichter: 1 }],
+    [{ ...ok, gesichter: 5, position: 0 }],
+    [{ ...ok, gesichter: '2' }],
+    [{ ...ok, gesichter: undefined }],
+    [{ ...ok, richtung: 'links_rechts' }],
+    [{ ...ok, richtung: 'oben' }],
+    [{ ...ok, richtung: undefined }],
+    [{ ...ok, flash_sequence: 'red,green,blue' }],
+    [{ ...ok, flash_sequence: 'red,green,blue,red,green' }],
+    [{ ...ok, flash_sequence: 'red,green,blue,pink' }],
+    [{ ...ok, flash_sequence: ['red', 'green', 'blue', 'red'] }],
+    [{ ...ok, gueltig_sekunden: undefined }],
     [{ status: 'erfunden' }],
     [null],
   ])('Antwort von /zwilling/challenge fail-closed: %j -> unlesbar', (roh) => {
@@ -309,7 +378,8 @@ describe('Meldungen', () => {
     'schon_registriert', 'nicht_registriert', 'kette_nicht_erreichbar', 'age_proof_required', 'commit_quorum_failed',
     'capture_failed', 'liveness_failed', 'quorum_failed', 'missing_consent', 'consent_outdated', 'signatur_ungueltig',
     'nonce_ungueltig', 'kein_schluessel', 'tagesgrenze_einzelbetrieb', 'risk_blocked', 'invalid_mode',
-    'lebendigkeit_unsicher', 'age_below_minimum', 'age_declaration_missing', 'aufnahme_abgelaufen'])('Registrierung %s: eigene Meldung', (d) => {
+    'lebendigkeit_unsicher', 'age_below_minimum', 'age_declaration_missing', 'aufnahme_abgelaufen',
+    'gruppe_unvollstaendig'])('Registrierung %s: eigene Meldung', (d) => {
     const k = zw.zwillingRegisterMeldungKey(d);
     expect(k).not.toBe('biometricResultFailed');
     vorhanden(k);
@@ -374,7 +444,7 @@ describe('Netz', () => {
         return { ok: true, json: async () => ({ status: 'bereit', gueltig_sekunden: 1200, richtung: 'rechts_links' }) };
       }
       if (url.endsWith('/zwilling/challenge')) {
-        return { ok: true, json: async () => ({ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'blue,red,red,green', gueltig_sekunden: 300 }) };
+        return { ok: true, json: async () => ({ status: 'bereit', gesichter: 2, position: 1, richtung: 'links', flash_sequence: 'blue,red,red,green', gueltig_sekunden: 300 }) };
       }
       if (url.endsWith('/challenge')) return { ok: true, json: async () => ({ nonce: 'nonce-1', challenge_type: 'look_left', flash_sequence: '' }) };
       if (url.endsWith('/zwilling/zustimmung')) return { ok: true, json: async () => ({ status: 'zugestimmt' }) };
@@ -402,10 +472,11 @@ describe('Netz', () => {
   it('Anfrage, Start, Challenge und Registrierung treffen denselben Coordinator -- mit allen gemeinsamen Feldern', async () => {
     const bio = require('../biometricIdentity');
     c1Gesund = false; // die Anfrage landet bei C2
-    const a = await bio.zwillingAnfrageAnlegen(WALLET_B);
+    const a = await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
     expect(a.base).toBe(C2);
     expect(a.qr).toBe(`aequitas-zwilling:${ANFRAGE}:${B}:proof2.aequitas.example:8443`);
-    expect(JSON.parse(calls.find((c) => c.url.endsWith('/zwilling/anfrage'))!.body)).toEqual({ wallet: B });
+    expect(JSON.parse(calls.find((c) => c.url.endsWith('/zwilling/anfrage'))!.body)).toEqual({ wallet: B, gesichter: 2 });
+    expect(bio.zwillingGesichter(ANFRAGE)).toBe(2);
 
     // C1 ist wieder gesund und die Klebrigkeit abgelaufen: trotzdem C2.
     c1Gesund = true;
@@ -414,9 +485,9 @@ describe('Netz', () => {
     // Die Richtung kommt NUR aus /zwilling/challenge.
     expect(bio.zwillingRichtung(ANFRAGE)).toBeNull();
     expect(await bio.zwillingChallenge(ANFRAGE)).toEqual({
-      status: 'bereit', richtung: 'links_rechts', farbfolge: ['blue', 'red', 'red', 'green'], gueltig_sekunden: 300,
+      status: 'bereit', gesichter: 2, position: 1, richtung: 'links', farbfolge: ['blue', 'red', 'red', 'green'], gueltig_sekunden: 300,
     });
-    expect(bio.zwillingRichtung(ANFRAGE)).toBe('links_rechts');
+    expect(bio.zwillingRichtung(ANFRAGE)).toBe('links');
     const ch = await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
     expect(ch?.nonce).toBe('nonce-1');
 
@@ -455,7 +526,7 @@ describe('Netz', () => {
     const geloescht: string[] = [];
     bio._setLoeschenFuerTest(async (u: string) => { geloescht.push(u); });
     try {
-      await bio.zwillingAnfrageAnlegen(WALLET_B);
+      await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
       await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
       const signer = { signMessage: jest.fn(async () => '0xsig') };
       await expect(bio.zwillingRegister(solo('nonce-1'), gemeinsam, {
@@ -471,19 +542,22 @@ describe('Netz', () => {
 
   it('/zwilling/challenge ohne "bereit" setzt keine Richtung', async () => {
     const bio = require('../biometricIdentity');
-    await bio.zwillingAnfrageAnlegen(WALLET_B);
+    await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
     for (const status of ['nicht_gestartet', 'nicht_zugestimmt', 'anfrage_ungueltig']) {
       (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status }) }));
       expect(await bio.zwillingChallenge(ANFRAGE)).toEqual({ status });
     }
-    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red', gueltig_sekunden: 300 }) }));
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', gesichter: 2, position: 0, richtung: 'links', flash_sequence: 'red', gueltig_sekunden: 300 }) }));
+    expect(await bio.zwillingChallenge(ANFRAGE)).toBeNull();
+    // Eine Aufgabe fuer eine andere Zahl von Menschen als angefragt wird nicht verwendet.
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', gesichter: 3, position: 0, richtung: 'links', flash_sequence: 'red,red,red,red', gueltig_sekunden: 300 }) }));
     expect(await bio.zwillingChallenge(ANFRAGE)).toBeNull();
     expect(bio.zwillingRichtung(ANFRAGE)).toBeNull();
   });
 
   it('Einzelbilder statt Video: mindestens zwei, jedes als zwilling_burst', async () => {
     const bio = require('../biometricIdentity');
-    await bio.zwillingAnfrageAnlegen(WALLET_B);
+    await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
     await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
     await bio.zwillingRegister(solo('nonce-1'), { bildUri: 'file:///zw.jpg', burstUris: ['file:///1.jpg', 'file:///2.jpg'], intervalMs: 100 }, {
       anfrage: ANFRAGE, deviceId: 'd', walletAddress: WALLET_B, consent, signer: { signMessage: async () => '0xsig' },
@@ -496,7 +570,7 @@ describe('Netz', () => {
   it('Missbrauch: Nonce von einem anderen Coordinator als die Anfrage -> nichts wird gesendet', async () => {
     const bio = require('../biometricIdentity');
     c1Gesund = false;
-    await bio.zwillingAnfrageAnlegen(WALLET_B); // C2
+    await bio.zwillingAnfrageAnlegen(WALLET_B, 2); // C2
     await bio.requestChallenge(C1); // Nonce bei C1
     const signer = { signMessage: jest.fn(async () => '0xsig') };
     await expect(bio.zwillingRegister(solo('nonce-1'), gemeinsam, {
@@ -519,13 +593,24 @@ describe('Netz', () => {
 
   it('ohne Nonce oder ohne gemeinsame Bildserie wird nichts gesendet', async () => {
     const bio = require('../biometricIdentity');
-    await bio.zwillingAnfrageAnlegen(WALLET_B);
+    await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
     const opts = { anfrage: ANFRAGE, deviceId: 'd', walletAddress: WALLET_B, consent, signer: { signMessage: async () => '0xsig' } };
     await expect(bio.zwillingRegister(solo(), gemeinsam, opts)).rejects.toBeInstanceOf(bio.NachziehenNeedsChallenge);
     await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
     await expect(bio.zwillingRegister(solo('nonce-1'), { bildUri: 'file:///zw.jpg', burstUris: ['file:///1.jpg'], intervalMs: 100 }, opts))
       .rejects.toThrow('gemeinsame Bildserie fehlt');
     expect(calls.some((c) => c.url.endsWith('/zwilling/register'))).toBe(false);
+  });
+
+  it('Anfrage mit 3 bzw. 4 Gesichtern; 1 und 5 werden gar nicht erst gesendet', async () => {
+    const bio = require('../biometricIdentity');
+    await bio.zwillingAnfrageAnlegen(WALLET_B, 4);
+    expect(JSON.parse(calls.find((c) => c.url.endsWith('/zwilling/anfrage'))!.body)).toEqual({ wallet: B, gesichter: 4 });
+    calls = [];
+    for (const g of [1, 5, 2.5, 0]) {
+      await expect(bio.zwillingAnfrageAnlegen(WALLET_B, g)).rejects.toThrow('gesichter_ungueltig');
+    }
+    expect(calls).toEqual([]);
   });
 
   it('requestChallenge(fest) nur fuer einen eigenen Kandidaten', async () => {
@@ -580,7 +665,7 @@ describe('Netz', () => {
     bio._setCoordinatorCandidatesForTest([C1]);
     (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({}) }));
     (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ anfrage: 'X', gueltig_sekunden: 600 }) }));
-    await expect(bio.zwillingAnfrageAnlegen(WALLET_B)).rejects.toThrow('unlesbar');
+    await expect(bio.zwillingAnfrageAnlegen(WALLET_B, 2)).rejects.toThrow('unlesbar');
     expect(bio.zwillingBasis('X')).toBeNull();
   });
 
@@ -588,7 +673,7 @@ describe('Netz', () => {
     const bio = require('../biometricIdentity');
     bio._setCoordinatorCandidatesForTest([C1]);
     (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: false, status: 429, json: async () => ({ detail: 'zu_viele_anfragen' }) }));
-    await expect(bio.zwillingAnfrageAnlegen(WALLET_B)).rejects.toThrow('zu_viele_anfragen');
+    await expect(bio.zwillingAnfrageAnlegen(WALLET_B, 2)).rejects.toThrow('zu_viele_anfragen');
   });
 });
 
@@ -620,5 +705,26 @@ describe('Frist bis zur gelesenen Antwort (LOW-3)', () => {
     expect(await jsonMitFrist('https://c.example', {}, 1000)).toEqual({ ok: true, status: 200, body: { a: 1 } });
     global.fetch = jest.fn(async () => ({ ok: false, status: 502, json: async () => { throw new Error('html'); } })) as any;
     expect(await jsonMitFrist('https://c.example', {}, 1000)).toEqual({ ok: false, status: 502, body: null });
+  });
+});
+
+describe('Anzeige: keine Einzelgruende der Dienste, Einwilligung beim Lebensnachweis', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const src: string = fs.readFileSync(path.join(__dirname, '..', '..', 'app', 'biometric-capture.tsx'), 'utf8');
+
+  it('commit_quorum_failed: eine allgemeine Meldung, commit_results werden nie angezeigt', () => {
+    expect(zw.zwillingRegisterMeldungKey('commit_quorum_failed')).toBe('zwErgebnisCommit');
+    expect(src).not.toMatch(/commit_results/);
+  });
+
+  it('gruppe_unvollstaendig hat eine eigene Meldung', () => {
+    expect(zw.zwillingRegisterMeldungKey('gruppe_unvollstaendig')).toBe('zwErgebnisGruppeUnvollstaendig');
+  });
+
+  it('Lebensnachweis: consent_outdated zeigt die v4-Einwilligung erneut', () => {
+    const { lebensnachweisMeldung } = jest.requireActual('../lebensnachweis');
+    expect(lebensnachweisMeldung({ status: 'consent_outdated' }).key).toBe('lnErgebnisEinwilligung');
+    expect(src).toMatch(/lnResult\?\.status === 'consent_outdated'[\s\S]{0,400}identity\.lnEinwilligungErneut[\s\S]{0,300}setStep\('consent'\)/);
   });
 });

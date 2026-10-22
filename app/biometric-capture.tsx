@@ -34,6 +34,7 @@ import {
   aufnahmeDateiLoeschen,
   zwillingBasis,
   zwillingChallenge,
+  zwillingGesichter,
   zwillingRegister,
   ZwillingAnfrageUnbekannt,
   ZwillingAndereWallet,
@@ -60,12 +61,12 @@ import { withTimeout } from '@/lib/signer';
 import { lebensnachweisMeldung } from '@/lib/lebensnachweis';
 import { AufnahmeDateien } from '@/lib/aufnahmeDateien';
 import {
+  aufgabeInVorschau,
+  gruppenBildStatus,
   istAnfrage,
-  zweiGesichterStatus,
-  zwillingAnweisungKey,
   zwillingRegisterMeldungKey,
-  type ZweiGesichter,
-  type ZwillingRichtung,
+  type GruppenBild,
+  type ZwillingAufgabe,
 } from '@/lib/zwilling';
 
 type TFunc = ReturnType<typeof useLanguage>['t'];
@@ -476,36 +477,66 @@ function FaceGuide({
   );
 }
 
-// Zwillinge: zwei Ovale nebeneinander, und die Vorpruefung "genau zwei
-// Gesichter" -- auf Knopfdruck, aus demselben Grund wie FaceGuide (keine
-// Gesichtserkennung als zweiter Kamerastrom).
+// Zwillinge (und Mehrlinge): ein Oval je Mensch im gemeinsamen Bild (alle
+// Registrierten + B), die Person mit der Aufgabe hervorgehoben (Pfeil), bei
+// allen anderen "still halten", und die Vorpruefung "genau so viele
+// Gesichter, nebeneinander" -- auf Knopfdruck, aus demselben Grund wie
+// FaceGuide (keine Gesichtserkennung als zweiter Kamerastrom).
 function ZwillingGuide({
   status,
   checking,
   onCheck,
   overlayHeight,
   aktiv,
+  gesichter,
+  markiert,
 }: {
-  status: ZweiGesichter | null;
+  status: GruppenBild | null;
   checking: boolean;
   onCheck: () => void;
   overlayHeight: number;
   aktiv: boolean;
+  /** Wie viele Ovale (alle Registrierten + B, 2..4). */
+  gesichter: number;
+  /** Das Oval der Person, die sich dreht (Vorschau, 0 = links), und wohin. */
+  markiert: { oval: number; seite: 'links' | 'rechts' } | null;
 }) {
   const { t } = useLanguage();
   const { width: windowWidth } = useWindowDimensions();
   const ok = status === 'ok';
   const hint = status === null
     ? t('identity.zwGuideIdle')
-    : ok ? t('identity.zwGuideOk') : status === 'zu_viele' ? t('identity.zwGuideZuViele') : t('identity.zwGuideZuWenige');
-  const ovalWidth = Math.min(windowWidth * 0.36, 170);
+    : ok ? t('identity.zwGuideOk')
+      : status === 'zu_viele' ? t('identity.zwGuideZuViele')
+        : status === 'ueberlappen' ? t('identity.zwGuideUeberlappen') : t('identity.zwGuideZuWenige');
+  const n = Math.max(2, Math.min(4, gesichter));
+  const ovalWidth = Math.min((windowWidth - 24 - 12 * (n - 1)) / n, 170);
   const ovalHeight = ovalWidth * (FACE_OVAL_BASE_HEIGHT / FACE_OVAL_BASE_WIDTH);
-  const oval = [S.faceOval, ok && S.faceOvalOk, { width: ovalWidth, height: ovalHeight, borderRadius: ovalHeight / 2 }];
   return (
     <View style={[S.guideWrap, { bottom: overlayHeight }]} pointerEvents="box-none">
       <View style={[S.guideOvalCenterer, S.zwOvale]} pointerEvents="none">
-        <View style={oval} />
-        <View style={oval} />
+        {Array.from({ length: n }, (_, i) => {
+          const dreht = markiert?.oval === i;
+          return (
+            <View key={i} style={S.zwOvalSpalte}>
+              <View
+                style={[
+                  S.faceOval,
+                  ok && S.faceOvalOk,
+                  dreht && S.zwOvalDreht,
+                  { width: ovalWidth, height: ovalHeight, borderRadius: ovalHeight / 2 },
+                ]}
+              />
+              {markiert ? (
+                dreht ? (
+                  <Text style={S.zwPfeil}>{markiert.seite === 'links' ? '⬅' : '➡'}</Text>
+                ) : (
+                  <Text style={S.zwStill}>{t('identity.zwAlleStill')}</Text>
+                )
+              ) : null}
+            </View>
+          );
+        })}
       </View>
       {aktiv ? (
         <View style={S.guideBottomGroup} pointerEvents="box-none">
@@ -517,6 +548,16 @@ function ZwillingGuide({
       ) : null}
     </View>
   );
+}
+
+/** Die Aufgabe als Satz -- aus Sicht der Menschen in der (gespiegelten)
+ *  Vorschau (lib/zwilling.ts, aufgabeInVorschau). */
+function aufgabeText(a: ZwillingAufgabe, t: TFunc): string {
+  const v = aufgabeInVorschau(a);
+  return t('identity.zwAufgabe', {
+    nr: String(v.oval + 1),
+    seite: v.seite === 'links' ? t('identity.zwSeiteLinks') : t('identity.zwSeiteRechts'),
+  });
 }
 
 // Real-user feedback ("groSSe Anleitungen auf dem Bildschirm, nicht klein
@@ -1021,7 +1062,10 @@ export default function BiometricCapture() {
   // (ihre Dateien stehen in `dateien`).
   const zwSoloRef = useRef<{ faceUri: string; videoUri: string; imu: ImuSample[] } | null>(null);
   // Die Challenge der gemeinsamen Aufnahme -- erst geholt, wenn sie beginnt.
-  const [zwChallenge, setZwChallenge] = useState<{ richtung: ZwillingRichtung; farbfolge: FlashColor[]; bis: number } | null>(null);
+  const [zwChallenge, setZwChallenge] = useState<(ZwillingAufgabe & { farbfolge: FlashColor[]; bis: number }) | null>(null);
+  // Wie viele Menschen im gemeinsamen Bild stehen -- wie bei der Anfrage
+  // angegeben (alle Registrierten + B).
+  const zwGesichter = zwAnfrage ? zwillingGesichter(zwAnfrage) ?? 2 : 2;
   // Jeder Ausgang endet im Ergebnis oder im Schliessen: dort wird alles
   // geloescht, was noch liegt (Pruefung 21.10.2026, MEDIUM-1). Was schon
   // hochgeladen wurde, ist dort bereits geloescht -- das schadet nicht.
@@ -1034,7 +1078,7 @@ export default function BiometricCapture() {
   useEffect(() => () => {
     dateien.current.alleVerwerfen().catch(() => undefined);
   }, []);
-  const [zwStatus, setZwStatus] = useState<ZweiGesichter | null>(null);
+  const [zwStatus, setZwStatus] = useState<GruppenBild | null>(null);
   const [zwPrueft, setZwPrueft] = useState(false);
   const [lnSendet, setLnSendet] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -1498,7 +1542,10 @@ export default function BiometricCapture() {
       console.error('[biometric-capture] twin challenge failed', e);
     }
     if (a?.status === 'bereit') {
-      setZwChallenge({ richtung: a.richtung, farbfolge: a.farbfolge, bis: Date.now() + a.gueltig_sekunden * 1000 });
+      setZwChallenge({
+        gesichter: a.gesichter, position: a.position, richtung: a.richtung,
+        farbfolge: a.farbfolge, bis: Date.now() + a.gueltig_sekunden * 1000,
+      });
       return;
     }
     // Ohne Challenge keine gemeinsame Aufnahme -- die eigene wird verworfen
@@ -1507,15 +1554,16 @@ export default function BiometricCapture() {
     setStep('result');
   }
 
-  // Eine Vorschau-Momentaufnahme, darin genau zwei Gesichter? Dieselbe
+  // Eine Vorschau-Momentaufnahme, darin genau so viele Gesichter wie
+  // angefragt, nebeneinander? Dieselbe
   // Erkennung wie checkFacePosition (nie als Stream an der Kamera). Die
   // Datei ist gemerkt; wer sie nicht behaelt, loescht sie gleich.
-  async function zweiGesichterPruefen(): Promise<{ status: ZweiGesichter; uri: string | null }> {
+  async function gesichterPruefen(): Promise<{ status: GruppenBild; uri: string | null }> {
     if (!cameraRef.current) return { status: 'zu_wenige', uri: null };
     const snapshot = await withTimeout(cameraRef.current.takeSnapshot(), PALM_TIMEOUT_MS, 'timeout');
     const uri = dateien.current.merke('file://' + (await snapshot.saveToTemporaryFileAsync('jpg', 90)));
     try {
-      return { status: zweiGesichterStatus(imageFaceDetector.detectFaces(uri).length), uri };
+      return { status: gruppenBildStatus(imageFaceDetector.detectFaces(uri).map((f) => f.bounds), zwGesichter), uri };
     } catch (e) {
       await dateien.current.sofort(uri);
       throw e;
@@ -1527,7 +1575,7 @@ export default function BiometricCapture() {
     cameraBusyRef.current = true;
     setZwPrueft(true);
     try {
-      const p = await zweiGesichterPruefen();
+      const p = await gesichterPruefen();
       // Nur zur Pruefung: gleich wieder weg.
       await dateien.current.sofort(p.uri);
       setZwStatus(p.status);
@@ -1544,12 +1592,12 @@ export default function BiometricCapture() {
     const solo = zwSoloRef.current;
     const ch = zwChallenge;
     if (!ch || !solo || !(await ensurePermission()) || cameraBusyRef.current) return;
-    // Das Standbild unmittelbar vor der Serie -- und nur mit genau zwei
+    // Das Standbild unmittelbar vor der Serie -- und nur mit genau so vielen
     // Gesichtern. Sonst zurueck, mit dem Grund (und das Bild ist weg).
     let bildUri: string | null = null;
     cameraBusyRef.current = true;
     try {
-      const p = await zweiGesichterPruefen();
+      const p = await gesichterPruefen();
       setZwStatus(p.status);
       if (p.status !== 'ok' || !p.uri) {
         await dateien.current.sofort(p.uri);
@@ -1565,7 +1613,7 @@ export default function BiometricCapture() {
     }
     setStep('zwilling_burst');
     burstChainCancelledRef.current = false;
-    const anweisung = t(`identity.${zwillingAnweisungKey(ch.richtung)}`);
+    const anweisung = aufgabeText(ch, t);
     const nachZeit = (ms: number, fn: () => void) => {
       countdownTimersRef.current.push(setTimeout(() => { if (!burstChainCancelledRef.current) fn(); }, ms));
     };
@@ -2013,6 +2061,8 @@ export default function BiometricCapture() {
                   onCheck={checkZwilling}
                   overlayHeight={faceOverlayHeight}
                   aktiv={step === 'zwilling_intro'}
+                  gesichter={zwGesichter}
+                  markiert={zwChallenge ? aufgabeInVorschau(zwChallenge) : null}
                 />
               ) : (
                 <FaceGuide
@@ -2064,7 +2114,7 @@ export default function BiometricCapture() {
                 <Text style={S.overlayTitle}>{t('identity.zwGemeinsamTitel')}</Text>
                 <Text style={S.overlayHint}>{t('identity.zwGemeinsamHinweis')}</Text>
                 {zwChallenge ? (
-                  <Text style={S.actionInstruction}>🎯 {t(`identity.${zwillingAnweisungKey(zwChallenge.richtung)}`)}</Text>
+                  <Text style={S.actionInstruction}>🎯 {aufgabeText(zwChallenge, t)}</Text>
                 ) : (
                   <>
                     <ActivityIndicator color={theme.purple} style={S.spinnerGap} />
@@ -2237,6 +2287,21 @@ export default function BiometricCapture() {
                 ) : null}
               </>
             )}
+            {/* Lebensnachweis nimmt nur die geltende Einwilligung (v4). Meldet der
+                Coordinator sie als fehlend oder veraltet, wird sie erneut
+                gezeigt -- ohne den Bildschirm zu verlassen. */}
+            {lebensnachweis && !submitError && (lnResult?.status === 'consent_outdated' || lnResult?.status === 'missing_consent') ? (
+              <GradientButton
+                label={t('identity.lnEinwilligungErneut')}
+                onPress={() => {
+                  setLnResult(null);
+                  setConsent(null);
+                  setBiometricChecked(false);
+                  setChallenge(null);
+                  setStep('consent');
+                }}
+              />
+            ) : null}
             {lebensnachweis && !submitError && lnResult ? (
               <LebensnachweisZusatz
                 r={lnResult}
@@ -2380,7 +2445,12 @@ const S = StyleSheet.create({
   },
 
   lnHinweis: { color: theme.muted, fontSize: 12, lineHeight: 18, marginBottom: 12 },
-  zwOvale: { flexDirection: 'row', gap: 16 },
+  zwOvale: { flexDirection: 'row', gap: 12 },
+  zwOvalSpalte: { alignItems: 'center' },
+  zwOvalDreht: { borderColor: theme.gold, borderStyle: 'solid', borderWidth: 4 },
+  zwPfeil: { color: theme.gold, fontSize: 34, fontWeight: '900', marginTop: 6 },
+  zwStill: { color: theme.text, fontSize: 12, fontWeight: '700', marginTop: 8, textAlign: 'center', maxWidth: 110,
+    backgroundColor: 'rgba(11,13,20,0.75)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   vouchCard: { marginTop: 16 },
   widerspruchBox: {
     borderTopWidth: StyleSheet.hairlineWidth,

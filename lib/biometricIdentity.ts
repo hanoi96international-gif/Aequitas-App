@@ -33,7 +33,8 @@ import {
   type Farbe,
   type StartAntwort,
   type ZwillingQr,
-  type ZwillingRichtung,
+  istGesichterZahl,
+  type Seite,
 } from './zwilling';
 
 // ---------------------------------------------------------------------------
@@ -1241,7 +1242,7 @@ export async function lebensnachweisAnKette(
 }
 
 // ---------------------------------------------------------------------------
-// Eineiige Zwillinge (coordinator/app/zwilling.py; Format, Richtung und
+// Eineiige Zwillinge (coordinator/app/zwilling.py; Format, Aufgabe und
 // Meldungen in lib/zwilling.ts).
 //
 // Die Anfrage lebt nur im Arbeitsspeicher DES Coordinators, der sie
@@ -1259,8 +1260,11 @@ let zwillingKnoten: {
   // Fuer diese Wallet wurde die Anfrage angelegt -- registriert wird nur mit
   // ihr (Pruefung 21.10.2026, LOW-2).
   walletB: string;
+  // Wie viele Menschen im gemeinsamen Bild stehen (alle Registrierten + B).
+  gesichter: number;
   // Aus /zwilling/challenge, unmittelbar vor der gemeinsamen Aufnahme.
-  richtung?: ZwillingRichtung;
+  position?: number;
+  richtung?: Seite;
   farbfolge?: Farbe[];
 }[] = [];
 
@@ -1271,8 +1275,14 @@ export function zwillingBasis(anfrage: string): string | null {
 
 /** Die Richtung, die /zwilling/challenge fuer diese Anfrage genannt hat --
  *  aus dem Speicher dieser App, nie aus /zwilling/start oder einem Link. */
-export function zwillingRichtung(anfrage: string): ZwillingRichtung | null {
+export function zwillingRichtung(anfrage: string): Seite | null {
   return zwillingKnoten.find((k) => k.anfrage === anfrage)?.richtung ?? null;
+}
+
+/** Wie viele Gesichter im gemeinsamen Bild stehen sollen -- wie bei der
+ *  Anfrage angegeben, aus dem Speicher dieser App. */
+export function zwillingGesichter(anfrage: string): number | null {
+  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.gesichter ?? null;
 }
 
 /** Tests only. */
@@ -1303,13 +1313,16 @@ export interface ZwillingAnfrage {
 
 /** B legt eine Anfrage an. Wirft mit dem Grund des Coordinators
  *  (zu_viele_anfragen, ausgelastet, ...) oder bei einer unlesbaren Antwort. */
-export async function zwillingAnfrageAnlegen(walletB: string): Promise<ZwillingAnfrage> {
+export async function zwillingAnfrageAnlegen(walletB: string, gesichter: number): Promise<ZwillingAnfrage> {
+  // Alle schon registrierten Mitglieder + B (zwilling.py, "ALLE MITGLIEDER IM
+  // BILD"), 2..4 -- sonst gar nicht erst fragen.
+  if (!istGesichterZahl(gesichter)) throw new Error('zwilling_anfrage: gesichter_ungueltig');
   const base = await coordinatorBase({ fresh: true });
   const w = walletB.trim().toLowerCase();
   const { ok, status, body } = await jsonMitFrist(`${base}/zwilling/anfrage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wallet: w }),
+    body: JSON.stringify({ wallet: w, gesichter }),
   });
   if (!ok) {
     const grund = typeof body?.detail === 'string' ? body.detail.slice(0, 60) : `HTTP ${status}`;
@@ -1320,7 +1333,7 @@ export async function zwillingAnfrageAnlegen(walletB: string): Promise<ZwillingA
     throw new Error('zwilling_anfrage: Antwort unlesbar');
   }
   const qr = zwillingQrInhalt(body.anfrage, w, base);
-  zwillingKnoten = [...zwillingKnoten, { anfrage: body.anfrage, base, walletB: w }].slice(-ZWILLING_KNOTEN_MAX);
+  zwillingKnoten = [...zwillingKnoten, { anfrage: body.anfrage, base, walletB: w, gesichter }].slice(-ZWILLING_KNOTEN_MAX);
   return { anfrage: body.anfrage, gueltigSekunden: s, base, qr };
 }
 
@@ -1338,7 +1351,7 @@ export async function zwillingStart(anfrage: string): Promise<StartAntwort | nul
   return ok ? startAntwortLesen(body) : null;
 }
 
-/** Die Challenge der gemeinsamen Aufnahme (/zwilling/challenge): Richtung und
+/** Die Challenge der gemeinsamen Aufnahme (/zwilling/challenge): wer sich wohin dreht (alle anderen halten still) und die
  *  Farbfolge. Unmittelbar vor der gemeinsamen Aufnahme holen -- danach
  *  bleiben 5 Minuten bis zum Absenden. Einmal gezogen und fest. null bei
  *  einer unlesbaren Antwort. */
@@ -1353,10 +1366,12 @@ export async function zwillingChallenge(anfrage: string): Promise<ChallengeAntwo
   const a = ok ? challengeAntwortLesen(body) : null;
   if (a?.status === 'bereit') {
     const k = zwillingKnoten.find((e) => e.anfrage === anfrage);
-    if (k) {
-      k.richtung = a.richtung;
-      k.farbfolge = a.farbfolge;
-    }
+    // Eine Aufgabe fuer eine andere Zahl von Menschen als angefragt passt
+    // nicht zu diesem Bild -- nicht verwenden.
+    if (!k || k.gesichter !== a.gesichter) return null;
+    k.position = a.position;
+    k.richtung = a.richtung;
+    k.farbfolge = a.farbfolge;
   }
   return a;
 }

@@ -90,6 +90,7 @@ export default function ZwillingBestaetigen() {
               <Text style={S.wallet} selectable testID="zwilling-wallet-b">{walletGruppiert(qr.walletB)}</Text>
               <Text style={S.hinweis}>{t('identity.zwWalletVergleichen')}</Text>
               <Text style={S.warnung}>{t('identity.zwWarnung', { n: String(ZWILLING_GRUPPE_MAX) })}</Text>
+              <Text style={S.warnung}>{t('identity.zwAlleImBild')}</Text>
 
               <Text style={S.einwTitel}>{t('identity.zwAConsentTitel')}</Text>
               <Text style={S.body}>{t('identity.zwAConsentText')}</Text>
