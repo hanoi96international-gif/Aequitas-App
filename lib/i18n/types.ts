@@ -481,6 +481,17 @@ export interface Translations {
     zwErgebnisRisiko: string;
     zwErgebnisBetrieb: string;
     zwErgebnisUnsicher: string;
+    // Pruefung 21.10.2026: A's eigene Einwilligung, spaete Challenge, Wallet-Vergleich.
+    zwAConsentTitel: string;
+    zwAConsentText: string;
+    zwAConsentCheckbox: string;
+    zwAConsentPflicht: string;
+    zwZustimmungEinwilligung: string;
+    zwErgebnisAufnahmeAbgelaufen: string;
+    zwErgebnisAndereWallet: string;
+    zwChallengeLaedt: string;
+    zwDeineWallet: string;
+    zwWalletVergleichen: string;
     biometricVouchTitle: string;
     biometricYourIdLabel: string;
     biometricCopyIdBtn: string;

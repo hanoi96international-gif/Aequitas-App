@@ -35,8 +35,15 @@ const WALLET_B = '0x83279FAE0994Aa1A563377E889Cc2a1d96ADb3B1';
 const A = WALLET_A.toLowerCase();
 const B = WALLET_B.toLowerCase();
 const ANFRAGE = 'ab'.repeat(16);
-const PY_ZUSTIMMUNG = `aequitas-zwilling-v1|${A}|${B}|${ANFRAGE}`;
+const EINWILLIGUNG = 'einwilligung-v4-2026-10-21';
+// Seit ec9931a mit der Fassung, der A zugestimmt hat (Pruefung 21.10.2026,
+// MEDIUM-2) -- Vektor aus Python wie zwilling.zustimmung_nachricht.
+const PY_ZUSTIMMUNG = `aequitas-zwilling-v1|${A}|${B}|${ANFRAGE}|${EINWILLIGUNG}`;
 const PY_ZUSTIMMUNG_SIG =
+  '0x7ff5c9f0ea0cefd2c23f3fa9227600a61e17b3a6eeb2f8450f6a13ad62d5d9c127a9982763c5a425de79d9c4d22c95cc39db22f5a6ab4e9322098ae5cdf50cb81b';
+// Die alte Form ohne Fassung (bis 63f6554) und ihre Signatur.
+const ALT_ZUSTIMMUNG = `aequitas-zwilling-v1|${A}|${B}|${ANFRAGE}`;
+const ALT_ZUSTIMMUNG_SIG =
   '0x7889a37b227712adc7ac0019ffc09774c53334141d8cac7f9e66ad7462e1570f1accde8f03dbcb6f6b92adf837b25c2f3345514e0c43ac94dc893e4f4c081f4b1c';
 const PY_REGISTER = `aequitas-zwilling-register-v1|${B}|${ANFRAGE}|nonce-1`;
 const PY_REGISTER_SIG =
@@ -47,9 +54,17 @@ const C2 = 'https://proof2.aequitas.example:8443';
 
 describe('Signaturen', () => {
   it('Zustimmung von A: Nachricht und Signatur wie in Python', async () => {
-    const m = zw.zwillingZustimmungMessage(` ${WALLET_A} `, WALLET_B, ANFRAGE);
+    const m = zw.zwillingZustimmungMessage(` ${WALLET_A} `, WALLET_B, ANFRAGE, EINWILLIGUNG);
     expect(m).toBe(PY_ZUSTIMMUNG);
     expect(await new ethers.Wallet(PRIV_A).signMessage(m)).toBe(PY_ZUSTIMMUNG_SIG);
+  });
+
+  it('Missbrauch: die alte Zustimmung ohne Fassung gilt fuer die neue Nachricht nicht', async () => {
+    expect(await new ethers.Wallet(PRIV_A).signMessage(ALT_ZUSTIMMUNG)).toBe(ALT_ZUSTIMMUNG_SIG);
+    expect(ethers.verifyMessage(PY_ZUSTIMMUNG, ALT_ZUSTIMMUNG_SIG).toLowerCase()).not.toBe(A);
+    // ... und eine Zustimmung zu einer anderen Fassung auch nicht.
+    const v3 = await new ethers.Wallet(PRIV_A).signMessage(zw.zwillingZustimmungMessage(A, B, ANFRAGE, 'einwilligung-v3-2026-10-02'));
+    expect(ethers.verifyMessage(PY_ZUSTIMMUNG, v3).toLowerCase()).not.toBe(A);
   });
 
   it('Registrierung von B: Nachricht und Signatur wie in Python', async () => {
@@ -189,10 +204,10 @@ describe('Warten auf die Zustimmung: begrenzt', () => {
   });
 
   it('endet sofort bei "bereit" mit der Richtung', async () => {
-    const antworten = [{ status: 'nicht_zugestimmt' }, { status: 'bereit', richtung: 'rechts_links', gueltig_sekunden: 300 }];
+    const antworten = [{ status: 'nicht_zugestimmt' }, { status: 'bereit', gueltig_sekunden: 1200 }];
     const start = jest.fn(async () => antworten.shift() as any);
     const r = await zw.wartenAufStart(start, { intervallMs: 3000, bisMs: 600_000, abgebrochen: () => false, schlafen });
-    expect(r).toEqual({ ergebnis: 'bereit', richtung: 'rechts_links', gueltig_sekunden: 300 });
+    expect(r).toEqual({ ergebnis: 'bereit', gueltig_sekunden: 1200 });
     expect(start).toHaveBeenCalledTimes(2);
   });
 
@@ -221,16 +236,54 @@ describe('Warten auf die Zustimmung: begrenzt', () => {
     expect(start).toHaveBeenCalledTimes(3);
   });
 
+  it('auch nach der Uhr begrenzt: haengende Antworten verbrauchen die Frist mit', async () => {
+    // Jede Antwort braucht 60 s -- nach Versuchen waeren es 200, nach der
+    // Uhr (600 s) ist nach 10 Schluss.
+    let uhr = 1_000_000;
+    const start = jest.fn(async () => { uhr += 60_000; return { status: 'nicht_zugestimmt' as const }; });
+    const r = await zw.wartenAufStart(start, { intervallMs: 3000, bisMs: 600_000, abgebrochen: () => false, schlafen, jetzt: () => uhr });
+    expect(r).toEqual({ ergebnis: 'abgelaufen' });
+    expect(start).toHaveBeenCalledTimes(10);
+  });
+
+  it('eine Richtung in /zwilling/start wird nicht uebernommen', () => {
+    expect(zw.startAntwortLesen({ status: 'bereit', gueltig_sekunden: 1200 })).toEqual({ status: 'bereit', gueltig_sekunden: 1200 });
+    expect(zw.startAntwortLesen({ status: 'bereit', richtung: 'links_rechts', gueltig_sekunden: 1200 }))
+      .toEqual({ status: 'bereit', gueltig_sekunden: 1200 });
+  });
+
   it.each([
-    [{ status: 'bereit', richtung: 'oben_unten', gueltig_sekunden: 300 }],
-    [{ status: 'bereit', richtung: 'links_rechts' }],
-    [{ status: 'bereit', richtung: 'links_rechts', gueltig_sekunden: '300' }],
-    [{ status: 'bereit', richtung: 'links_rechts', gueltig_sekunden: 1e9 }],
+    [{ status: 'bereit' }],
+    [{ status: 'bereit', gueltig_sekunden: '300' }],
+    [{ status: 'bereit', gueltig_sekunden: 1e9 }],
+    [{ status: 'bereit', gueltig_sekunden: -1 }],
     [{ status: 'erfunden' }],
     [null],
     ['bereit'],
   ])('Antwort von /zwilling/start fail-closed: %j -> unlesbar', (roh) => {
     expect(zw.startAntwortLesen(roh)).toBeNull();
+  });
+
+  it('Antwort von /zwilling/challenge: Richtung und Farbfolge', () => {
+    expect(zw.challengeAntwortLesen({ status: 'bereit', richtung: 'rechts_links', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }))
+      .toEqual({ status: 'bereit', richtung: 'rechts_links', farbfolge: ['red', 'green', 'blue', 'red'], gueltig_sekunden: 300 });
+    for (const status of ['nicht_gestartet', 'nicht_zugestimmt', 'anfrage_ungueltig']) {
+      expect(zw.challengeAntwortLesen({ status })).toEqual({ status });
+    }
+  });
+
+  it.each([
+    [{ status: 'bereit', richtung: 'oben_unten', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }],
+    [{ status: 'bereit', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }],
+    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue', gueltig_sekunden: 300 }],
+    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue,red,green', gueltig_sekunden: 300 }],
+    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue,pink', gueltig_sekunden: 300 }],
+    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: ['red', 'green', 'blue', 'red'], gueltig_sekunden: 300 }],
+    [{ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red,green,blue,red' }],
+    [{ status: 'erfunden' }],
+    [null],
+  ])('Antwort von /zwilling/challenge fail-closed: %j -> unlesbar', (roh) => {
+    expect(zw.challengeAntwortLesen(roh)).toBeNull();
   });
 });
 
@@ -239,7 +292,7 @@ describe('Meldungen', () => {
   const vorhanden = (k: string) => { for (const l of LOCALES) expect(RESOURCES[l].identity[k]).toBeTruthy(); };
 
   it.each(['zugestimmt', 'anfrage_ungueltig', 'signatur_ungueltig', 'kette_nicht_erreichbar', 'nicht_registriert',
-    'schon_registriert', 'schon_zugestimmt', 'eigene_wallet'])('Zustimmung %s: eigene Meldung', (s) => {
+    'schon_registriert', 'schon_zugestimmt', 'eigene_wallet', 'consent_outdated', 'einwilligung_fehlt'])('Zustimmung %s: eigene Meldung', (s) => {
     const k = zw.zustimmungMeldungKey(s);
     expect(k).not.toBe('zwZustimmungFehler');
     vorhanden(k);
@@ -247,7 +300,7 @@ describe('Meldungen', () => {
 
   it('jede Zustimmungs-Meldung ist eine andere', () => {
     const s = ['zugestimmt', 'anfrage_ungueltig', 'signatur_ungueltig', 'kette_nicht_erreichbar', 'nicht_registriert',
-      'schon_registriert', 'schon_zugestimmt', 'eigene_wallet'];
+      'schon_registriert', 'schon_zugestimmt', 'eigene_wallet', 'consent_outdated', 'einwilligung_fehlt'];
     expect(new Set(s.map(zw.zustimmungMeldungKey)).size).toBe(s.length);
     expect(zw.zustimmungMeldungKey('etwas')).toBe('zwZustimmungFehler');
   });
@@ -256,7 +309,7 @@ describe('Meldungen', () => {
     'schon_registriert', 'nicht_registriert', 'kette_nicht_erreichbar', 'age_proof_required', 'commit_quorum_failed',
     'capture_failed', 'liveness_failed', 'quorum_failed', 'missing_consent', 'consent_outdated', 'signatur_ungueltig',
     'nonce_ungueltig', 'kein_schluessel', 'tagesgrenze_einzelbetrieb', 'risk_blocked', 'invalid_mode',
-    'lebendigkeit_unsicher', 'age_below_minimum', 'age_declaration_missing'])('Registrierung %s: eigene Meldung', (d) => {
+    'lebendigkeit_unsicher', 'age_below_minimum', 'age_declaration_missing', 'aufnahme_abgelaufen'])('Registrierung %s: eigene Meldung', (d) => {
     const k = zw.zwillingRegisterMeldungKey(d);
     expect(k).not.toBe('biometricResultFailed');
     vorhanden(k);
@@ -317,7 +370,11 @@ describe('Netz', () => {
       }
       if (url.endsWith('/zwilling/anfrage')) return { ok: true, json: async () => ({ anfrage: ANFRAGE, gueltig_sekunden: 600 }) };
       if (url.endsWith('/zwilling/start')) {
-        return { ok: true, json: async () => ({ status: 'bereit', richtung: 'links_rechts', gueltig_sekunden: 300 }) };
+        // Ein aelterer Coordinator nannte hier die Richtung -- sie darf nicht zaehlen.
+        return { ok: true, json: async () => ({ status: 'bereit', gueltig_sekunden: 1200, richtung: 'rechts_links' }) };
+      }
+      if (url.endsWith('/zwilling/challenge')) {
+        return { ok: true, json: async () => ({ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'blue,red,red,green', gueltig_sekunden: 300 }) };
       }
       if (url.endsWith('/challenge')) return { ok: true, json: async () => ({ nonce: 'nonce-1', challenge_type: 'look_left', flash_sequence: '' }) };
       if (url.endsWith('/zwilling/zustimmung')) return { ok: true, json: async () => ({ status: 'zugestimmt' }) };
@@ -353,7 +410,12 @@ describe('Netz', () => {
     // C1 ist wieder gesund und die Klebrigkeit abgelaufen: trotzdem C2.
     c1Gesund = true;
     bio._verwirfCoordinatorKlebrigkeitFuerTest();
-    expect(await bio.zwillingStart(ANFRAGE)).toEqual({ status: 'bereit', richtung: 'links_rechts', gueltig_sekunden: 300 });
+    expect(await bio.zwillingStart(ANFRAGE)).toEqual({ status: 'bereit', gueltig_sekunden: 1200 });
+    // Die Richtung kommt NUR aus /zwilling/challenge.
+    expect(bio.zwillingRichtung(ANFRAGE)).toBeNull();
+    expect(await bio.zwillingChallenge(ANFRAGE)).toEqual({
+      status: 'bereit', richtung: 'links_rechts', farbfolge: ['blue', 'red', 'red', 'green'], gueltig_sekunden: 300,
+    });
     expect(bio.zwillingRichtung(ANFRAGE)).toBe('links_rechts');
     const ch = await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
     expect(ch?.nonce).toBe('nonce-1');
@@ -366,8 +428,8 @@ describe('Netz', () => {
     expect(r.decision).toBe('new_enrollment');
     expect(signiert).toEqual([PY_REGISTER]);
 
-    for (const pfad of ['/zwilling/start', '/challenge', '/zwilling/register']) {
-      expect(calls.filter((c) => c.url.endsWith(pfad)).map((c) => c.url)).toEqual([C2 + pfad]);
+    for (const pfad of ['/zwilling/start', '/zwilling/challenge', '/challenge', '/zwilling/register']) {
+      expect(calls.filter((c) => c.url.replace(/^https?:\/\/[^/]+/, '') === pfad).map((c) => c.url)).toEqual([C2 + pfad]);
     }
     const f = felder(calls.find((c) => c.url.endsWith('/zwilling/register'))!.body);
     expect(f.anfrage).toEqual([ANFRAGE]);
@@ -386,6 +448,37 @@ describe('Netz', () => {
     expect(f.zwilling_bild).toEqual(['file:///zw.jpg']);
     expect(f.zwilling_video).toEqual(['file:///zw.mp4']);
     expect(f.zwilling_interval_ms).toEqual(['183']);
+  });
+
+  it('Missbrauch: andere Wallet als die der Anfrage -> Abbruch vor jedem Upload, Dateien geloescht', async () => {
+    const bio = require('../biometricIdentity');
+    const geloescht: string[] = [];
+    bio._setLoeschenFuerTest(async (u: string) => { geloescht.push(u); });
+    try {
+      await bio.zwillingAnfrageAnlegen(WALLET_B);
+      await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
+      const signer = { signMessage: jest.fn(async () => '0xsig') };
+      await expect(bio.zwillingRegister(solo('nonce-1'), gemeinsam, {
+        anfrage: ANFRAGE, deviceId: 'd', walletAddress: WALLET_A, consent, signer,
+      })).rejects.toBeInstanceOf(bio.ZwillingAndereWallet);
+      expect(signer.signMessage).not.toHaveBeenCalled();
+      expect(calls.some((c) => c.url.endsWith('/zwilling/register'))).toBe(false);
+      expect(geloescht.sort()).toEqual(['file:///solo.jpg', 'file:///solo.mp4', 'file:///zw.jpg', 'file:///zw.mp4']);
+    } finally {
+      bio._setLoeschenFuerTest(null);
+    }
+  });
+
+  it('/zwilling/challenge ohne "bereit" setzt keine Richtung', async () => {
+    const bio = require('../biometricIdentity');
+    await bio.zwillingAnfrageAnlegen(WALLET_B);
+    for (const status of ['nicht_gestartet', 'nicht_zugestimmt', 'anfrage_ungueltig']) {
+      (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status }) }));
+      expect(await bio.zwillingChallenge(ANFRAGE)).toEqual({ status });
+    }
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', richtung: 'links_rechts', flash_sequence: 'red', gueltig_sekunden: 300 }) }));
+    expect(await bio.zwillingChallenge(ANFRAGE)).toBeNull();
+    expect(bio.zwillingRichtung(ANFRAGE)).toBeNull();
   });
 
   it('Einzelbilder statt Video: mindestens zwei, jedes als zwilling_burst', async () => {
@@ -445,19 +538,30 @@ describe('Netz', () => {
     const bio = require('../biometricIdentity');
     const qr = zw.zwillingQrLesen(`aequitas-zwilling:${ANFRAGE}:${B}:proof2.aequitas.example:8443`, bio.coordinatorCandidates());
     const signiert: string[] = [];
-    const r = await bio.zwillingZustimmen(qr, WALLET_A, { signMessage: async (m: string) => { signiert.push(m); return PY_ZUSTIMMUNG_SIG; } });
+    const r = await bio.zwillingZustimmen(qr, WALLET_A, { signMessage: async (m: string) => { signiert.push(m); return PY_ZUSTIMMUNG_SIG; } }, { zugestimmt: true });
     expect(r).toEqual({ status: 'zugestimmt' });
     expect(signiert).toEqual([PY_ZUSTIMMUNG]);
     const c = calls.find((x) => x.url.endsWith('/zwilling/zustimmung'))!;
     expect(c.url).toBe(C2 + '/zwilling/zustimmung');
-    expect(JSON.parse(c.body)).toEqual({ anfrage: ANFRAGE, wallet: A, signatur: PY_ZUSTIMMUNG_SIG });
+    expect(JSON.parse(c.body)).toEqual({ anfrage: ANFRAGE, wallet: A, signatur: PY_ZUSTIMMUNG_SIG, einwilligung: EINWILLIGUNG });
+  });
+
+  it('Missbrauch: ohne A\'s Einwilligung wird nicht signiert und nichts gesendet', async () => {
+    const bio = require('../biometricIdentity');
+    const qr = zw.zwillingQrLesen(`aequitas-zwilling:${ANFRAGE}:${B}:proof1.aequitas.example`, bio.coordinatorCandidates());
+    const signer = { signMessage: jest.fn(async () => '0xsig') };
+    for (const einw of [{ zugestimmt: false }, undefined, null, { zugestimmt: 'ja' }]) {
+      expect(await bio.zwillingZustimmen(qr, WALLET_A, signer, einw)).toEqual({ status: 'einwilligung_fehlt' });
+    }
+    expect(signer.signMessage).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
   });
 
   it('Missbrauch: sich selbst bestaetigen -- nicht signiert, nichts gesendet', async () => {
     const bio = require('../biometricIdentity');
     const qr = zw.zwillingQrLesen(`aequitas-zwilling:${ANFRAGE}:${A}:proof1.aequitas.example`, bio.coordinatorCandidates());
     const signer = { signMessage: jest.fn(async () => '0xsig') };
-    expect(await bio.zwillingZustimmen(qr, WALLET_A, signer)).toEqual({ status: 'eigene_wallet' });
+    expect(await bio.zwillingZustimmen(qr, WALLET_A, signer, { zugestimmt: true })).toEqual({ status: 'eigene_wallet' });
     expect(signer.signMessage).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
   });
@@ -465,7 +569,7 @@ describe('Netz', () => {
   it('Missbrauch: ein Code mit einer Basis ausserhalb der Kandidaten wird nicht verwendet', async () => {
     const bio = require('../biometricIdentity');
     const signer = { signMessage: jest.fn(async () => '0xsig') };
-    const r = await bio.zwillingZustimmen({ anfrage: ANFRAGE, walletB: B, base: 'https://evil.example' }, WALLET_A, signer);
+    const r = await bio.zwillingZustimmen({ anfrage: ANFRAGE, walletB: B, base: 'https://evil.example' }, WALLET_A, signer, { zugestimmt: true });
     expect(r).toEqual({ status: 'anfrage_ungueltig' });
     expect(signer.signMessage).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
@@ -485,5 +589,36 @@ describe('Netz', () => {
     bio._setCoordinatorCandidatesForTest([C1]);
     (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: false, status: 429, json: async () => ({ detail: 'zu_viele_anfragen' }) }));
     await expect(bio.zwillingAnfrageAnlegen(WALLET_B)).rejects.toThrow('zu_viele_anfragen');
+  });
+});
+
+describe('volle Adresse zum Vergleichen', () => {
+  it('in Vierergruppen, klein, vollstaendig', () => {
+    expect(zw.walletGruppiert(WALLET_B)).toBe('0x8327 9fae 0994 aa1a 5633 77e8 89cc 2a1d 96ad b3b1');
+    expect(zw.walletGruppiert(WALLET_B).replace(/ /g, '')).toBe(B);
+    expect(zw.walletGruppiert('0x1')).toBe('');
+  });
+});
+
+describe('Frist bis zur gelesenen Antwort (LOW-3)', () => {
+  const altFetch = global.fetch;
+  afterEach(() => { global.fetch = altFetch; jest.useRealTimers(); });
+
+  it('Kopfzeilen da, Koerper nie: nach der Frist ist Schluss', async () => {
+    jest.useFakeTimers();
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: () => new Promise(() => undefined) })) as any;
+    const { jsonMitFrist } = jest.requireActual('../frist');
+    const p = jsonMitFrist('https://c.example/zwilling/start', {}, 5000);
+    const erwartung = expect(p).rejects.toThrow('Frist');
+    await jest.advanceTimersByTimeAsync(5001);
+    await erwartung;
+  });
+
+  it('liest JSON, und kein JSON ist null', async () => {
+    const { jsonMitFrist } = jest.requireActual('../frist');
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ a: 1 }) })) as any;
+    expect(await jsonMitFrist('https://c.example', {}, 1000)).toEqual({ ok: true, status: 200, body: { a: 1 } });
+    global.fetch = jest.fn(async () => ({ ok: false, status: 502, json: async () => { throw new Error('html'); } })) as any;
+    expect(await jsonMitFrist('https://c.example', {}, 1000)).toEqual({ ok: false, status: 502, body: null });
   });
 });

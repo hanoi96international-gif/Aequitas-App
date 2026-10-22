@@ -7,9 +7,13 @@
 //
 //   B (nicht registriert, sein Gesicht traf als duplicate_detected) legt eine
 //   Anfrage an und zeigt sie als QR-Code. A (registriert) scannt, sieht B's
-//   Wallet und eine Warnung und stimmt mit seiner Wallet zu. B fragt danach
-//   (begrenzt) nach der Richtung der gegenlaeufigen Kopfdrehung, nimmt sich
-//   selbst auf wie bei der Registrierung und danach beide zusammen.
+//   volle Wallet, eine Warnung und den Text seiner EIGENEN Einwilligung
+//   (sein Gesicht ist in der gemeinsamen Aufnahme) und stimmt mit seiner
+//   Wallet zu -- die Fassung steht in der Signatur. B fragt danach (begrenzt)
+//   nach, ob zugestimmt ist (/zwilling/start: 20 Minuten fuer beide
+//   Aufnahmen), nimmt sich selbst auf wie bei der Registrierung, holt erst
+//   DANN die Challenge der gemeinsamen Aufnahme (/zwilling/challenge:
+//   Richtung + Farbfolge, 5 Minuten bis zum Absenden) und nimmt beide auf.
 //
 // WARUM DER CODE-INHALT DEN COORDINATOR NENNT
 //
@@ -42,9 +46,20 @@ export function istAnfrage(x: unknown): x is string {
   return typeof x === 'string' && ANFRAGE.test(x);
 }
 
-/** A stimmt zu: aequitas-zwilling-v1|<wallet_a>|<wallet_b>|<anfrage> */
-export function zwillingZustimmungMessage(walletA: string, walletB: string, anfrage: string): string {
-  return `${ZWILLING_ZUSTIMMUNG_DOMAIN}|${walletA.trim().toLowerCase()}|${walletB.trim().toLowerCase()}|${anfrage}`;
+/** A stimmt zu: aequitas-zwilling-v1|<wallet_a>|<wallet_b>|<anfrage>|<einwilligung>
+ *  -- <einwilligung> ist die Fassung, der A auf dem Bestaetigungsbildschirm
+ *  fuer die gemeinsame Aufnahme zugestimmt hat (Pruefung 21.10.2026,
+ *  MEDIUM-2). */
+export function zwillingZustimmungMessage(walletA: string, walletB: string, anfrage: string, einwilligung: string): string {
+  return `${ZWILLING_ZUSTIMMUNG_DOMAIN}|${walletA.trim().toLowerCase()}|${walletB.trim().toLowerCase()}|${anfrage}|${einwilligung.trim()}`;
+}
+
+/** Die volle Adresse in Vierergruppen, zum Vergleichen auf zwei
+ *  Bildschirmen: "0x8327 9fae 0994 ...". Leer bei keiner Adresse. */
+export function walletGruppiert(wallet: string): string {
+  const w = wallet.trim().toLowerCase();
+  if (!ADRESSE.test(w)) return '';
+  return '0x' + (w.slice(2).match(/.{4}/g) ?? []).join(' ');
 }
 
 /** B registriert: aequitas-zwilling-register-v1|<wallet_b>|<anfrage>|<nonce> */
@@ -94,7 +109,10 @@ export function zwillingQrLesen(roh: unknown, kandidaten: readonly string[]): Zw
 // Richtung der gegenlaeufigen Drehung
 //
 // Vertrag (zwilling.py): "links_rechts" heisst, das LINKE Gesicht im Bild
-// dreht sich nach links, das rechte nach rechts -- beides in Bildrichtung.
+// dreht sich nach links, das rechte nach rechts -- beides in Bildrichtung
+// (seit ec9931a dort ausdruecklich: voneinander weg bzw. zueinander hin).
+// Die Richtung kommt NUR aus /zwilling/challenge, unmittelbar vor der
+// gemeinsamen Aufnahme -- nie aus /zwilling/start und nie aus einem Link.
 //
 // Gesagt wird das den beiden aber nicht mit links und rechts. Die Vorschau
 // der Frontkamera ist gespiegelt, das hochgeladene Video oft nicht, und wer
@@ -146,39 +164,82 @@ export function drehungJePerson(richtung: ZwillingRichtung, gespiegelt: boolean)
 // ---------------------------------------------------------------------------
 
 export type StartAntwort =
-  | { status: 'bereit'; richtung: ZwillingRichtung; gueltig_sekunden: number }
+  | { status: 'bereit'; gueltig_sekunden: number }
   | { status: 'nicht_zugestimmt' | 'anfrage_ungueltig' };
 
-/** Liest die Antwort von /zwilling/start. Alles Unbekannte ist null. */
+const sekunden = (s: unknown): number | null =>
+  typeof s === 'number' && Number.isInteger(s) && s > 0 && s <= 3600 ? s : null;
+
+/** Liest die Antwort von /zwilling/start. Alles Unbekannte ist null. Eine
+ *  Richtung darin wird NICHT uebernommen -- sie kommt nur aus
+ *  /zwilling/challenge. */
 export function startAntwortLesen(roh: unknown): StartAntwort | null {
   if (!roh || typeof roh !== 'object') return null;
   const o = roh as Record<string, unknown>;
   if (o.status === 'nicht_zugestimmt' || o.status === 'anfrage_ungueltig') return { status: o.status };
   if (o.status === 'bereit') {
-    const richtung = zwillingRichtungLesen(o.richtung);
-    const s = o.gueltig_sekunden;
-    if (!richtung || typeof s !== 'number' || !Number.isInteger(s) || s <= 0 || s > 3600) return null;
-    return { status: 'bereit', richtung, gueltig_sekunden: s };
+    const s = sekunden(o.gueltig_sekunden);
+    return s === null ? null : { status: 'bereit', gueltig_sekunden: s };
   }
   return null;
 }
 
+export type Farbe = 'red' | 'green' | 'blue';
+/** Wie /challenge: vier Farben aus red/green/blue (zwilling.FARBEN,
+ *  FARBFOLGE_LAENGE). */
+export const ZWILLING_FARBFOLGE_LAENGE = 4;
+
+export type ChallengeAntwort =
+  | { status: 'bereit'; richtung: ZwillingRichtung; farbfolge: Farbe[]; gueltig_sekunden: number }
+  | { status: 'nicht_gestartet' | 'nicht_zugestimmt' | 'anfrage_ungueltig' };
+
+/** Liest die Antwort von /zwilling/challenge -- fail-closed: eine fremde
+ *  Richtung, eine Farbfolge mit unbekannter Farbe oder falscher Laenge, eine
+ *  unplausible Frist ergeben null. */
+export function challengeAntwortLesen(roh: unknown): ChallengeAntwort | null {
+  if (!roh || typeof roh !== 'object') return null;
+  const o = roh as Record<string, unknown>;
+  if (o.status === 'nicht_gestartet' || o.status === 'nicht_zugestimmt' || o.status === 'anfrage_ungueltig') {
+    return { status: o.status };
+  }
+  if (o.status !== 'bereit') return null;
+  const richtung = zwillingRichtungLesen(o.richtung);
+  const s = sekunden(o.gueltig_sekunden);
+  if (!richtung || s === null || typeof o.flash_sequence !== 'string') return null;
+  const farben = o.flash_sequence.split(',');
+  if (farben.length !== ZWILLING_FARBFOLGE_LAENGE || !farben.every((f) => f === 'red' || f === 'green' || f === 'blue')) {
+    return null;
+  }
+  return { status: 'bereit', richtung, farbfolge: farben as Farbe[], gueltig_sekunden: s };
+}
+
 export type WartenErgebnis =
-  | { ergebnis: 'bereit'; richtung: ZwillingRichtung; gueltig_sekunden: number }
+  | { ergebnis: 'bereit'; gueltig_sekunden: number }
   | { ergebnis: 'anfrage_ungueltig' | 'abgelaufen' | 'abgebrochen' };
 
 /** Fragt hoechstens bis `bisMs` alle `intervallMs` nach, ob A zugestimmt
- *  hat. Endet bei "bereit", bei einer ungueltigen Anfrage, beim Abbruch
- *  (Bildschirm geschlossen) oder nach Ablauf -- nie unbegrenzt. Ein
- *  einzelner Netzfehler oder eine unlesbare Antwort zaehlt als "noch nicht". */
+ *  hat. Doppelt begrenzt: nach Zahl der Versuche UND nach der Uhr (Frist =
+ *  jetzt + bisMs) -- haengt eine Antwort, zaehlt die Wartezeit mit. Endet bei
+ *  "bereit", bei einer ungueltigen Anfrage, beim Abbruch (Bildschirm
+ *  geschlossen) oder nach Ablauf -- nie unbegrenzt. Ein einzelner Netzfehler
+ *  oder eine unlesbare Antwort zaehlt als "noch nicht". */
 export async function wartenAufStart(
   start: () => Promise<StartAntwort | null>,
-  opts: { intervallMs: number; bisMs: number; abgebrochen: () => boolean; schlafen?: (ms: number) => Promise<void> },
+  opts: {
+    intervallMs: number;
+    bisMs: number;
+    abgebrochen: () => boolean;
+    schlafen?: (ms: number) => Promise<void>;
+    jetzt?: () => number;
+  },
 ): Promise<WartenErgebnis> {
   const schlafen = opts.schlafen ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const jetzt = opts.jetzt ?? Date.now;
+  const frist = jetzt() + opts.bisMs;
   const versuche = Math.max(1, Math.ceil(opts.bisMs / Math.max(1000, opts.intervallMs)));
   for (let i = 0; i < versuche; i++) {
     if (opts.abgebrochen()) return { ergebnis: 'abgebrochen' };
+    if (jetzt() >= frist) return { ergebnis: 'abgelaufen' };
     let a: StartAntwort | null = null;
     try {
       a = await start();
@@ -186,7 +247,7 @@ export async function wartenAufStart(
       a = null;
     }
     if (opts.abgebrochen()) return { ergebnis: 'abgebrochen' };
-    if (a?.status === 'bereit') return { ergebnis: 'bereit', richtung: a.richtung, gueltig_sekunden: a.gueltig_sekunden };
+    if (a?.status === 'bereit') return { ergebnis: 'bereit', gueltig_sekunden: a.gueltig_sekunden };
     if (a?.status === 'anfrage_ungueltig') return { ergebnis: 'anfrage_ungueltig' };
     if (i < versuche - 1) await schlafen(opts.intervallMs);
   }
@@ -199,7 +260,7 @@ export async function wartenAufStart(
 
 export type ZustimmungStatus =
   | 'zugestimmt' | 'anfrage_ungueltig' | 'signatur_ungueltig' | 'kette_nicht_erreichbar'
-  | 'nicht_registriert' | 'schon_registriert' | 'schon_zugestimmt';
+  | 'nicht_registriert' | 'schon_registriert' | 'schon_zugestimmt' | 'consent_outdated';
 
 /** Text-Schluessel fuer die Antwort auf A's Zustimmung. */
 export function zustimmungMeldungKey(status: unknown): IdentityKey {
@@ -212,6 +273,8 @@ export function zustimmungMeldungKey(status: unknown): IdentityKey {
     case 'schon_registriert': return 'zwZustimmungSchonRegistriert';
     case 'schon_zugestimmt': return 'zwZustimmungSchon';
     case 'eigene_wallet': return 'zwZustimmungEigeneWallet';
+    case 'consent_outdated': return 'zwZustimmungEinwilligung';
+    case 'einwilligung_fehlt': return 'zwAConsentPflicht';
     default: return 'zwZustimmungFehler';
   }
 }
@@ -223,6 +286,7 @@ export function zwillingRegisterMeldungKey(decision: unknown): IdentityKey {
     case 'kein_zwilling_noetig': return 'zwErgebnisKeinZwillingNoetig';
     case 'anderes_gesicht': return 'zwErgebnisAnderesGesicht';
     case 'gruppe_voll': return 'zwErgebnisGruppeVoll';
+    case 'aufnahme_abgelaufen': return 'zwErgebnisAufnahmeAbgelaufen';
     case 'nicht_gestartet':
     case 'nicht_zugestimmt':
     case 'anfrage_ungueltig': return 'zwErgebnisNeuAnfangen';

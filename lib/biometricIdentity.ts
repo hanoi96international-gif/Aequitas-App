@@ -10,7 +10,7 @@
 // on current behavior until deliberately turned on, and not before Phase 0
 // accuracy validation + Phase 2 legal review are actually done.
 import { formularFelder, type Altersangabe } from './altersregel';
-import { fetchMitFrist, FRIST_ALLE_DIENSTE_MS, FRIST_AUFNAHME_MS } from './frist';
+import { fetchMitFrist, jsonMitFrist, FRIST_ALLE_DIENSTE_MS, FRIST_AUFNAHME_MS } from './frist';
 import * as Crypto from 'expo-crypto';
 // Legacy (function-based) API -- deleteAsync/idempotent isn't exposed by the
 // new File/Directory class API this SDK version defaults `expo-file-system`
@@ -24,10 +24,13 @@ import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type Pr
 import { LEBENSNACHWEIS_FAELLIG_NACH_TAGE, type LebensnachweisKette } from './lebensnachweis';
 import {
   istAnfrage,
+  challengeAntwortLesen,
   startAntwortLesen,
   zwillingQrInhalt,
   zwillingRegisterMessage,
   zwillingZustimmungMessage,
+  type ChallengeAntwort,
+  type Farbe,
   type StartAntwort,
   type ZwillingQr,
   type ZwillingRichtung,
@@ -239,10 +242,9 @@ export async function coordinatorBase(opts: { fresh?: boolean } = {}): Promise<s
 // vor JEDER Aufnahme neu eingeholt (biometric-capture.tsx, Schritt
 // 'consent') -- wer v3 zugestimmt hat, sieht vor dem ersten Lebensnachweis
 // also den v4-Text und sendet danach v4.
-// VOR DEM VERTEILEN: auch die Vergleichsdienste muessen v4 annehmen
-// (matching-service/app/config.py nannte am 21.10.2026 noch v3 als einzige
-// geltende Fassung) -- sonst wird jede Aufnahme mit consent_outdated
-// abgewiesen, auch Registrierungen.
+// Coordinator UND Vergleichsdienste nehmen v4 als geltende Fassung an
+// (aequitas-biometric-beta dd8ac58, matching-service/app/config.py), v3
+// weiter als Vorgaenger.
 export const CONSENT_VERSION = 'einwilligung-v4-2026-10-21';
 
 const DEVICE_ID_KEY = 'aequitas_biometric_device_id_v1';
@@ -518,12 +520,12 @@ export function _setLoeschenFuerTest(fn: ((uri: string) => Promise<void>) | null
   loeschenFuerTest = fn;
 }
 
-/** Verwirft Aufnahmedateien, die nie hochgeladen werden (Ablauf
- *  abgebrochen) -- dieselbe Loeschung wie nach einem Upload. */
-export async function aufnahmeVerwerfen(uris: string[]): Promise<void> {
-  const [faceUri, ...rest] = uris.filter(Boolean);
-  if (!faceUri) return;
-  await cleanupCaptureFiles({ faceUri, faceBurstUris: rest, burstIntervalMs: 0 });
+/** Loescht eine Aufnahmedatei, idempotent (eine fehlende Datei ist kein
+ *  Fehler) -- dieselbe Loeschung wie nach einem Upload. Fuer
+ *  lib/aufnahmeDateien.ts. */
+export async function aufnahmeDateiLoeschen(uri: string): Promise<void> {
+  if (loeschenFuerTest) await loeschenFuerTest(uri);
+  else await FileSystem.deleteAsync(uri, { idempotent: true });
 }
 
 async function cleanupCaptureFiles(capture: BiometricCapture): Promise<void> {
@@ -1244,21 +1246,31 @@ export async function lebensnachweisAnKette(
 //
 // Die Anfrage lebt nur im Arbeitsspeicher DES Coordinators, der sie
 // ausgestellt hat -- wie ein Challenge-Nonce. Darum wird hier gemerkt,
-// welcher das war, und /zwilling/start, /challenge und /zwilling/register
+// welcher das war, und /zwilling/start, /zwilling/challenge, /challenge und
+// /zwilling/register
 // gehen genau dorthin. Kennt die App den Aussteller nicht (App neu
 // gestartet), wird abgebrochen, nicht umgeleitet: ein anderer Coordinator
 // kennt die Anfrage nicht und bekaeme nur die Bilder.
 // ---------------------------------------------------------------------------
 const ZWILLING_KNOTEN_MAX = 4;
-let zwillingKnoten: { anfrage: string; base: string; richtung?: ZwillingRichtung }[] = [];
+let zwillingKnoten: {
+  anfrage: string;
+  base: string;
+  // Fuer diese Wallet wurde die Anfrage angelegt -- registriert wird nur mit
+  // ihr (Pruefung 21.10.2026, LOW-2).
+  walletB: string;
+  // Aus /zwilling/challenge, unmittelbar vor der gemeinsamen Aufnahme.
+  richtung?: ZwillingRichtung;
+  farbfolge?: Farbe[];
+}[] = [];
 
 /** Der Coordinator, der diese Anfrage ausgestellt hat -- oder null. */
 export function zwillingBasis(anfrage: string): string | null {
   return zwillingKnoten.find((k) => k.anfrage === anfrage)?.base ?? null;
 }
 
-/** Die Richtung, die /zwilling/start fuer diese Anfrage genannt hat -- aus
- *  dem Speicher dieser App, nie aus Parametern eines Links. */
+/** Die Richtung, die /zwilling/challenge fuer diese Anfrage genannt hat --
+ *  aus dem Speicher dieser App, nie aus /zwilling/start oder einem Link. */
 export function zwillingRichtung(anfrage: string): ZwillingRichtung | null {
   return zwillingKnoten.find((k) => k.anfrage === anfrage)?.richtung ?? null;
 }
@@ -1275,6 +1287,13 @@ export class ZwillingAnfrageUnbekannt extends Error {
   }
 }
 
+export class ZwillingAndereWallet extends Error {
+  constructor() {
+    super('zwilling: die Anfrage gehoert zu einer anderen Wallet');
+    this.name = 'ZwillingAndereWallet';
+  }
+}
+
 export interface ZwillingAnfrage {
   anfrage: string;
   gueltigSekunden: number;
@@ -1286,63 +1305,84 @@ export interface ZwillingAnfrage {
  *  (zu_viele_anfragen, ausgelastet, ...) oder bei einer unlesbaren Antwort. */
 export async function zwillingAnfrageAnlegen(walletB: string): Promise<ZwillingAnfrage> {
   const base = await coordinatorBase({ fresh: true });
-  const resp = await fetchMitFrist(`${base}/zwilling/anfrage`, {
+  const w = walletB.trim().toLowerCase();
+  const { ok, status, body } = await jsonMitFrist(`${base}/zwilling/anfrage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wallet: walletB.trim().toLowerCase() }),
+    body: JSON.stringify({ wallet: w }),
   });
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => null);
-    const grund = typeof body?.detail === 'string' ? body.detail.slice(0, 60) : `HTTP ${resp.status}`;
+  if (!ok) {
+    const grund = typeof body?.detail === 'string' ? body.detail.slice(0, 60) : `HTTP ${status}`;
     throw new Error(`zwilling_anfrage: ${grund}`);
   }
-  const body = await resp.json();
   const s = body?.gueltig_sekunden;
   if (!istAnfrage(body?.anfrage) || typeof s !== 'number' || !Number.isInteger(s) || s <= 0 || s > 3600) {
     throw new Error('zwilling_anfrage: Antwort unlesbar');
   }
-  zwillingKnoten = [...zwillingKnoten, { anfrage: body.anfrage, base }].slice(-ZWILLING_KNOTEN_MAX);
-  return { anfrage: body.anfrage, gueltigSekunden: s, base, qr: zwillingQrInhalt(body.anfrage, walletB, base) };
+  const qr = zwillingQrInhalt(body.anfrage, w, base);
+  zwillingKnoten = [...zwillingKnoten, { anfrage: body.anfrage, base, walletB: w }].slice(-ZWILLING_KNOTEN_MAX);
+  return { anfrage: body.anfrage, gueltigSekunden: s, base, qr };
 }
 
 /** B fragt, ob A zugestimmt hat (/zwilling/start) -- beim ausstellenden
- *  Coordinator. null bei einer unlesbaren Antwort. */
+ *  Coordinator, mit Frist bis zur gelesenen Antwort. null bei einer
+ *  unlesbaren Antwort. Verraet nichts ueber die gemeinsame Aufnahme. */
 export async function zwillingStart(anfrage: string): Promise<StartAntwort | null> {
   const base = zwillingBasis(anfrage);
   if (!base) throw new ZwillingAnfrageUnbekannt();
-  const resp = await fetchMitFrist(`${base}/zwilling/start`, {
+  const { ok, body } = await jsonMitFrist(`${base}/zwilling/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ anfrage }),
   });
-  if (!resp.ok) return null;
-  const a = startAntwortLesen(await resp.json().catch(() => null));
+  return ok ? startAntwortLesen(body) : null;
+}
+
+/** Die Challenge der gemeinsamen Aufnahme (/zwilling/challenge): Richtung und
+ *  Farbfolge. Unmittelbar vor der gemeinsamen Aufnahme holen -- danach
+ *  bleiben 5 Minuten bis zum Absenden. Einmal gezogen und fest. null bei
+ *  einer unlesbaren Antwort. */
+export async function zwillingChallenge(anfrage: string): Promise<ChallengeAntwort | null> {
+  const base = zwillingBasis(anfrage);
+  if (!base) throw new ZwillingAnfrageUnbekannt();
+  const { ok, body } = await jsonMitFrist(`${base}/zwilling/challenge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anfrage }),
+  });
+  const a = ok ? challengeAntwortLesen(body) : null;
   if (a?.status === 'bereit') {
     const k = zwillingKnoten.find((e) => e.anfrage === anfrage);
-    if (k) k.richtung = a.richtung;
+    if (k) {
+      k.richtung = a.richtung;
+      k.farbfolge = a.farbfolge;
+    }
   }
   return a;
 }
 
 /** A stimmt zu. `qr` kommt aus zwillingQrLesen -- base ist damit einer der
- *  eigenen Kandidaten. Signiert wird erst hier, nach der Bestaetigung. */
+ *  eigenen Kandidaten. Signiert wird erst hier, und nur, wenn A der
+ *  Einwilligung fuer die gemeinsame Aufnahme ausdruecklich zugestimmt hat
+ *  (Pruefung 21.10.2026, MEDIUM-2). Die Fassung steht in der Signatur. */
 export async function zwillingZustimmen(
   qr: ZwillingQr,
   walletA: string,
   signer: AequitasSigner,
+  einwilligung: { zugestimmt: boolean },
 ): Promise<{ status: string }> {
+  if (einwilligung?.zugestimmt !== true) return { status: 'einwilligung_fehlt' };
   const a = walletA.trim().toLowerCase();
   // Sich selbst als Zwilling bestaetigen geht nicht; gar nicht erst signieren.
   if (a === qr.walletB) return { status: 'eigene_wallet' };
   if (!coordinatorCandidates().includes(qr.base)) return { status: 'anfrage_ungueltig' };
-  const signatur = await signer.signMessage(zwillingZustimmungMessage(a, qr.walletB, qr.anfrage));
-  const resp = await fetchMitFrist(`${qr.base}/zwilling/zustimmung`, {
+  const signatur = await signer.signMessage(zwillingZustimmungMessage(a, qr.walletB, qr.anfrage, CONSENT_VERSION));
+  const { ok, status, body } = await jsonMitFrist(`${qr.base}/zwilling/zustimmung`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ anfrage: qr.anfrage, wallet: a, signatur }),
+    body: JSON.stringify({ anfrage: qr.anfrage, wallet: a, signatur, einwilligung: CONSENT_VERSION }),
   });
-  if (!resp.ok) throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
-  const body = await resp.json().catch(() => null);
+  if (!ok) throw new Error(`Coordinator request failed (HTTP ${status})`);
   return { status: typeof body?.status === 'string' ? body.status : 'unbekannt' };
 }
 
@@ -1371,8 +1411,12 @@ export async function zwillingRegister(
 ): Promise<BiometricRegisterResult> {
   try {
     if (!capture.challengeNonce) throw new NachziehenNeedsChallenge();
-    const anfrageBase = zwillingBasis(opts.anfrage);
-    if (!anfrageBase) throw new ZwillingAnfrageUnbekannt();
+    const knoten = zwillingKnoten.find((k) => k.anfrage === opts.anfrage);
+    if (!knoten) throw new ZwillingAnfrageUnbekannt();
+    const anfrageBase = knoten.base;
+    // Die Anfrage gilt nur fuer die Wallet, fuer die sie angelegt wurde --
+    // eine inzwischen gewechselte Wallet laedt nichts hoch.
+    if (opts.walletAddress.trim().toLowerCase() !== knoten.walletB) throw new ZwillingAndereWallet();
     const base = await basisFuerNonce(capture.challengeNonce);
     if (base !== anfrageBase) throw new NachziehenNeedsChallenge();
     if (!gemeinsam.videoUri && gemeinsam.burstUris.length < 2) {

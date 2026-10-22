@@ -5,8 +5,9 @@
 // 1. Anfrage beim Coordinator anlegen, als QR-Code zeigen.
 // 2. Der registrierte Zwilling scannt ihn und stimmt mit seiner Wallet zu.
 // 3. Hier wird begrenzt nachgefragt (alle 3 s, hoechstens so lange, wie die
-//    Anfrage gilt, und nur solange dieser Bildschirm offen ist). Sobald
-//    zugestimmt ist, geht es zur Aufnahme.
+//    Anfrage gilt -- nach Versuchen UND nach der Uhr --, und nur solange
+//    dieser Bildschirm offen ist). Sobald zugestimmt ist, geht es zur
+//    Aufnahme; die Richtung der gemeinsamen Aufnahme kommt erst dort.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +16,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { zwillingAnfrageAnlegen, zwillingStart, type ZwillingAnfrage } from '@/lib/biometricIdentity';
-import { wartenAufStart, ZWILLING_GRUPPE_MAX } from '@/lib/zwilling';
+import { walletGruppiert, wartenAufStart, ZWILLING_GRUPPE_MAX } from '@/lib/zwilling';
 import { theme } from '@/constants/aequitas-theme';
 
 const NACHFRAGE_MS = 3000;
@@ -50,7 +51,7 @@ export default function Zwilling() {
       });
       if (meinLauf !== lauf.current || r.ergebnis === 'abgebrochen') return;
       if (r.ergebnis === 'bereit') {
-        router.replace(`/biometric-capture?zweck=zwilling&anfrage=${a.anfrage}&richtung=${r.richtung}`);
+        router.replace(`/biometric-capture?zweck=zwilling&anfrage=${a.anfrage}`);
         return;
       }
       setAnfrage(null);
@@ -82,6 +83,10 @@ export default function Zwilling() {
                 <QRCode value={anfrage.qr} size={220} backgroundColor="#ffffff" color="#000000" />
               </View>
               <Text style={S.body}>{t('identity.zwQrHinweis')}</Text>
+              {/* Volle Adresse, in Gruppen: dieselbe Darstellung wie auf dem
+                  Bestaetigungsbildschirm des Zwillings -- zum Vergleichen. */}
+              <Text style={S.schluessel}>{t('identity.zwDeineWallet')}</Text>
+              <Text style={S.wallet} selectable>{walletGruppiert(address ?? '')}</Text>
               <View style={S.warteZeile}>
                 <ActivityIndicator color={theme.purple} />
                 <Text style={S.warteText}>{t('identity.zwWartet')}</Text>
@@ -118,6 +123,8 @@ const S = StyleSheet.create({
   warteZeile: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   warteText: { color: theme.text, fontSize: 13, flex: 1, lineHeight: 19 },
   abstand: { marginVertical: 16 },
+  schluessel: { color: theme.muted, fontSize: 12, marginBottom: 4 },
+  wallet: { color: theme.text, fontSize: 15, fontWeight: '600', fontFamily: theme.fontMono, lineHeight: 22, marginBottom: 14 },
   fehler: { color: '#ff6b6b', fontSize: 13, lineHeight: 19, marginBottom: 8 },
   btn: { marginTop: 14, backgroundColor: theme.accent, borderRadius: theme.radiusPill, padding: 15, alignItems: 'center' },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
