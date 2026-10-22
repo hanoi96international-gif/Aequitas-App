@@ -217,7 +217,7 @@ export function gespeichertesBild(
 
 export type StartAntwort =
   | { status: 'bereit'; gueltig_sekunden: number }
-  | { status: 'nicht_zugestimmt' | 'anfrage_ungueltig' };
+  | { status: 'nicht_zugestimmt' | 'anfrage_ungueltig' | 'zwilling_nicht_aktiv' };
 
 const sekunden = (s: unknown): number | null =>
   typeof s === 'number' && Number.isInteger(s) && s > 0 && s <= 3600 ? s : null;
@@ -228,7 +228,9 @@ const sekunden = (s: unknown): number | null =>
 export function startAntwortLesen(roh: unknown): StartAntwort | null {
   if (!roh || typeof roh !== 'object') return null;
   const o = roh as Record<string, unknown>;
-  if (o.status === 'nicht_zugestimmt' || o.status === 'anfrage_ungueltig') return { status: o.status };
+  if (o.status === 'nicht_zugestimmt' || o.status === 'anfrage_ungueltig' || o.status === 'zwilling_nicht_aktiv') {
+    return { status: o.status };
+  }
   if (o.status === 'bereit') {
     const s = sekunden(o.gueltig_sekunden);
     return s === null ? null : { status: 'bereit', gueltig_sekunden: s };
@@ -243,7 +245,7 @@ export const ZWILLING_FARBFOLGE_LAENGE = 4;
 
 export type ChallengeAntwort =
   | ({ status: 'bereit'; farbfolge: Farbe[]; gueltig_sekunden: number } & ZwillingAufgabe)
-  | { status: 'nicht_gestartet' | 'nicht_zugestimmt' | 'anfrage_ungueltig' };
+  | { status: 'nicht_gestartet' | 'nicht_zugestimmt' | 'anfrage_ungueltig' | 'zwilling_nicht_aktiv' };
 
 /** Liest eine Folge fail-closed: genau `gesichter` Schritte, jede Position
  *  0..n-1 genau einmal (ganze Zahlen), jede Seite links|rechts -- sonst null.
@@ -271,7 +273,8 @@ export function folgeLesen(roh: unknown, gesichter: number): ZwillingSchritt[] |
 export function challengeAntwortLesen(roh: unknown): ChallengeAntwort | null {
   if (!roh || typeof roh !== 'object') return null;
   const o = roh as Record<string, unknown>;
-  if (o.status === 'nicht_gestartet' || o.status === 'nicht_zugestimmt' || o.status === 'anfrage_ungueltig') {
+  if (o.status === 'nicht_gestartet' || o.status === 'nicht_zugestimmt' || o.status === 'anfrage_ungueltig'
+    || o.status === 'zwilling_nicht_aktiv') {
     return { status: o.status };
   }
   if (o.status !== 'bereit') return null;
@@ -343,7 +346,7 @@ export function zwillingPlanEreignisse(plan: AufnahmePlan): PlanEreignis[] {
 
 export type WartenErgebnis =
   | { ergebnis: 'bereit'; gueltig_sekunden: number }
-  | { ergebnis: 'anfrage_ungueltig' | 'abgelaufen' | 'abgebrochen' };
+  | { ergebnis: 'anfrage_ungueltig' | 'abgelaufen' | 'abgebrochen' | 'zwilling_nicht_aktiv' };
 
 /** Fragt hoechstens bis `bisMs` alle `intervallMs` nach, ob A zugestimmt
  *  hat. Doppelt begrenzt: nach Zahl der Versuche UND nach der Uhr (Frist =
@@ -377,6 +380,8 @@ export async function wartenAufStart(
     if (opts.abgebrochen()) return { ergebnis: 'abgebrochen' };
     if (a?.status === 'bereit') return { ergebnis: 'bereit', gueltig_sekunden: a.gueltig_sekunden };
     if (a?.status === 'anfrage_ungueltig') return { ergebnis: 'anfrage_ungueltig' };
+    // Der Zwillingsweg ist beim Coordinator abgeschaltet: nicht weiter fragen.
+    if (a?.status === 'zwilling_nicht_aktiv') return { ergebnis: 'zwilling_nicht_aktiv' };
     if (i < versuche - 1) await schlafen(opts.intervallMs);
   }
   return { ergebnis: 'abgelaufen' };
@@ -388,7 +393,7 @@ export async function wartenAufStart(
 
 export type ZustimmungStatus =
   | 'zugestimmt' | 'anfrage_ungueltig' | 'signatur_ungueltig' | 'kette_nicht_erreichbar'
-  | 'nicht_registriert' | 'schon_registriert' | 'schon_zugestimmt' | 'consent_outdated';
+  | 'nicht_registriert' | 'schon_registriert' | 'schon_zugestimmt' | 'consent_outdated' | 'zwilling_nicht_aktiv';
 
 /** Text-Schluessel fuer die Antwort auf A's Zustimmung. */
 export function zustimmungMeldungKey(status: unknown): IdentityKey {
@@ -402,6 +407,7 @@ export function zustimmungMeldungKey(status: unknown): IdentityKey {
     case 'schon_zugestimmt': return 'zwZustimmungSchon';
     case 'eigene_wallet': return 'zwZustimmungEigeneWallet';
     case 'consent_outdated': return 'zwZustimmungEinwilligung';
+    case 'zwilling_nicht_aktiv': return 'zwNichtAktiv';
     case 'einwilligung_fehlt': return 'zwAConsentPflicht';
     default: return 'zwZustimmungFehler';
   }
@@ -416,6 +422,9 @@ export function zwillingRegisterMeldungKey(decision: unknown): IdentityKey {
     case 'gruppe_voll': return 'zwErgebnisGruppeVoll';
     case 'gruppe_unvollstaendig': return 'zwErgebnisGruppeUnvollstaendig';
     case 'aufnahme_abgelaufen': return 'zwErgebnisAufnahmeAbgelaufen';
+    case 'zwilling_nicht_aktiv': return 'zwNichtAktiv';
+    case 'attestierung_noetig': return 'zwErgebnisAttestierung';
+    case 'quorum_zu_klein': return 'zwErgebnisDerzeitNicht';
     case 'nicht_gestartet':
     case 'nicht_zugestimmt':
     case 'anfrage_ungueltig': return 'zwErgebnisNeuAnfangen';

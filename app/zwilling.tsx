@@ -15,18 +15,26 @@ import { router } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { zwillingAnfrageAnlegen, zwillingStart, type ZwillingAnfrage } from '@/lib/biometricIdentity';
+import {
+  zwillingAnfrageAnlegen,
+  ZwillingNichtAktiv,
+  zwillingStart,
+  zwillingWegAbgeschaltet,
+  type ZwillingAnfrage,
+} from '@/lib/biometricIdentity';
 import { gesichterAusRegistrierten, walletGruppiert, wartenAufStart, ZWILLING_GRUPPE_MAX } from '@/lib/zwilling';
 import { theme } from '@/constants/aequitas-theme';
 
 const NACHFRAGE_MS = 3000;
 
-type Lage = 'start' | 'legt_an' | 'wartet' | 'abgelaufen' | 'ungueltig' | 'fehler';
+// nicht_aktiv: der Coordinator hat den Zwillingsweg abgeschaltet (bis zum
+// Feldtest) -- kein Code, kein Knopf, der Widerspruch bleibt.
+type Lage = 'start' | 'legt_an' | 'wartet' | 'abgelaufen' | 'ungueltig' | 'fehler' | 'nicht_aktiv';
 
 export default function Zwilling() {
   const { t } = useLanguage();
   const { address } = useWallet();
-  const [lage, setLage] = useState<Lage>('start');
+  const [lage, setLage] = useState<Lage>(() => (zwillingWegAbgeschaltet() ? 'nicht_aktiv' : 'start'));
   const [anfrage, setAnfrage] = useState<ZwillingAnfrage | null>(null);
   const [fehler, setFehler] = useState('');
   // Wie viele aus der Gruppe schon registriert sind (1..3). ALLE muessen mit
@@ -59,10 +67,14 @@ export default function Zwilling() {
         return;
       }
       setAnfrage(null);
-      setLage(r.ergebnis === 'abgelaufen' ? 'abgelaufen' : 'ungueltig');
+      setLage(r.ergebnis === 'abgelaufen' ? 'abgelaufen' : r.ergebnis === 'zwilling_nicht_aktiv' ? 'nicht_aktiv' : 'ungueltig');
     } catch (e: any) {
       if (meinLauf !== lauf.current) return;
       setAnfrage(null);
+      if (e instanceof ZwillingNichtAktiv) {
+        setLage('nicht_aktiv');
+        return;
+      }
       const m = String(e?.message ?? '');
       setFehler(m.includes('zu_viele_anfragen') ? t('identity.zwZuVieleAnfragen')
         : m.includes('gesichter_ungueltig') ? t('identity.zwGesichterUngueltig') : t('identity.zwAnfrageFehler'));
@@ -104,6 +116,7 @@ export default function Zwilling() {
           {lage === 'abgelaufen' ? <Text style={S.fehler}>{t('identity.zwAbgelaufen')}</Text> : null}
           {lage === 'ungueltig' ? <Text style={S.fehler}>{t('identity.zwErgebnisNeuAnfangen')}</Text> : null}
           {lage === 'fehler' ? <Text style={S.fehler}>{fehler}</Text> : null}
+          {lage === 'nicht_aktiv' ? <Text style={S.body} testID="zwilling-nicht-aktiv">{t('identity.zwNichtAktiv')}</Text> : null}
 
           {lage === 'start' || lage === 'abgelaufen' || lage === 'ungueltig' || lage === 'fehler' ? (
             <>
@@ -128,7 +141,7 @@ export default function Zwilling() {
             </>
           ) : null}
           {lage === 'start' || lage === 'abgelaufen' || lage === 'ungueltig' || lage === 'fehler' ? (
-            <TouchableOpacity style={S.btn} onPress={anlegen} activeOpacity={0.85} disabled={!address}>
+            <TouchableOpacity style={S.btn} onPress={anlegen} activeOpacity={0.85} disabled={!address} testID="zwilling-code-erstellen">
               <Text style={S.btnText}>{lage === 'start' ? t('identity.zwCodeErstellen') : t('identity.zwNeuerCode')}</Text>
             </TouchableOpacity>
           ) : null}

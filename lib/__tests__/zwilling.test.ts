@@ -23,7 +23,14 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(async () => undefined),
   deleteItemAsync: jest.fn(async () => undefined),
 }));
-jest.mock('../attestation', () => ({ attestierungAnhaengen: async () => undefined }));
+// Wie lib/attestation.ts: haengt die drei Felder an, gebunden an den Nonce.
+jest.mock('../attestation', () => ({
+  attestierungAnhaengen: async (form: any, nonce?: string) => {
+    form.append('attestation_platform', 'android');
+    form.append('attestation_token', `token-fuer-${nonce}`);
+    form.append('attestation_key_id', 'schluessel-1');
+  },
+}));
 jest.mock('../api', () => ({ submitLivenessRenewal: jest.fn(), submitProofOfLife: jest.fn() }));
 
 const zw = jest.requireActual('../zwilling');
@@ -505,6 +512,7 @@ describe('Netz', () => {
     const bio = require('../biometricIdentity');
     bio._setCoordinatorCandidatesForTest([C1, C2]);
     bio._vergissZwillingKnotenFuerTest();
+    bio._setZwillingNichtAktivFuerTest(false);
     calls = [];
     c1Gesund = true;
     global.fetch = jest.fn(async (url: string, init?: any) => {
@@ -595,6 +603,10 @@ describe('Netz', () => {
     expect(f.zwilling_bild).toEqual(['file:///zw.jpg']);
     expect(f.zwilling_video).toEqual(['file:///zw.mp4']);
     expect(f.zwilling_interval_ms).toEqual(['183']);
+    // Attestierung wie bei /register (der Coordinator verlangt sie hier).
+    expect(f.attestation_platform).toEqual(['android']);
+    expect(f.attestation_token).toEqual(['token-fuer-nonce-1']);
+    expect(f.attestation_key_id).toEqual(['schluessel-1']);
   });
 
   it('Missbrauch: andere Wallet als die der Anfrage -> Abbruch vor jedem Upload, Dateien geloescht', async () => {
@@ -908,5 +920,83 @@ describe('Nach dem eigenen Schritt gedreht bleiben', () => {
       expect(id.zwBeideGeradeaus).toBeUndefined();
       expect(id.zwAufgabe).toBeUndefined();
     }
+  });
+});
+
+describe('Zweite Nachpruefung: Schalter, Attestierung, Blinzeln', () => {
+  const { RESOURCES, LOCALES } = jest.requireActual('../i18n');
+  const fs = require('fs');
+  const path = require('path');
+  const capture: string = fs.readFileSync(path.join(__dirname, '..', '..', 'app', 'biometric-capture.tsx'), 'utf8');
+
+  it('Blinzel-Hinweis in jeder Sprache, vor der Aufnahme und waehrend der Aufnahme', () => {
+    for (const l of LOCALES) expect(RESOURCES[l].identity.zwBlinzeln.length).toBeGreaterThan(10);
+    const intro = capture.slice(capture.indexOf("{step === 'zwilling_intro' ? ("), capture.indexOf("step === 'face_intro' ? ("));
+    expect(intro).toMatch(/identity\.zwFolgeHinweis[\s\S]*identity\.zwBlinzeln/);
+    expect(capture).toMatch(/step === 'zwilling_burst' \? <Text[^>]*>👁 \{t\('identity\.zwBlinzeln'\)\}/);
+  });
+
+  it.each([
+    ['Zustimmung', () => zw.zustimmungMeldungKey('zwilling_nicht_aktiv'), 'zwNichtAktiv'],
+    ['Registrierung: abgeschaltet', () => zw.zwillingRegisterMeldungKey('zwilling_nicht_aktiv'), 'zwNichtAktiv'],
+    ['Registrierung: Attestierung', () => zw.zwillingRegisterMeldungKey('attestierung_noetig'), 'zwErgebnisAttestierung'],
+    ['Registrierung: Quorum zu klein', () => zw.zwillingRegisterMeldungKey('quorum_zu_klein'), 'zwErgebnisDerzeitNicht'],
+  ])('%s -> eigene Meldung in allen Sprachen', (_n, f, key) => {
+    expect(f()).toBe(key);
+    for (const l of LOCALES) expect(RESOURCES[l].identity[key]).toBeTruthy();
+  });
+
+  it('start und challenge kennen "zwilling_nicht_aktiv"; das Warten endet sofort', async () => {
+    expect(zw.startAntwortLesen({ status: 'zwilling_nicht_aktiv' })).toEqual({ status: 'zwilling_nicht_aktiv' });
+    expect(zw.challengeAntwortLesen({ status: 'zwilling_nicht_aktiv' })).toEqual({ status: 'zwilling_nicht_aktiv' });
+    const start = jest.fn(async () => ({ status: 'zwilling_nicht_aktiv' as const }));
+    const r = await zw.wartenAufStart(start, { intervallMs: 3000, bisMs: 600_000, abgebrochen: () => false, schlafen: async () => undefined });
+    expect(r).toEqual({ ergebnis: 'zwilling_nicht_aktiv' });
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('der Einstieg nach duplicate_detected und der "neuer Code"-Knopf haengen am Schalter', () => {
+    expect(capture).toMatch(/result\?\.decision === 'duplicate_detected'\s*&& !zwillingWegAbgeschaltet\(\)/);
+    expect(capture).toMatch(/zwilling && !registriert && !kettenFertig && !offen && !zwillingWegAbgeschaltet\(\)/);
+  });
+});
+
+describe('Schalter: Antworten setzen ihn, ohne eigene Statusabfrage', () => {
+  const C = 'https://proof1.aequitas.example';
+  const altFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = altFetch;
+    const bio = require('../biometricIdentity');
+    bio._setCoordinatorCandidatesForTest(null);
+    bio._setZwillingNichtAktivFuerTest(false);
+  });
+
+  it('/zwilling/anfrage 503 zwilling_nicht_aktiv: eigener Fehler, Weg abgeschaltet', async () => {
+    const bio = require('../biometricIdentity');
+    bio._setCoordinatorCandidatesForTest([C]);
+    bio._setZwillingNichtAktivFuerTest(false);
+    const calls: string[] = [];
+    global.fetch = jest.fn(async (u: string) => { calls.push(u); return { ok: false, status: 503, json: async () => ({ detail: 'zwilling_nicht_aktiv' }) }; }) as any;
+    await expect(bio.zwillingAnfrageAnlegen(WALLET_B, 2)).rejects.toBeInstanceOf(bio.ZwillingNichtAktiv);
+    expect(bio.zwillingWegAbgeschaltet()).toBe(true);
+    // Keine eigene Statusabfrage.
+    expect(calls).toEqual([C + '/zwilling/anfrage']);
+  });
+
+  it('ein anderer 503 schaltet nichts ab', async () => {
+    const bio = require('../biometricIdentity');
+    bio._setCoordinatorCandidatesForTest([C]);
+    global.fetch = jest.fn(async () => ({ ok: false, status: 503, json: async () => ({ detail: 'ausgelastet' }) })) as any;
+    await expect(bio.zwillingAnfrageAnlegen(WALLET_B, 2)).rejects.toThrow('ausgelastet');
+    expect(bio.zwillingWegAbgeschaltet()).toBe(false);
+  });
+
+  it('Zustimmung mit zwilling_nicht_aktiv schaltet ebenfalls ab', async () => {
+    const bio = require('../biometricIdentity');
+    bio._setCoordinatorCandidatesForTest([C]);
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ status: 'zwilling_nicht_aktiv' }) })) as any;
+    const r = await bio.zwillingZustimmen({ anfrage: ANFRAGE, walletB: B, base: C }, WALLET_A, { signMessage: async () => '0xsig' }, { zugestimmt: true });
+    expect(r).toEqual({ status: 'zwilling_nicht_aktiv' });
+    expect(bio.zwillingWegAbgeschaltet()).toBe(true);
   });
 });

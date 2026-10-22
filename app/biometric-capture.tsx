@@ -35,6 +35,7 @@ import {
   zwillingBasis,
   zwillingChallenge,
   zwillingGesichter,
+  zwillingWegAbgeschaltet,
   zwillingRegister,
   ZwillingAnfrageUnbekannt,
   ZwillingAndereWallet,
@@ -2127,7 +2128,12 @@ export default function BiometricCapture() {
                 <Text style={S.overlayTitle}>{t('identity.zwGemeinsamTitel')}</Text>
                 <Text style={S.overlayHint}>{t('identity.zwGemeinsamHinweis')}</Text>
                 {zwChallenge ? (
-                  <Text style={S.actionInstruction}>🎯 {t('identity.zwFolgeHinweis')}</Text>
+                  <>
+                    <Text style={S.actionInstruction}>🎯 {t('identity.zwFolgeHinweis')}</Text>
+                    {/* Jeder Vergleichsdienst verlangt je Gesicht ein Blinzeln
+                        und einen messbaren Puls (Vergleichsdienst 69aff98). */}
+                    <Text style={S.overlayHint}>👁 {t('identity.zwBlinzeln')}</Text>
+                  </>
                 ) : (
                   <>
                     <ActivityIndicator color={theme.purple} style={S.spinnerGap} />
@@ -2152,6 +2158,8 @@ export default function BiometricCapture() {
                     instruction at a time, advancing as each one finishes
                     speaking -- see burstStageText's own comment. */}
                 <Text style={S.actionInstruction}>🎯 {burstStageText}</Text>
+                {/* Waehrend der ganzen gemeinsamen Aufnahme: blinzeln. */}
+                {step === 'zwilling_burst' ? <Text style={S.overlayHintSecondary}>👁 {t('identity.zwBlinzeln')}</Text> : null}
                 {countdown !== null ? (
                   <>
                     <Text style={S.countdown}>{countdown}</Text>
@@ -2343,12 +2351,13 @@ export default function BiometricCapture() {
             })()}
             {/* Zwillinge: jede Anfrage gilt fuer genau einen Versuch -- ein
                 neuer braucht einen neuen Code und eine neue Bestaetigung. */}
-            {zwilling && !registriert && !kettenFertig && !offen ? (
+            {zwilling && !registriert && !kettenFertig && !offen && !zwillingWegAbgeschaltet() ? (
               <GradientButton label={t('identity.zwNeuerCode')} onPress={() => router.replace('/zwilling')} />
             ) : null}
             {/* Eineiige Zwillinge treffen sich im Abgleich gegenseitig. Ein
                 ruhiges Angebot neben dem Widerspruch, kein Ersatz dafuer. */}
-            {!zwilling && !nachziehen && !ohneZuschuss && !submitError && !registriert && result?.decision === 'duplicate_detected' ? (
+            {!zwilling && !nachziehen && !ohneZuschuss && !submitError && !registriert && result?.decision === 'duplicate_detected'
+              && !zwillingWegAbgeschaltet() ? (
               <View style={S.widerspruchBox}>
                 <Text style={S.title}>{t('identity.zwAngebotTitel')}</Text>
                 <Text style={S.body}>{t('identity.zwAngebotText')}</Text>

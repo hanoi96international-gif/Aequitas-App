@@ -1289,6 +1289,34 @@ export function _vergissZwillingKnotenFuerTest(): void {
   zwillingKnoten = [];
 }
 
+// Der Zwillingsweg ist beim Coordinator abgeschaltet (ZWILLINGE_AKTIV, bis
+// zum Feldtest). Gemerkt, sobald irgendeine Antwort das sagt -- ohne eigene
+// Statusabfrage. Dann bietet die App den Weg nicht mehr an; der Widerspruch
+// bleibt. Nur im Speicher: nach einem Neustart wird beim naechsten Versuch
+// wieder gefragt (und wieder abgewiesen).
+let zwillingNichtAktiv = false;
+
+/** Hat ein Coordinator in dieser Sitzung "zwilling_nicht_aktiv" gemeldet? */
+export function zwillingWegAbgeschaltet(): boolean {
+  return zwillingNichtAktiv;
+}
+
+function merkeZwillingStatus(status: unknown): void {
+  if (status === 'zwilling_nicht_aktiv') zwillingNichtAktiv = true;
+}
+
+/** Tests only. */
+export function _setZwillingNichtAktivFuerTest(wert: boolean): void {
+  zwillingNichtAktiv = wert;
+}
+
+export class ZwillingNichtAktiv extends Error {
+  constructor() {
+    super('zwilling_anfrage: zwilling_nicht_aktiv');
+    this.name = 'ZwillingNichtAktiv';
+  }
+}
+
 export class ZwillingAnfrageUnbekannt extends Error {
   constructor() {
     super('zwilling: Anfrage ist dieser App unbekannt');
@@ -1324,6 +1352,10 @@ export async function zwillingAnfrageAnlegen(walletB: string, gesichter: number)
     body: JSON.stringify({ wallet: w, gesichter }),
   });
   if (!ok) {
+    if (body?.detail === 'zwilling_nicht_aktiv') {
+      merkeZwillingStatus('zwilling_nicht_aktiv');
+      throw new ZwillingNichtAktiv();
+    }
     const grund = typeof body?.detail === 'string' ? body.detail.slice(0, 60) : `HTTP ${status}`;
     throw new Error(`zwilling_anfrage: ${grund}`);
   }
@@ -1347,7 +1379,9 @@ export async function zwillingStart(anfrage: string): Promise<StartAntwort | nul
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ anfrage }),
   });
-  return ok ? startAntwortLesen(body) : null;
+  const a = ok ? startAntwortLesen(body) : null;
+  merkeZwillingStatus(a?.status);
+  return a;
 }
 
 /** Die Challenge der gemeinsamen Aufnahme (/zwilling/challenge): wer sich wohin dreht (alle anderen halten still) und die
@@ -1363,6 +1397,7 @@ export async function zwillingChallenge(anfrage: string): Promise<ChallengeAntwo
     body: JSON.stringify({ anfrage }),
   });
   const a = ok ? challengeAntwortLesen(body) : null;
+  merkeZwillingStatus(a?.status);
   if (a?.status === 'bereit') {
     const k = zwillingKnoten.find((e) => e.anfrage === anfrage);
     // Eine Aufgabe fuer eine andere Zahl von Menschen als angefragt passt
@@ -1396,6 +1431,7 @@ export async function zwillingZustimmen(
     body: JSON.stringify({ anfrage: qr.anfrage, wallet: a, signatur, einwilligung: CONSENT_VERSION }),
   });
   if (!ok) throw new Error(`Coordinator request failed (HTTP ${status})`);
+  merkeZwillingStatus(body?.status);
   return { status: typeof body?.status === 'string' ? body.status : 'unbekannt' };
 }
 
@@ -1479,6 +1515,7 @@ export async function zwillingRegister(
     }
     const ergebnis: BiometricRegisterResult = await resp.json();
     if (!ergebnis || typeof ergebnis.decision !== 'string') throw new Error('Coordinator answer without decision');
+    merkeZwillingStatus(ergebnis.decision);
     merkeAbweisung(ergebnis.widerspruch_kennung, base);
     return ergebnis;
   } finally {

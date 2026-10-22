@@ -8,7 +8,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
-import { storedBioHash, deleteEnrollment, nachgezogenAt } from '@/lib/biometricIdentity';
+import { storedBioHash, deleteEnrollment, nachgezogenAt, zwillingWegAbgeschaltet } from '@/lib/biometricIdentity';
 import { staffelErneuerungAb } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
 import { LebensnachweisKarte } from '@/components/Lebensnachweis';
@@ -405,7 +405,7 @@ export default function Identity() {
 
         {/* Eineiige Zwillinge: der schon registrierte Zwilling bestaetigt den
             anderen (app/zwilling-bestaetigen.tsx, lib/zwilling.ts). */}
-        {BIOMETRIC_ENABLED && status === 'already_registered' && (
+        {BIOMETRIC_ENABLED && status === 'already_registered' && !zwillingWegAbgeschaltet() && (
           <View style={S.nachziehCard}>
             <Text style={S.nachziehTitle}>{t('identity.zwBestaetigenTitel')}</Text>
             <Text style={S.deleteBody}>{t('identity.zwKarteText')}</Text>

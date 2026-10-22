@@ -502,6 +502,11 @@ export interface Translations {
     zwSeiteRechts: string;
     zwAlleStill: string;
     zwGedrehtHalten: string;
+    // Zweite Nachpruefung 22.10.2026: Blinzeln je Gesicht, Schalter, Attestierung.
+    zwBlinzeln: string;
+    zwNichtAktiv: string;
+    zwErgebnisAttestierung: string;
+    zwErgebnisDerzeitNicht: string;
     zwGuideUeberlappen: string;
     zwErgebnisGruppeUnvollstaendig: string;
     lnEinwilligungErneut: string;
