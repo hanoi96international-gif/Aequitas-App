@@ -295,7 +295,8 @@ export function challengeAntwortLesen(roh: unknown): ChallengeAntwort | null {
 // aufeinanderfolgende Abschnitte -- einen je Schritt, in der Reihenfolge der
 // Folge. Etwa 2 s je Schritt plus 1 s Vorlauf (verteilt auf alle
 // Abschnitte): genug, um zu hoeren, wer dran ist, sich zu drehen und die
-// Drehung bis zum Ende des Abschnitts zu halten.
+// Drehung zu halten -- und danach bleibt die Person gedreht, bis die Aufnahme
+// endet (siehe ovalZustaende).
 // ---------------------------------------------------------------------------
 
 export const ZWILLING_SCHRITT_MS = 2000;
@@ -483,3 +484,34 @@ export function zwillingAblauf(a: ZwillingAufgabe): { dauerMs: number; ereigniss
     ereignisse: zwillingPlanEreignisse(plan).map((e) => ({ ...e, ...vorschau[e.schritt] })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Was jedes Oval waehrend der Folge zeigt
+//
+// Nach dem eigenen Schritt bleibt eine Person GEDREHT stehen, bis die
+// Aufnahme endet (Vergleichsdienst 7d95e93): der Dienst nimmt die Ruhelage
+// jedes Gesichts am Beginn jedes Abschnitts -- wer zur Mitte zurueckkehrt,
+// bewegt sich im Abschnitt des Naechsten und wird als nicht_still
+// abgewiesen. Darum gibt es nur diese drei Zustaende, und ein Oval geht nie
+// von "gedreht" zurueck zu "wartet".
+// ---------------------------------------------------------------------------
+
+export type OvalZustand =
+  | { zustand: 'dran'; seite: Seite } // dreht jetzt (Pfeil)
+  | { zustand: 'gedreht'; seite: Seite } // war dran: gedreht halten
+  | { zustand: 'wartet'; seite: null }; // noch nicht dran: geradeaus, still
+
+/** Je Oval der Vorschau (0 = links) sein Zustand, wenn Schritt `aktiv` der
+ *  Folge laeuft (null: noch keiner). */
+export function ovalZustaende(a: ZwillingAufgabe, aktiv: number | null): OvalZustand[] {
+  const out: OvalZustand[] = Array.from({ length: a.gesichter }, () => ({ zustand: 'wartet', seite: null }));
+  if (aktiv === null) return out;
+  folgeInVorschau(a).forEach((v, i) => {
+    if (i < aktiv) out[v.oval] = { zustand: 'gedreht', seite: v.seite };
+    else if (i === aktiv) out[v.oval] = { zustand: 'dran', seite: v.seite };
+  });
+  return out;
+}
+
+/** Der Text unter einem Oval (lib/i18n, identity) -- 'dran' zeigt den Pfeil. */
+export const OVAL_TEXT = { gedreht: 'zwGedrehtHalten', wartet: 'zwAlleStill' } as const;

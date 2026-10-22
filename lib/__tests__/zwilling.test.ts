@@ -804,3 +804,109 @@ describe('Anzeige: keine Einzelgruende der Dienste, Einwilligung beim Lebensnach
     expect(src).toMatch(/lnResult\?\.status === 'consent_outdated'[\s\S]{0,400}identity\.lnEinwilligungErneut[\s\S]{0,300}setStep\('consent'\)/);
   });
 });
+
+// Pruefung gegen den Vergleichsdienst (7d95e93): nach dem eigenen Schritt
+// bleibt man GEDREHT, bis die Aufnahme endet. Wer zur Mitte zurueckkehrt,
+// bewegt sich im Abschnitt des Naechsten (nicht_still).
+describe('Nach dem eigenen Schritt gedreht bleiben', () => {
+  const { RESOURCES, LOCALES } = jest.requireActual('../i18n');
+
+  it.each([2, 3, 4])('%i Personen: kein Oval geht von "gedreht" zurueck zu "wartet"; jeder ist genau einmal dran', (n) => {
+    for (const folge of alleFolgen(n).slice(0, 60)) {
+      const a = { gesichter: n, folge };
+      let vorher = zw.ovalZustaende(a, null);
+      expect(vorher.every((z: any) => z.zustand === 'wartet')).toBe(true);
+      const dran = new Set<number>();
+      for (let s = 0; s < n; s++) {
+        const jetzt = zw.ovalZustaende(a, s);
+        expect(jetzt.filter((z: any) => z.zustand === 'dran')).toHaveLength(1);
+        jetzt.forEach((z: any, oval: number) => {
+          if (z.zustand === 'dran') dran.add(oval);
+          if (vorher[oval].zustand !== 'wartet') expect(z.zustand).toBe('gedreht');
+          // Wer gedreht ist, behaelt seine Seite.
+          if (vorher[oval].zustand !== 'wartet') expect(z.seite).toBe(vorher[oval].seite);
+        });
+        expect(jetzt.filter((z: any) => z.zustand === 'gedreht')).toHaveLength(s);
+        vorher = jetzt;
+      }
+      expect(dran.size).toBe(n);
+    }
+  });
+
+  it('jeder Zustand ausser "dran" hat einen eigenen Text, in jeder Sprache', () => {
+    expect(zw.OVAL_TEXT).toEqual({ gedreht: 'zwGedrehtHalten', wartet: 'zwAlleStill' });
+    for (const l of LOCALES) {
+      expect(RESOURCES[l].identity.zwGedrehtHalten).toBeTruthy();
+      expect(RESOURCES[l].identity.zwGedrehtHalten).not.toBe(RESOURCES[l].identity.zwAlleStill);
+    }
+  });
+
+  // Die bisherigen Texte sagten "danach wieder geradeaus" -- sie stehen hier
+  // woertlich, damit keine Sprache sie behaelt. Kein Suchen nach Woertern.
+  const ALT: Record<string, { zwFolgeHinweis: string; zwSchritt: string }> = {
+  "de": {
+    "zwFolgeHinweis": "Jede Person dreht den Kopf einmal allein, der Reihe nach – die App zeigt und sagt an, wer dran ist. Haltet die Drehung, bis der Nächste dran ist, dann wieder geradeaus. Alle anderen halten still.",
+    "zwSchritt": "Jetzt nur Oval {nr} (von links): Kopf nach {seite} drehen und halten. Alle anderen still."
+  },
+  "en": {
+    "zwFolgeHinweis": "Each person turns their head once, alone, one after another – the app shows and says whose turn it is. Hold the turn until the next person’s turn, then look straight again. Everyone else holds still.",
+    "zwSchritt": "Now only oval {nr} (from the left): turn your head to the {seite} and hold. Everyone else still."
+  },
+  "es": {
+    "zwFolgeHinweis": "Cada persona gira la cabeza una vez, sola, por turnos: la app muestra y anuncia a quién le toca. Mantened el giro hasta que le toque al siguiente y luego volved a mirar de frente. Todos los demás se quedan quietos.",
+    "zwSchritt": "Ahora solo el óvalo {nr} (desde la izquierda): gira la cabeza hacia la {seite} y mantenla. Todos los demás quietos."
+  },
+  "fr": {
+    "zwFolgeHinweis": "Chaque personne tourne la tête une fois, seule, à tour de rôle – l’app affiche et annonce qui doit le faire. Gardez la tête tournée jusqu’au tour suivant, puis regardez de nouveau droit devant. Tous les autres restent immobiles.",
+    "zwSchritt": "Maintenant seulement l’ovale {nr} (en partant de la gauche) : tourne la tête vers la {seite} et garde la position. Tous les autres immobiles."
+  },
+  "pt": {
+    "zwFolgeHinweis": "Cada pessoa roda a cabeça uma vez, sozinha, à vez – a app mostra e anuncia a quem cabe. Mantenham a rotação até à vez do seguinte e depois voltem a olhar de frente. Todos os outros ficam quietos.",
+    "zwSchritt": "Agora só a oval {nr} (a contar da esquerda): roda a cabeça para a {seite} e mantém. Todos os outros quietos."
+  },
+  "it": {
+    "zwFolgeHinweis": "Ogni persona gira la testa una volta, da sola, a turno: l’app mostra e annuncia a chi tocca. Tenete la testa girata finché non tocca al successivo, poi tornate a guardare dritto. Tutti gli altri restano fermi.",
+    "zwSchritt": "Ora solo l’ovale {nr} (da sinistra): gira la testa verso {seite} e tienila. Tutti gli altri fermi."
+  },
+  "ru": {
+    "zwFolgeHinweis": "Каждый поворачивает голову один раз, по очереди и в одиночку – приложение показывает и объявляет, чья очередь. Держите поворот до очереди следующего, затем снова смотрите прямо. Все остальные стоят неподвижно.",
+    "zwSchritt": "Сейчас только овал {nr} (слева): поверни голову {seite} и держи. Все остальные неподвижно."
+  },
+  "tr": {
+    "zwFolgeHinweis": "Herkes sırayla, tek başına bir kez başını çevirir – uygulama sıranın kimde olduğunu gösterir ve söyler. Sıradaki kişiye geçilene kadar dönüşü tutun, sonra yeniden düz bakın. Diğer herkes kıpırdamaz.",
+    "zwSchritt": "Şimdi yalnızca soldan {nr}. oval: başını {seite} çevir ve tut. Diğer herkes kıpırdamasın."
+  },
+  "id": {
+    "zwFolgeHinweis": "Setiap orang memutar kepala sekali, sendiri, bergiliran – aplikasi menunjukkan dan menyebutkan siapa yang mendapat giliran. Tahan putarannya sampai giliran orang berikutnya, lalu lihat lurus lagi. Semua yang lain tetap diam.",
+    "zwSchritt": "Sekarang hanya oval {nr} (dari kiri): putar kepala ke {seite} dan tahan. Semua yang lain diam."
+  },
+  "hi": {
+    "zwFolgeHinweis": "हर व्यक्ति बारी-बारी से, अकेले, एक बार अपना सिर घुमाता है – ऐप दिखाता और बताता है कि किसकी बारी है। अगले की बारी आने तक घुमाव बनाए रखें, फिर दोबारा सीधे देखें। बाकी सभी स्थिर रहें।",
+    "zwSchritt": "अब केवल अंडाकार {nr} (बाएँ से): सिर {seite} घुमाएँ और रोके रखें। बाकी सभी स्थिर।"
+  },
+  "zh": {
+    "zwFolgeHinweis": "每人依次单独转一次头——应用会显示并播报轮到谁。保持转头直到轮到下一个人，然后重新直视前方。其他人保持不动。",
+    "zwSchritt": "现在只有椭圆框 {nr}（从左数）：把头转向{seite}并保持。其他人保持不动。"
+  },
+  "ar": {
+    "zwFolgeHinweis": "يدير كل شخص رأسه مرة واحدة، وحده، بالتناوب – يعرض التطبيق ويعلن من عليه الدور. حافظوا على الالتفاتة حتى يأتي دور التالي، ثم انظروا إلى الأمام مجدداً. يبقى جميع الآخرين ثابتين.",
+    "zwSchritt": "الآن الشكل البيضاوي {nr} فقط (من اليسار): أدر رأسك إلى {seite} وحافظ عليه. يبقى الآخرون ثابتين."
+  }
+};
+
+  it('kein Text sagt mehr, nach dem eigenen Schritt zurueck oder wieder geradeaus zu schauen', () => {
+    for (const l of LOCALES) {
+      const id = RESOURCES[l].identity;
+      expect(id.zwFolgeHinweis).not.toBe(ALT[l].zwFolgeHinweis);
+      expect(id.zwSchritt).not.toBe(ALT[l].zwSchritt);
+      // Auch kein Text der Folge in einem anderen Schluessel.
+      for (const v of Object.values(id)) {
+        expect(v).not.toBe(ALT[l].zwFolgeHinweis);
+        expect(v).not.toBe(ALT[l].zwSchritt);
+      }
+      // Die Ansage der Einzelaufgabe ("schaut alle geradeaus") gibt es nicht mehr.
+      expect(id.zwBeideGeradeaus).toBeUndefined();
+      expect(id.zwAufgabe).toBeUndefined();
+    }
+  });
+});

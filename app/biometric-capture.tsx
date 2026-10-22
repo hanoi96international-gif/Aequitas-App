@@ -62,6 +62,9 @@ import { lebensnachweisMeldung } from '@/lib/lebensnachweis';
 import { AufnahmeDateien } from '@/lib/aufnahmeDateien';
 import {
   zwillingAblauf,
+  ovalZustaende,
+  OVAL_TEXT,
+  type OvalZustand,
   gruppenBildStatus,
   istAnfrage,
   zwillingRegisterMeldungKey,
@@ -489,7 +492,7 @@ function ZwillingGuide({
   overlayHeight,
   aktiv,
   gesichter,
-  markiert,
+  zustaende,
 }: {
   status: GruppenBild | null;
   checking: boolean;
@@ -498,8 +501,9 @@ function ZwillingGuide({
   aktiv: boolean;
   /** Wie viele Ovale (alle Registrierten + B, 2..4). */
   gesichter: number;
-  /** Das Oval der Person, die sich dreht (Vorschau, 0 = links), und wohin. */
-  markiert: { oval: number; seite: 'links' | 'rechts' } | null;
+  /** Je Oval (Vorschau, 0 = links): dran (Pfeil), gedreht halten, still
+   *  halten -- null vor der Aufnahme (lib/zwilling.ts, ovalZustaende). */
+  zustaende: OvalZustand[] | null;
 }) {
   const { t } = useLanguage();
   const { width: windowWidth } = useWindowDimensions();
@@ -516,7 +520,8 @@ function ZwillingGuide({
     <View style={[S.guideWrap, { bottom: overlayHeight }]} pointerEvents="box-none">
       <View style={[S.guideOvalCenterer, S.zwOvale]} pointerEvents="none">
         {Array.from({ length: n }, (_, i) => {
-          const dreht = markiert?.oval === i;
+          const z = zustaende?.[i] ?? null;
+          const dreht = z?.zustand === 'dran';
           return (
             <View key={i} style={S.zwOvalSpalte}>
               <View
@@ -527,11 +532,11 @@ function ZwillingGuide({
                   { width: ovalWidth, height: ovalHeight, borderRadius: ovalHeight / 2 },
                 ]}
               />
-              {markiert ? (
-                dreht ? (
-                  <Text style={S.zwPfeil}>{markiert.seite === 'links' ? '⬅' : '➡'}</Text>
+              {z ? (
+                z.zustand === 'dran' ? (
+                  <Text style={S.zwPfeil}>{z.seite === 'links' ? '⬅' : '➡'}</Text>
                 ) : (
-                  <Text style={S.zwStill}>{t('identity.zwAlleStill')}</Text>
+                  <Text style={S.zwStill}>{t(`identity.${OVAL_TEXT[z.zustand]}`)}</Text>
                 )
               ) : null}
             </View>
@@ -2070,7 +2075,7 @@ export default function BiometricCapture() {
                   overlayHeight={faceOverlayHeight}
                   aktiv={step === 'zwilling_intro'}
                   gesichter={zwGesichter}
-                  markiert={zwChallenge && zwSchrittAktiv !== null ? zwillingAblauf(zwChallenge).ereignisse.find((e) => e.schritt === zwSchrittAktiv && e.ansage) ?? null : null}
+                  zustaende={zwChallenge && zwSchrittAktiv !== null ? ovalZustaende(zwChallenge, zwSchrittAktiv) : null}
                 />
               ) : (
                 <FaceGuide

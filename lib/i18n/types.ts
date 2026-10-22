@@ -501,6 +501,7 @@ export interface Translations {
     zwSeiteLinks: string;
     zwSeiteRechts: string;
     zwAlleStill: string;
+    zwGedrehtHalten: string;
     zwGuideUeberlappen: string;
     zwErgebnisGruppeUnvollstaendig: string;
     lnEinwilligungErneut: string;
