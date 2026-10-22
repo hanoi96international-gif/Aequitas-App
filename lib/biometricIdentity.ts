@@ -34,7 +34,7 @@ import {
   type StartAntwort,
   type ZwillingQr,
   istGesichterZahl,
-  type Seite,
+  type ZwillingSchritt,
 } from './zwilling';
 
 // ---------------------------------------------------------------------------
@@ -1263,8 +1263,7 @@ let zwillingKnoten: {
   // Wie viele Menschen im gemeinsamen Bild stehen (alle Registrierten + B).
   gesichter: number;
   // Aus /zwilling/challenge, unmittelbar vor der gemeinsamen Aufnahme.
-  position?: number;
-  richtung?: Seite;
+  folge?: ZwillingSchritt[];
   farbfolge?: Farbe[];
 }[] = [];
 
@@ -1273,10 +1272,10 @@ export function zwillingBasis(anfrage: string): string | null {
   return zwillingKnoten.find((k) => k.anfrage === anfrage)?.base ?? null;
 }
 
-/** Die Richtung, die /zwilling/challenge fuer diese Anfrage genannt hat --
+/** Die Folge, die /zwilling/challenge fuer diese Anfrage genannt hat --
  *  aus dem Speicher dieser App, nie aus /zwilling/start oder einem Link. */
-export function zwillingRichtung(anfrage: string): Seite | null {
-  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.richtung ?? null;
+export function zwillingFolge(anfrage: string): ZwillingSchritt[] | null {
+  return zwillingKnoten.find((k) => k.anfrage === anfrage)?.folge ?? null;
 }
 
 /** Wie viele Gesichter im gemeinsamen Bild stehen sollen -- wie bei der
@@ -1369,8 +1368,7 @@ export async function zwillingChallenge(anfrage: string): Promise<ChallengeAntwo
     // Eine Aufgabe fuer eine andere Zahl von Menschen als angefragt passt
     // nicht zu diesem Bild -- nicht verwenden.
     if (!k || k.gesichter !== a.gesichter) return null;
-    k.position = a.position;
-    k.richtung = a.richtung;
+    k.folge = a.folge;
     k.farbfolge = a.farbfolge;
   }
   return a;

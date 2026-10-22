@@ -61,7 +61,7 @@ import { withTimeout } from '@/lib/signer';
 import { lebensnachweisMeldung } from '@/lib/lebensnachweis';
 import { AufnahmeDateien } from '@/lib/aufnahmeDateien';
 import {
-  aufgabeInVorschau,
+  zwillingAblauf,
   gruppenBildStatus,
   istAnfrage,
   zwillingRegisterMeldungKey,
@@ -550,11 +550,11 @@ function ZwillingGuide({
   );
 }
 
-/** Die Aufgabe als Satz -- aus Sicht der Menschen in der (gespiegelten)
- *  Vorschau (lib/zwilling.ts, aufgabeInVorschau). */
-function aufgabeText(a: ZwillingAufgabe, t: TFunc): string {
-  const v = aufgabeInVorschau(a);
-  return t('identity.zwAufgabe', {
+/** Ein Schritt der Folge als Satz (lang: angezeigt, kurz: angesagt) -- aus
+ *  Sicht der Menschen in der (gespiegelten) Vorschau (lib/zwilling.ts,
+ *  schrittInVorschau). */
+function schrittText(v: { oval: number; seite: 'links' | 'rechts' }, t: TFunc, kurz = false): string {
+  return t(kurz ? 'identity.zwSchrittKurz' : 'identity.zwSchritt', {
     nr: String(v.oval + 1),
     seite: v.seite === 'links' ? t('identity.zwSeiteLinks') : t('identity.zwSeiteRechts'),
   });
@@ -1079,6 +1079,8 @@ export default function BiometricCapture() {
     dateien.current.alleVerwerfen().catch(() => undefined);
   }, []);
   const [zwStatus, setZwStatus] = useState<GruppenBild | null>(null);
+  // Welcher Schritt der Folge gerade laeuft (waehrend der gemeinsamen Aufnahme).
+  const [zwSchrittAktiv, setZwSchrittAktiv] = useState<number | null>(null);
   const [zwPrueft, setZwPrueft] = useState(false);
   const [lnSendet, setLnSendet] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -1543,7 +1545,7 @@ export default function BiometricCapture() {
     }
     if (a?.status === 'bereit') {
       setZwChallenge({
-        gesichter: a.gesichter, position: a.position, richtung: a.richtung,
+        gesichter: a.gesichter, folge: a.folge,
         farbfolge: a.farbfolge, bis: Date.now() + a.gueltig_sekunden * 1000,
       });
       return;
@@ -1613,26 +1615,23 @@ export default function BiometricCapture() {
     }
     setStep('zwilling_burst');
     burstChainCancelledRef.current = false;
-    const anweisung = aufgabeText(ch, t);
+    // Die Folge: jede Person dreht einmal allein, in Abschnitten, wie der
+    // Vergleichsdienst sie schneidet (lib/zwilling.ts, zwillingAblauf).
+    const ablauf = zwillingAblauf(ch);
     const nachZeit = (ms: number, fn: () => void) => {
       countdownTimersRef.current.push(setTimeout(() => { if (!burstChainCancelledRef.current) fn(); }, ms));
     };
-    const sag = (text: string) => {
-      if (burstChainCancelledRef.current) return;
-      setBurstStageText(text);
-      speakRaw(text);
-    };
     Speech.stop();
     try {
-      // Feste Dauer wie die eigene Aufnahme (BURST_DURATION_S), damit die
-      // Farbfolge -- gleich lange, lueckenlose Abschnitte ueber die ganze
-      // Aufnahme, wie flash_liveness.py sie prueft -- genauso laeuft wie dort.
+      // Feste Dauer: n * 2 s + 1 s. Die Farbfolge laeuft in gleich langen,
+      // lueckenlosen Abschnitten ueber die ganze Aufnahme, wie
+      // flash_liveness.py sie prueft -- wie bei der eigenen Aufnahme.
       const recorder = await faceVideoOutput.createRecorder({ maxDuration: BURST_MAX_DURATION_S });
       activeRecorderRef.current = recorder;
       const videoPath = await withTimeout(
         new Promise<string>((resolve, reject) => {
           recorder.startRecording((filePath) => resolve(filePath), (error) => reject(error));
-          const dauerMs = BURST_DURATION_S * 1000;
+          const dauerMs = ablauf.dauerMs;
           const farben = ch.farbfolge;
           clearFlashTimers();
           if (farben.length > 0) {
@@ -1643,13 +1642,21 @@ export default function BiometricCapture() {
             );
             flashTimersRef.current.push(setTimeout(() => setFlashColor(null), Math.round(dauerMs)));
           }
-          sag(t('identity.zwBeideGeradeaus'));
-          const vorDrehung = dauerMs - DIRECTION_WINDOW_MS;
-          nachZeit(vorDrehung, () => sag(anweisung));
-          for (let i = 0; i <= DIRECTION_WINDOW_MS / 1000; i++) {
-            nachZeit(vorDrehung + i * 1000, () => setCountdown(Math.round(DIRECTION_WINDOW_MS / 1000) - i));
+          // Je Abschnitt: wer dran ist (Oval hervorgehoben, Ansage), dann
+          // der Countdown bis zum Ende des Abschnitts.
+          for (const e of ablauf.ereignisse) {
+            nachZeit(e.atMs, () => {
+              setCountdown(e.rest);
+              if (e.ansage) {
+                setZwSchrittAktiv(e.schritt);
+                setBurstStageText(schrittText(e, t));
+                Speech.stop();
+                speakRaw(schrittText(e, t, true));
+              }
+            });
           }
           nachZeit(dauerMs, () => {
+            setZwSchrittAktiv(null);
             try {
               activeRecorderRef.current?.stopRecording();
             } catch (e) {
@@ -1678,6 +1685,7 @@ export default function BiometricCapture() {
     } catch (e) {
       console.error('[biometric-capture] twin video capture failed', e);
       burstChainCancelledRef.current = true;
+      setZwSchrittAktiv(null);
       clearFlashTimers();
       clearCountdown();
       setSubmitError(t('identity.biometricResultFailed'));
@@ -2062,7 +2070,7 @@ export default function BiometricCapture() {
                   overlayHeight={faceOverlayHeight}
                   aktiv={step === 'zwilling_intro'}
                   gesichter={zwGesichter}
-                  markiert={zwChallenge ? aufgabeInVorschau(zwChallenge) : null}
+                  markiert={zwChallenge && zwSchrittAktiv !== null ? zwillingAblauf(zwChallenge).ereignisse.find((e) => e.schritt === zwSchrittAktiv && e.ansage) ?? null : null}
                 />
               ) : (
                 <FaceGuide
@@ -2114,7 +2122,7 @@ export default function BiometricCapture() {
                 <Text style={S.overlayTitle}>{t('identity.zwGemeinsamTitel')}</Text>
                 <Text style={S.overlayHint}>{t('identity.zwGemeinsamHinweis')}</Text>
                 {zwChallenge ? (
-                  <Text style={S.actionInstruction}>🎯 {aufgabeText(zwChallenge, t)}</Text>
+                  <Text style={S.actionInstruction}>🎯 {t('identity.zwFolgeHinweis')}</Text>
                 ) : (
                   <>
                     <ActivityIndicator color={theme.purple} style={S.spinnerGap} />

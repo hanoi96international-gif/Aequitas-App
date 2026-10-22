@@ -459,7 +459,6 @@ export interface Translations {
     zwGemeinsamTitel: string;
     zwGemeinsamHinweis: string;
     zwGemeinsamStart: string;
-    zwBeideGeradeaus: string;
     zwGuideIdle: string;
     zwGuideOk: string;
     zwGuideZuViele: string;
@@ -496,7 +495,9 @@ export interface Translations {
     zwAnzahlImBild: string;
     zwGesichterUngueltig: string;
     zwAlleImBild: string;
-    zwAufgabe: string;
+    zwFolgeHinweis: string;
+    zwSchritt: string;
+    zwSchrittKurz: string;
     zwSeiteLinks: string;
     zwSeiteRechts: string;
     zwAlleStill: string;

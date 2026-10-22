@@ -156,64 +156,126 @@ describe('Alle Mitglieder im Bild: Zahl der Gesichter', () => {
   });
 });
 
-describe('Ungleiche Aufgabe -> Anweisung in der Vorschau', () => {
-  const seiten = ['links', 'rechts'] as const;
-
-  it.each([2, 3, 4])('%i Personen: jede Position und Seite ergibt genau ein Oval und eine Seite, immer gleich', (n) => {
-    const gesehen = new Set<string>();
-    for (let position = 0; position < n; position++) {
-      for (const richtung of seiten) {
-        const a = { gesichter: n, position, richtung };
-        const v = zw.aufgabeInVorschau(a);
-        expect(v).toEqual(zw.aufgabeInVorschau(a)); // deterministisch
-        expect(v.oval).toBeGreaterThanOrEqual(0);
-        expect(v.oval).toBeLessThan(n);
-        gesehen.add(`${v.oval}:${v.seite}`);
-      }
+// Alle Folgen (Permutation der Positionen x Seiten) fuer n Personen.
+function alleFolgen(n: number): { position: number; richtung: 'links' | 'rechts' }[][] {
+  const perms = (xs: number[]): number[][] =>
+    xs.length <= 1 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((r) => [x, ...r]));
+  const out: { position: number; richtung: 'links' | 'rechts' }[][] = [];
+  for (const p of perms(Array.from({ length: n }, (_, i) => i))) {
+    for (let m = 0; m < 2 ** n; m++) {
+      out.push(p.map((position, i) => ({ position, richtung: (m >> i) & 1 ? 'rechts' : 'links' })));
     }
-    // Eins zu eins: jede Aufgabe eine andere Anweisung.
-    expect(gesehen.size).toBe(2 * n);
-  });
+  }
+  return out;
+}
 
-  it.each([2, 3, 4])('%i Personen: wer der Anweisung folgt, besteht -- ob die Kamera gespiegelt speichert oder nicht', (n) => {
-    for (let position = 0; position < n; position++) {
-      for (const richtung of seiten) {
-        const a = { gesichter: n, position, richtung };
-        const v = zw.aufgabeInVorschau(a);
-        // In der gespiegelten Vorschau sehen sich die Menschen wie im
-        // Spiegel: Oval v.oval von links ist die Person an Stelle v.oval von
-        // ihrer eigenen linken Seite; sie dreht nach ihrer eigenen v.seite.
-        for (const gespiegelt of [false, true]) {
-          const bild = zw.gespeichertesBild(n, v.oval, v.seite, gespiegelt);
-          expect(zw.aufgabeAkzeptiert(a, bild)).toBe(true);
-        }
-        // Ungespiegelt gespeichert trifft es die Aufgabe genau, nicht nur die
-        // gespiegelte Lesart.
-        expect(zw.gespeichertesBild(n, v.oval, v.seite, false)).toEqual({ position, richtung });
-      }
+describe('Folge -> Anweisung in der Vorschau', () => {
+  it.each([2, 3, 4])('%i Personen: jeder Schritt jeder Folge, deterministisch, jedes Oval genau einmal', (n) => {
+    for (const folge of alleFolgen(n)) {
+      const a = { gesichter: n, folge };
+      const v = zw.folgeInVorschau(a);
+      expect(v).toEqual(zw.folgeInVorschau(a));
+      expect(v).toHaveLength(n);
+      expect(new Set(v.map((x: any) => x.oval)).size).toBe(n);
+      v.forEach((x: any, i: number) => expect(x).toEqual(zw.schrittInVorschau(n, folge[i])));
     }
   });
 
-  it('Missbrauch: eine andere Person oder die andere Seite besteht nicht', () => {
-    const a = { gesichter: 3, position: 0, richtung: 'links' as const };
-    expect(zw.aufgabeAkzeptiert(a, { position: 1, richtung: 'links' })).toBe(false);
-    expect(zw.aufgabeAkzeptiert(a, { position: 0, richtung: 'rechts' })).toBe(false);
-    expect(zw.aufgabeAkzeptiert(a, { position: 2, richtung: 'links' })).toBe(false);
-    // Die gespiegelte Lesart schon (Position n-1-k, Seite getauscht).
-    expect(zw.aufgabeAkzeptiert(a, { position: 2, richtung: 'rechts' })).toBe(true);
+  it.each([2, 3, 4])('%i Personen: wer jeder Ansage folgt, besteht -- gespiegelt gespeichert oder nicht', (n) => {
+    for (const folge of alleFolgen(n)) {
+      const a = { gesichter: n, folge };
+      // In der gespiegelten Vorschau sehen sich die Menschen wie im Spiegel:
+      // Oval k von links ist die Person an Stelle k von ihrer eigenen linken
+      // Seite; sie dreht nach ihrer eigenen angesagten Seite.
+      const bewegungen = zw.folgeInVorschau(a);
+      for (const gespiegelt of [false, true]) {
+        const bild = bewegungen.map((v: any) => zw.gespeichertesBild(n, v.oval, v.seite, gespiegelt));
+        expect(zw.folgeAkzeptiert(a, bild)).toBe(true);
+      }
+      // Ungespiegelt trifft es die Folge genau.
+      expect(bewegungen.map((v: any) => zw.gespeichertesBild(n, v.oval, v.seite, false))).toEqual(folge);
+    }
   });
 
-  it('Beispiel: zwei Personen, Position 0 (links im gespeicherten Bild), Richtung links', () => {
+  it('Missbrauch: falsche Reihenfolge, falsche Seite oder halb gespiegelt besteht nicht', () => {
+    const a = { gesichter: 3, folge: [{ position: 0, richtung: 'links' as const }, { position: 2, richtung: 'rechts' as const }, { position: 1, richtung: 'links' as const }] };
+    expect(zw.folgeAkzeptiert(a, a.folge)).toBe(true);
+    expect(zw.folgeAkzeptiert(a, [a.folge[1], a.folge[0], a.folge[2]])).toBe(false);
+    expect(zw.folgeAkzeptiert(a, [{ position: 0, richtung: 'rechts' }, a.folge[1], a.folge[2]])).toBe(false);
+    const gespiegelt = [{ position: 2, richtung: 'rechts' }, { position: 0, richtung: 'links' }, { position: 1, richtung: 'rechts' }];
+    expect(zw.folgeAkzeptiert(a, gespiegelt)).toBe(true);
+    // Nur der erste Schritt gespiegelt: kein Mischen.
+    expect(zw.folgeAkzeptiert(a, [gespiegelt[0], a.folge[1], a.folge[2]])).toBe(false);
+    expect(zw.folgeAkzeptiert(a, a.folge.slice(0, 2))).toBe(false);
+  });
+
+  it('Beispiel: zwei Personen', () => {
     // Ungespiegelt ist links im Bild die Person, die aus eigener Sicht
     // rechts steht; in der Vorschau steht sie rechts (Oval 1) und dreht nach
     // ihrem eigenen rechts.
-    expect(zw.aufgabeInVorschau({ gesichter: 2, position: 0, richtung: 'links' })).toEqual({ oval: 1, seite: 'rechts' });
-    expect(zw.aufgabeInVorschau({ gesichter: 4, position: 3, richtung: 'rechts' })).toEqual({ oval: 0, seite: 'links' });
+    expect(zw.folgeInVorschau({ gesichter: 2, folge: [{ position: 0, richtung: 'links' }, { position: 1, richtung: 'links' }] }))
+      .toEqual([{ oval: 1, seite: 'rechts' }, { oval: 0, seite: 'rechts' }]);
   });
 
   it('unbekannte Seiten werden nicht angenommen', () => {
     expect(zw.seiteLesen('links')).toBe('links');
     for (const x of ['links_rechts', 'oben', undefined, 1]) expect(zw.seiteLesen(x)).toBeNull();
+  });
+});
+
+describe('Zeitplan: Abschnitte wie der Dienst sie schneidet', () => {
+  it.each([2, 3, 4])('%i Personen: n * 2 s + 1 s, n gleiche Abschnitte, lueckenlos bis zum Ende', (n) => {
+    const plan = zw.zwillingAufnahmePlan(n);
+    expect(plan.dauerMs).toBe(n * 2000 + 1000);
+    expect(plan.abschnitte).toHaveLength(n);
+    expect(plan.abschnitte[0].beginnMs).toBe(0);
+    expect(plan.abschnitte[n - 1].endeMs).toBe(plan.dauerMs);
+    plan.abschnitte.forEach((a: any, i: number) => {
+      expect(a.schritt).toBe(i);
+      if (i > 0) expect(a.beginnMs).toBe(plan.abschnitte[i - 1].endeMs);
+      // Gleich lang bis auf Rundung -- dieselben Grenzen wie i*D/n.
+      expect(Math.abs(a.beginnMs - (i * plan.dauerMs) / n)).toBeLessThanOrEqual(0.5);
+      expect(a.endeMs - a.beginnMs).toBeGreaterThanOrEqual(2000);
+    });
+  });
+
+  it.each([2, 3, 4])('%i Personen: Ansage genau an jeder Abschnittsgrenze, Countdown endet im Abschnitt', (n) => {
+    const plan = zw.zwillingAufnahmePlan(n);
+    const ev = zw.zwillingPlanEreignisse(plan);
+    const ansagen = ev.filter((e: any) => e.ansage);
+    expect(ansagen.map((e: any) => e.atMs)).toEqual(plan.abschnitte.map((a: any) => a.beginnMs));
+    for (const e of ev) {
+      const a = plan.abschnitte[e.schritt];
+      expect(e.atMs).toBeGreaterThanOrEqual(a.beginnMs);
+      expect(e.atMs).toBeLessThan(a.endeMs);
+      expect(e.rest).toBe(Math.ceil((a.endeMs - e.atMs) / 1000));
+      expect(e.rest).toBeGreaterThanOrEqual(1);
+    }
+    // Zeitlich geordnet.
+    expect(ev.map((e: any) => e.atMs)).toEqual([...ev.map((e: any) => e.atMs)].sort((x: number, y: number) => x - y));
+  });
+
+  it('Ungueltige Zahl faellt auf zwei Personen zurueck (nie laenger/kuerzer als erlaubt)', () => {
+    expect(zw.zwillingAufnahmePlan(7).dauerMs).toBe(5000);
+  });
+});
+
+describe('Ablauf: Anzeige und Ansage folgen der Folge', () => {
+  it.each([2, 3, 4])('%i Personen: angesagt wird Schritt fuer Schritt in der Reihenfolge der Folge', (n) => {
+    for (const folge of alleFolgen(n).slice(0, 40)) {
+      const a = { gesichter: n, folge };
+      const ablauf = zw.zwillingAblauf(a);
+      expect(ablauf.dauerMs).toBe(n * 2000 + 1000);
+      const ansagen = ablauf.ereignisse.filter((e: any) => e.ansage);
+      expect(ansagen.map((e: any) => e.schritt)).toEqual(folge.map((_, i) => i));
+      expect(ansagen.map((e: any) => ({ oval: e.oval, seite: e.seite }))).toEqual(zw.folgeInVorschau(a));
+      // Zwischen zwei Ansagen gehoert jeder Countdown zum laufenden Schritt.
+      let aktuell = -1;
+      for (const e of ablauf.ereignisse) {
+        if (e.ansage) aktuell = e.schritt;
+        expect(e.schritt).toBe(aktuell);
+      }
+    }
   });
 });
 
@@ -321,31 +383,44 @@ describe('Warten auf die Zustimmung: begrenzt', () => {
     expect(zw.startAntwortLesen(roh)).toBeNull();
   });
 
-  it('Antwort von /zwilling/challenge: Aufgabe und Farbfolge', () => {
-    expect(zw.challengeAntwortLesen({ status: 'bereit', gesichter: 3, position: 2, richtung: 'rechts', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }))
-      .toEqual({ status: 'bereit', gesichter: 3, position: 2, richtung: 'rechts', farbfolge: ['red', 'green', 'blue', 'red'], gueltig_sekunden: 300 });
+  it('Antwort von /zwilling/challenge: Folge und Farbfolge', () => {
+    const folge = [{ position: 2, richtung: 'rechts' }, { position: 0, richtung: 'links' }, { position: 1, richtung: 'rechts' }];
+    expect(zw.challengeAntwortLesen({ status: 'bereit', gesichter: 3, folge, flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }))
+      .toEqual({ status: 'bereit', gesichter: 3, folge, farbfolge: ['red', 'green', 'blue', 'red'], gueltig_sekunden: 300 });
     for (const status of ['nicht_gestartet', 'nicht_zugestimmt', 'anfrage_ungueltig']) {
       expect(zw.challengeAntwortLesen({ status })).toEqual({ status });
     }
   });
 
-  const ok = { status: 'bereit', gesichter: 2, position: 0, richtung: 'links', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 };
+  const L = (position: any, richtung: any = 'links') => ({ position, richtung });
+  const ok = { status: 'bereit', gesichter: 2, folge: [L(1), L(0, 'rechts')], flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 };
   it.each([
-    [{ ...ok, position: 2 }], // Position >= gesichter
-    [{ ...ok, gesichter: 4, position: 4 }],
-    [{ ...ok, position: -1 }],
-    [{ ...ok, position: 0.5 }],
-    [{ ...ok, position: '0' }],
-    [{ ...ok, position: undefined }],
-    [{ ...ok, gesichter: 1 }],
-    [{ ...ok, gesichter: 5, position: 0 }],
+    [{ ...ok, folge: [L(0)] }], // zu kurz
+    [{ ...ok, folge: [L(0), L(1), L(1)] }], // zu lang
+    [{ ...ok, folge: [] }],
+    [{ ...ok, folge: [L(0), L(0)] }], // doppelt, eine fehlt
+    [{ ...ok, gesichter: 3, folge: [L(0), L(1), L(1)] }],
+    [{ ...ok, gesichter: 3, folge: [L(2), L(2), L(0)] }],
+    [{ ...ok, folge: [L(0), L(2)] }], // ausserhalb
+    [{ ...ok, folge: [L(-1), L(0)] }],
+    [{ ...ok, folge: [L(0.5), L(1)] }], // keine ganze Zahl
+    [{ ...ok, folge: [L('0'), L(1)] }],
+    [{ ...ok, folge: [L(true), L(1)] }],
+    [{ ...ok, folge: [L(undefined), L(1)] }],
+    [{ ...ok, folge: [L(0, 'oben'), L(1)] }], // unbekannte Seite
+    [{ ...ok, folge: [L(0, 'links_rechts'), L(1)] }],
+    [{ ...ok, folge: [{ position: 0 }, L(1)] }], // Seite fehlt
+    [{ ...ok, folge: [L(0, 'LINKS'), L(1)] }],
+    [{ ...ok, folge: [null, L(1)] }],
+    [{ ...ok, folge: [[0, 'links'], L(1)] }],
+    [{ ...ok, folge: '0:links,1:rechts' }],
+    [{ ...ok, folge: { 0: L(0), 1: L(1) } }],
+    [{ ...ok, folge: undefined }],
+    [{ status: 'bereit', gesichter: 2, position: 0, richtung: 'links', flash_sequence: 'red,green,blue,red', gueltig_sekunden: 300 }], // alte Form
+    [{ ...ok, gesichter: 1, folge: [L(0)] }],
+    [{ ...ok, gesichter: 5, folge: [L(0), L(1), L(2), L(3), L(4)] }],
     [{ ...ok, gesichter: '2' }],
-    [{ ...ok, gesichter: undefined }],
-    [{ ...ok, richtung: 'links_rechts' }],
-    [{ ...ok, richtung: 'oben' }],
-    [{ ...ok, richtung: undefined }],
     [{ ...ok, flash_sequence: 'red,green,blue' }],
-    [{ ...ok, flash_sequence: 'red,green,blue,red,green' }],
     [{ ...ok, flash_sequence: 'red,green,blue,pink' }],
     [{ ...ok, flash_sequence: ['red', 'green', 'blue', 'red'] }],
     [{ ...ok, gueltig_sekunden: undefined }],
@@ -444,7 +519,7 @@ describe('Netz', () => {
         return { ok: true, json: async () => ({ status: 'bereit', gueltig_sekunden: 1200, richtung: 'rechts_links' }) };
       }
       if (url.endsWith('/zwilling/challenge')) {
-        return { ok: true, json: async () => ({ status: 'bereit', gesichter: 2, position: 1, richtung: 'links', flash_sequence: 'blue,red,red,green', gueltig_sekunden: 300 }) };
+        return { ok: true, json: async () => ({ status: 'bereit', gesichter: 2, folge: [{ position: 1, richtung: 'links' }, { position: 0, richtung: 'rechts' }], flash_sequence: 'blue,red,red,green', gueltig_sekunden: 300 }) };
       }
       if (url.endsWith('/challenge')) return { ok: true, json: async () => ({ nonce: 'nonce-1', challenge_type: 'look_left', flash_sequence: '' }) };
       if (url.endsWith('/zwilling/zustimmung')) return { ok: true, json: async () => ({ status: 'zugestimmt' }) };
@@ -482,12 +557,13 @@ describe('Netz', () => {
     c1Gesund = true;
     bio._verwirfCoordinatorKlebrigkeitFuerTest();
     expect(await bio.zwillingStart(ANFRAGE)).toEqual({ status: 'bereit', gueltig_sekunden: 1200 });
-    // Die Richtung kommt NUR aus /zwilling/challenge.
-    expect(bio.zwillingRichtung(ANFRAGE)).toBeNull();
+    // Die Folge kommt NUR aus /zwilling/challenge.
+    expect(bio.zwillingFolge(ANFRAGE)).toBeNull();
+    const folge = [{ position: 1, richtung: 'links' }, { position: 0, richtung: 'rechts' }];
     expect(await bio.zwillingChallenge(ANFRAGE)).toEqual({
-      status: 'bereit', gesichter: 2, position: 1, richtung: 'links', farbfolge: ['blue', 'red', 'red', 'green'], gueltig_sekunden: 300,
+      status: 'bereit', gesichter: 2, folge, farbfolge: ['blue', 'red', 'red', 'green'], gueltig_sekunden: 300,
     });
-    expect(bio.zwillingRichtung(ANFRAGE)).toBe('links');
+    expect(bio.zwillingFolge(ANFRAGE)).toEqual(folge);
     const ch = await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
     expect(ch?.nonce).toBe('nonce-1');
 
@@ -540,19 +616,19 @@ describe('Netz', () => {
     }
   });
 
-  it('/zwilling/challenge ohne "bereit" setzt keine Richtung', async () => {
+  it('/zwilling/challenge ohne "bereit" setzt keine Folge', async () => {
     const bio = require('../biometricIdentity');
     await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
     for (const status of ['nicht_gestartet', 'nicht_zugestimmt', 'anfrage_ungueltig']) {
       (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status }) }));
       expect(await bio.zwillingChallenge(ANFRAGE)).toEqual({ status });
     }
-    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', gesichter: 2, position: 0, richtung: 'links', flash_sequence: 'red', gueltig_sekunden: 300 }) }));
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', gesichter: 2, folge: [{ position: 0, richtung: 'links' }, { position: 1, richtung: 'links' }], flash_sequence: 'red', gueltig_sekunden: 300 }) }));
     expect(await bio.zwillingChallenge(ANFRAGE)).toBeNull();
     // Eine Aufgabe fuer eine andere Zahl von Menschen als angefragt wird nicht verwendet.
-    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', gesichter: 3, position: 0, richtung: 'links', flash_sequence: 'red,red,red,red', gueltig_sekunden: 300 }) }));
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, json: async () => ({ status: 'bereit', gesichter: 3, folge: [{ position: 0, richtung: 'links' }, { position: 1, richtung: 'links' }, { position: 2, richtung: 'links' }], flash_sequence: 'red,red,red,red', gueltig_sekunden: 300 }) }));
     expect(await bio.zwillingChallenge(ANFRAGE)).toBeNull();
-    expect(bio.zwillingRichtung(ANFRAGE)).toBeNull();
+    expect(bio.zwillingFolge(ANFRAGE)).toBeNull();
   });
 
   it('Einzelbilder statt Video: mindestens zwei, jedes als zwilling_burst', async () => {
@@ -587,7 +663,7 @@ describe('Netz', () => {
       anfrage: 'cd'.repeat(16), deviceId: 'd', walletAddress: WALLET_B, consent, signer: { signMessage: async () => '0xsig' },
     })).rejects.toBeInstanceOf(bio.ZwillingAnfrageUnbekannt);
     await expect(bio.zwillingStart('cd'.repeat(16))).rejects.toBeInstanceOf(bio.ZwillingAnfrageUnbekannt);
-    expect(bio.zwillingRichtung('cd'.repeat(16))).toBeNull();
+    expect(bio.zwillingFolge('cd'.repeat(16))).toBeNull();
     expect(calls.some((c) => c.url.includes('/zwilling/'))).toBe(false);
   });
 

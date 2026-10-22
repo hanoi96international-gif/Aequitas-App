@@ -114,12 +114,18 @@ export function zwillingQrLesen(roh: unknown, kandidaten: readonly string[]): Zw
 // weitere Identitaet braucht so immer einen weiteren lebendigen Menschen im
 // selben Bild.
 //
-// UNGLEICHE AUFGABE: genau die Person an `position` (0 = ganz links im
-// GESPEICHERTEN Bild) dreht den Kopf, so dass ihre Nase zum Bildrand
-// `richtung` wandert; alle anderen halten still. Ein Spiegelbild kann nicht
-// stillhalten, waehrend sein Original sich dreht. Jeder Vergleichsdienst
-// nimmt die Aufgabe auch gespiegelt an (Position n-1-k, Seite getauscht),
-// weil nicht sicher ist, ob die Frontkamera gespiegelt speichert.
+// DIE AUFGABE IST EINE FOLGE (Nachpruefung 22.10.2026): JEDE Person dreht
+// den Kopf einmal ALLEIN, in der vorgegebenen Reihenfolge -- je Schritt die
+// Person an `position` (0 = ganz links im GESPEICHERTEN Bild), so dass ihre
+// Nase zum Bildrand `richtung` wandert; alle anderen halten still. Ein
+// Spiegelbild bewegt sich immer mit seinem Original: spaetestens in dessen
+// Schritt bewegen sich zwei Gesichter. (Drehte nur EINE Person, hielte bei
+// drei oder vier Gesichtern das Spiegelbild eines Stillhaltenden ebenfalls
+// still.) Der Vergleichsdienst teilt die gemeinsame Aufnahme in n gleich
+// lange, aufeinanderfolgende Abschnitte, einen je Schritt (zwillingAufnahmePlan).
+// Er nimmt die Folge auch VOLLSTAENDIG gespiegelt an (jede Position n-1-k,
+// jede Seite getauscht), weil nicht sicher ist, ob die Frontkamera
+// gespiegelt speichert.
 //
 // Gezeigt wird die Aufgabe in der (gespiegelten) Vorschau, so wie die
 // Menschen sich darin sehen -- wie in einem Spiegel: wer aus eigener Sicht
@@ -128,7 +134,7 @@ export function zwillingQrLesen(roh: unknown, kandidaten: readonly string[]): Zw
 // Annahme, dass die Kamera UNGESPIEGELT speichert (so wie sie die Menschen
 // von vorn sieht); stimmt das auf einem Geraet nicht, ergibt dieselbe
 // Bewegung genau die gespiegelte Lesart -- die der Dienst ebenfalls annimmt.
-// Siehe aufgabeAkzeptiert und den Test dazu.
+// Siehe folgeAkzeptiert und den Test dazu.
 // ---------------------------------------------------------------------------
 
 export const ZWILLING_GESICHTER_MIN = 2;
@@ -152,26 +158,41 @@ export function seiteLesen(x: unknown): Seite | null {
 
 const andere = (s: Seite): Seite => (s === 'links' ? 'rechts' : 'links');
 
-export interface ZwillingAufgabe {
-  gesichter: number;
+export interface ZwillingSchritt {
   /** 0 = ganz links im gespeicherten Bild. */
   position: number;
   /** Bildrand, zu dem die Nase wandert (gespeichertes Bild). */
   richtung: Seite;
 }
 
-/** Die Aufgabe so, wie sie in der gespiegelten Vorschau zu zeigen ist:
- *  welches Oval (0 = links auf dem Bildschirm) und zu welcher Seite -- das
- *  ist zugleich die Seite aus eigener Sicht der Person. */
-export function aufgabeInVorschau(a: ZwillingAufgabe): { oval: number; seite: Seite } {
-  return { oval: a.gesichter - 1 - a.position, seite: andere(a.richtung) };
+export interface ZwillingAufgabe {
+  gesichter: number;
+  /** Genau `gesichter` Schritte, jede Position genau einmal, in dieser
+   *  Reihenfolge. */
+  folge: ZwillingSchritt[];
 }
 
-/** Was ein Vergleichsdienst annimmt: die Aufgabe oder ihre gespiegelte
- *  Lesart (coordinator/app/zwilling.py, "ALLE MITGLIEDER IM BILD"). */
-export function aufgabeAkzeptiert(a: ZwillingAufgabe, gesehen: { position: number; richtung: Seite }): boolean {
-  return (gesehen.position === a.position && gesehen.richtung === a.richtung)
-    || (gesehen.position === a.gesichter - 1 - a.position && gesehen.richtung === andere(a.richtung));
+/** Ein Schritt so, wie er in der gespiegelten Vorschau zu zeigen ist:
+ *  welches Oval (0 = links auf dem Bildschirm) und zu welcher Seite -- das
+ *  ist zugleich die Seite aus eigener Sicht der Person. */
+export function schrittInVorschau(gesichter: number, s: ZwillingSchritt): { oval: number; seite: Seite } {
+  return { oval: gesichter - 1 - s.position, seite: andere(s.richtung) };
+}
+
+/** Die ganze Folge fuer die Vorschau, in derselben Reihenfolge. */
+export function folgeInVorschau(a: ZwillingAufgabe): { oval: number; seite: Seite }[] {
+  return a.folge.map((s) => schrittInVorschau(a.gesichter, s));
+}
+
+/** Was ein Vergleichsdienst annimmt: die Folge Schritt fuer Schritt -- oder
+ *  die VOLLSTAENDIG gespiegelte (jeder Schritt gespiegelt, kein Mischen). */
+export function folgeAkzeptiert(a: ZwillingAufgabe, gesehen: readonly ZwillingSchritt[]): boolean {
+  if (gesehen.length !== a.folge.length) return false;
+  const genau = a.folge.every((s, i) => gesehen[i].position === s.position && gesehen[i].richtung === s.richtung);
+  const gespiegelt = a.folge.every(
+    (s, i) => gesehen[i].position === a.gesichter - 1 - s.position && gesehen[i].richtung === andere(s.richtung),
+  );
+  return genau || gespiegelt;
 }
 
 /** Was eine Kamera speichert, wenn die Person an Stelle `eigeneStelle` (von
@@ -224,10 +245,29 @@ export type ChallengeAntwort =
   | ({ status: 'bereit'; farbfolge: Farbe[]; gueltig_sekunden: number } & ZwillingAufgabe)
   | { status: 'nicht_gestartet' | 'nicht_zugestimmt' | 'anfrage_ungueltig' };
 
+/** Liest eine Folge fail-closed: genau `gesichter` Schritte, jede Position
+ *  0..n-1 genau einmal (ganze Zahlen), jede Seite links|rechts -- sonst null.
+ *  Wie folge_text im Coordinator. */
+export function folgeLesen(roh: unknown, gesichter: number): ZwillingSchritt[] | null {
+  if (!istGesichterZahl(gesichter) || !Array.isArray(roh) || roh.length !== gesichter) return null;
+  const folge: ZwillingSchritt[] = [];
+  const gesehen = new Set<number>();
+  for (const s of roh) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
+    const { position, richtung } = s as Record<string, unknown>;
+    const seite = seiteLesen(richtung);
+    if (typeof position !== 'number' || !Number.isInteger(position) || position < 0 || position >= gesichter) return null;
+    if (!seite || gesehen.has(position)) return null;
+    gesehen.add(position);
+    folge.push({ position, richtung: seite });
+  }
+  return folge;
+}
+
 /** Liest die Antwort von /zwilling/challenge -- fail-closed: eine Zahl der
- *  Gesichter ausserhalb 2..4, eine Position ausserhalb des Bildes, eine fremde
- *  Seite, eine Farbfolge mit unbekannter Farbe oder falscher Laenge, eine
- *  unplausible Frist ergeben null. */
+ *  Gesichter ausserhalb 2..4, eine kaputte Folge, eine Farbfolge mit
+ *  unbekannter Farbe oder falscher Laenge, eine unplausible Frist ergeben
+ *  null. */
 export function challengeAntwortLesen(roh: unknown): ChallengeAntwort | null {
   if (!roh || typeof roh !== 'object') return null;
   const o = roh as Record<string, unknown>;
@@ -235,18 +275,69 @@ export function challengeAntwortLesen(roh: unknown): ChallengeAntwort | null {
     return { status: o.status };
   }
   if (o.status !== 'bereit') return null;
-  const richtung = seiteLesen(o.richtung);
   const s = sekunden(o.gueltig_sekunden);
   const g = o.gesichter;
-  const p = o.position;
-  if (!richtung || s === null || !istGesichterZahl(g)) return null;
-  if (typeof p !== 'number' || !Number.isInteger(p) || p < 0 || p >= g) return null;
+  if (s === null || !istGesichterZahl(g)) return null;
+  const folge = folgeLesen(o.folge, g);
+  if (!folge) return null;
   if (typeof o.flash_sequence !== 'string') return null;
   const farben = o.flash_sequence.split(',');
   if (farben.length !== ZWILLING_FARBFOLGE_LAENGE || !farben.every((f) => f === 'red' || f === 'green' || f === 'blue')) {
     return null;
   }
-  return { status: 'bereit', gesichter: g, position: p, richtung, farbfolge: farben as Farbe[], gueltig_sekunden: s };
+  return { status: 'bereit', gesichter: g, folge, farbfolge: farben as Farbe[], gueltig_sekunden: s };
+}
+
+// ---------------------------------------------------------------------------
+// Zeitplan der gemeinsamen Aufnahme
+//
+// Der Vergleichsdienst teilt die Aufnahme in n gleich lange,
+// aufeinanderfolgende Abschnitte -- einen je Schritt, in der Reihenfolge der
+// Folge. Etwa 2 s je Schritt plus 1 s Vorlauf (verteilt auf alle
+// Abschnitte): genug, um zu hoeren, wer dran ist, sich zu drehen und die
+// Drehung bis zum Ende des Abschnitts zu halten.
+// ---------------------------------------------------------------------------
+
+export const ZWILLING_SCHRITT_MS = 2000;
+export const ZWILLING_VORLAUF_MS = 1000;
+
+export interface AufnahmePlan {
+  dauerMs: number;
+  /** Je Schritt der Folge sein Abschnitt in der Aufnahme. */
+  abschnitte: { schritt: number; beginnMs: number; endeMs: number }[];
+}
+
+export function zwillingAufnahmePlan(gesichter: number): AufnahmePlan {
+  const n = istGesichterZahl(gesichter) ? gesichter : ZWILLING_GESICHTER_MIN;
+  const dauerMs = n * ZWILLING_SCHRITT_MS + ZWILLING_VORLAUF_MS;
+  const abschnitte = Array.from({ length: n }, (_, i) => ({
+    schritt: i,
+    beginnMs: Math.round((i * dauerMs) / n),
+    endeMs: Math.round(((i + 1) * dauerMs) / n),
+  }));
+  return { dauerMs, abschnitte };
+}
+
+export interface PlanEreignis {
+  atMs: number;
+  schritt: number;
+  /** Ganze Sekunden bis zum Ende dieses Abschnitts (Countdown). */
+  rest: number;
+  /** Erstes Ereignis des Abschnitts: ansagen und das Oval hervorheben. */
+  ansage: boolean;
+}
+
+/** Was die App waehrend der Aufnahme wann zeigt und sagt: zu Beginn jedes
+ *  Abschnitts die Ansage, dann jede Sekunde den Countdown bis zum Ende des
+ *  Abschnitts -- an den Grenzen ausgerichtet, die der Dienst schneidet. */
+export function zwillingPlanEreignisse(plan: AufnahmePlan): PlanEreignis[] {
+  const ereignisse: PlanEreignis[] = [];
+  for (const a of plan.abschnitte) {
+    for (let t = a.beginnMs; t < a.endeMs; t += 1000) {
+      ereignisse.push({ atMs: t, schritt: a.schritt, rest: Math.ceil((a.endeMs - t) / 1000), ansage: t === a.beginnMs });
+    }
+  }
+  return ereignisse;
 }
 
 export type WartenErgebnis =
@@ -372,4 +463,23 @@ export function gruppenBildStatus(rahmen: readonly Rahmen[], soll: number): Grup
     if (!(links.x + links.width <= sortiert[i].x)) return 'ueberlappen';
   }
   return 'ok';
+}
+
+export interface AblaufEreignis extends PlanEreignis {
+  /** Oval in der Vorschau (0 = links auf dem Bildschirm) und die Seite aus
+   *  Sicht der Person -- fuer Anzeige und Ansage. */
+  oval: number;
+  seite: Seite;
+}
+
+/** Der ganze Ablauf der gemeinsamen Aufnahme: Dauer und, an den Grenzen der
+ *  Abschnitte ausgerichtet, wer wann dran ist (in der Reihenfolge der Folge)
+ *  und der Countdown. Anzeige und Ansage lesen nur hieraus. */
+export function zwillingAblauf(a: ZwillingAufgabe): { dauerMs: number; ereignisse: AblaufEreignis[] } {
+  const plan = zwillingAufnahmePlan(a.gesichter);
+  const vorschau = folgeInVorschau(a);
+  return {
+    dauerMs: plan.dauerMs,
+    ereignisse: zwillingPlanEreignisse(plan).map((e) => ({ ...e, ...vorschau[e.schritt] })),
+  };
 }
