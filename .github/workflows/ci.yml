@@ -22,8 +22,8 @@ jobs:
   typecheck-lint-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
       # package-lock.json was written by npm 11, which resolves the optional
@@ -34,6 +34,12 @@ jobs:
       # Pinning the major keeps runner and lock on the same resolver.
       - run: npm install -g npm@11
       - run: npm ci
+      # Keine kritische Schwachstelle in den Abhaengigkeiten (Audit
+      # 2026-10-21, M8). Die Build-Kette laeuft auf demselben Rechner, der die
+      # APK baut. "high" bleibt vorerst ein Bericht: die verbleibenden Funde
+      # sitzen in Expo-Werkzeugen und brauchen ein Expo-Major-Update.
+      - run: npm audit --omit=dev --audit-level=critical
+      - run: npm audit --omit=dev || true
       - run: npx tsc --noEmit
       - run: npx expo lint
       - run: npx jest

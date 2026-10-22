@@ -55,8 +55,21 @@ nicht nur im Repo-Ordner (die Datei gehört nicht ins Git).
 base64 -w0 aequitas-release.jks > keystore.b64
 ```
 
-**4. Vier Secrets hinterlegen**, unter *Settings → Secrets and variables →
-Actions → New repository secret* im Repo `hanoi96international-gif/Aequitas-App`:
+**4. Vier Secrets hinterlegen — NUR in der Umgebung `app-signatur`**
+(seit dem Audit vom 21.10.2026, H2). Unter *Settings → Environments → New
+environment* `app-signatur` anlegen, **Required reviewers** eintragen, dann dort
+unter *Environment secrets* die vier Werte. **Keine Repository-Secrets** mit
+diesen Namen: Die gelten für jeden Workflow auf jedem Zweig. Bestehende
+Repository-Secrets `ANDROID_KEYSTORE_*` / `ANDROID_KEY_*` löschen.
+
+Warum: Die Wallet-Schlüssel der Nutzer liegen in der App. Wer ein Update mit
+diesem Schlüssel signieren kann, kann sie alle abziehen. Der Bau-Job (npm,
+Gradle, Dritt-Actions) sieht den Schlüssel deshalb nie; signiert wird im
+eigenen Job `signieren`, der nur `apksigner` ausführt und abbricht, wenn der
+Fingerabdruck nicht stimmt. Auch das Veröffentlichen (`release-apk.yml`) läuft
+in dieser Umgebung und bricht bei einem fremden Schlüssel ab.
+
+Die vier Secrets im Repo `hanoi96international-gif/Aequitas-App`, Umgebung `app-signatur`:
 
 | Secret | Inhalt |
 |---|---|
@@ -68,8 +81,10 @@ Actions → New repository secret* im Repo `hanoi96international-gif/Aequitas-Ap
 **5. `keystore.b64` danach löschen** — sie ist eine Klartextkopie des
 Schlüssels.
 
-**6. Neu bauen** (Actions → *Android APK bauen*). Die Warnung
-„Release-Build mit Debug-Schluessel" darf im Protokoll nicht mehr auftauchen.
+**6. Neu bauen** (Actions → *Android APK bauen*). Der Job `signieren` wartet
+auf die Freigabe in `app-signatur`; ohne Schlüssel oder mit falschem
+Fingerabdruck bricht er ab — ein Release mit dem öffentlichen Debug-Schlüssel
+entsteht nicht mehr.
 
 **7. Prüfen, womit wirklich signiert wurde:**
 

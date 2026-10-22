@@ -1,18 +1,10 @@
 name: Android APK bauen
 
 on:
-  # workflow_dispatch allein reicht nicht, solange diese Datei noch nicht auf
-  # dem Standardbranch liegt: GitHub findet einen manuell ausloesbaren
-  # Workflow nur dort und antwortet sonst mit 404. Ein push-Trigger dagegen
-  # wird aus der Fassung des gepushten Commits ausgewertet und laeuft sofort.
-  # Deshalb hier zusaetzlich, eng auf den Build-Branch begrenzt, damit nicht
-  # jeder Commit irgendwo im Projekt einen Android-Build ausloest.
-  push:
-    branches:
-      - claude/eas-build
-      - build-2026-07-30
-    paths-ignore:
-      - "**/*.md"
+  # Nur von Hand (Audit 2026-10-21, H2). Vorher startete der Bau auch bei
+  # jedem Push auf zwei Zweige -- ein Push-Ausloeser wird aus der Fassung des
+  # gepushten Commits gelesen, und wer dort pushen konnte, bestimmte, was
+  # neben dem Release-Schluessel lief.
   workflow_dispatch:
     inputs:
       variant:
@@ -94,16 +86,15 @@ jobs:
       EXPO_PUBLIC_RPC_URL: ${{ vars.EXPO_PUBLIC_RPC_URL }}
 
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # Expo 54 / React Native 0.81 setzen JDK 17 voraus. Die Runner haben
       # mehrere JDKs; ohne explizite Wahl greift Gradle irgendeines.
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: 17
@@ -128,7 +119,7 @@ jobs:
       # leeren Paketliste ueberspringt die Action den sdkmanager-Aufruf
       # ganz und tut genau das, was der Kommentar darueber ohnehin von ihr
       # wollte. Was der Build wirklich braucht, zieht Gradle sich selbst.
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           packages: ''
 
@@ -369,46 +360,80 @@ jobs:
             exit 1
           fi
 
-      # Nachtraeglich signieren statt Gradle umzukonfigurieren.
-      #
-      # Der Grund: `expo prebuild` erzeugt eine build.gradle, in der
-      # buildTypes.release ausdruecklich signingConfigs.debug verwendet.
-      # Eigene Eintraege in gradle.properties aendern daran NICHTS -- sie
-      # werden schlicht nie gelesen. Ein Build, der so tut, als haette er den
-      # echten Schluessel benutzt, waere schlimmer als gar keiner. apksigner
-      # ersetzt die vorhandene Signatur und ist unabhaengig davon, was die
-      # generierte build.gradle gerade tut.
-      #
-      # Was hier auf dem Spiel steht: Android verweigert ein Update, dessen
-      # Signatur nicht zur installierten passt. Wer mit fremdem Schluessel
-      # signiert, zwingt bestehende Nutzer zum Deinstallieren -- und das
-      # loescht das geraetegebundene Geheimnis und damit ihre Identitaet.
+      - name: Zusammenfassung
+        env:
+          APK: ${{ steps.apk.outputs.path }}
+        run: |
+          {
+            echo "### APK gebaut (noch nicht mit dem Release-Schluessel signiert)"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Datei | \`$(basename "$APK")\` |"
+            echo "| Groesse | $(du -h "$APK" | cut -f1) |"
+            echo "| Build-Typ | $VARIANT |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Debug: fertig, selbstsigniert. Release: geht unsigniert an den
+      # Job "signieren" weiter (siehe unten), nur einen Tag aufbewahrt.
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: ${{ env.VARIANT == 'debug' && 'aequitas-debug-apk' || 'aequitas-unsigniert-apk' }}
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: ${{ env.VARIANT == 'debug' && 14 || 1 }}
+          if-no-files-found: error
+
+  # SIGNIEREN IN EINEM EIGENEN JOB (Audit 2026-10-21, H2).
+  #
+  # Die Wallet-Schluessel der Nutzer liegen in der App. Wer ein Update mit dem
+  # Release-Schluessel signieren kann, kann sie alle abziehen. Bis hierhin lag
+  # der Keystore als Repository-Secret im Bau-Job -- neben npm-Installation,
+  # Gradle-Plugins und einer Dritt-Action (setup-android). Jede davon haette
+  # ihn lesen koennen.
+  #
+  # Jetzt: der Bau-Job sieht den Schluessel nie. Dieser Job laeuft in der
+  # Umgebung "app-signatur" -- die Keystore-Secrets gehoeren AUSSCHLIESSLICH
+  # dorthin, mit Pflicht-Freigabe (Settings -> Environments), die
+  # Repository-Secrets ANDROID_KEYSTORE_* loeschen. Er fuehrt keinen Code aus
+  # dem Repo und keine Dritt-Action aus: nur apksigner aus dem vorinstallierten
+  # Android-SDK des Runners und openssl. Und er bricht ab, wenn das Ergebnis
+  # nicht den bekannten Fingerabdruck traegt.
+  signieren:
+    needs: build
+    if: ${{ (inputs.variant || 'release') == 'release' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: app-signatur
+    permissions:
+      contents: read
+    env:
+      # SHA-256 des Release-Zertifikats seit app-v1.6.0 (release-apk.yml).
+      ERWARTETER_FINGERABDRUCK: 473e9de3a5ba2077d176af95daed88be50c0789815e35428d1c185ae2fc95288
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: aequitas-unsigniert-apk
+          path: ${{ runner.temp }}/apk
+
       - name: Mit Release-Schluessel signieren
-        id: sign
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          APK: ${{ steps.apk.outputs.path }}
         run: |
-          if [ "$VARIANT" != "release" ]; then
-            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          set -euo pipefail
+          APK=$(find "$RUNNER_TEMP/apk" -name '*.apk' -print -quit)
+          [ -n "$APK" ] || { echo "::error::Kein APK im Artefakt"; exit 1; }
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "signed=debug-key" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Release-Build mit Debug-Schluessel::ANDROID_KEYSTORE_BASE64 ist nicht hinterlegt. Der Build-Typ ist release (minifiziert, ohne Debug-Symbole), signiert wird aber mit dem Debug-Schluessel der Expo-Vorlage. Fuer einen Geraetetest in Ordnung; ein Update bestehender Installationen ist damit NICHT moeglich."
-            exit 0
-          fi
-          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
-          if [ -z "$apksigner" ]; then
-            echo "::error::apksigner nicht gefunden — ohne Build-Tools laesst sich nicht signieren."
+            echo "::error title=Kein Release-Schluessel::ANDROID_KEYSTORE_BASE64 fehlt in der Umgebung app-signatur. Ein Release mit fremdem Schluessel wird nicht erzeugt."
             exit 1
           fi
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          [ -n "$apksigner" ] || { echo "::error::apksigner nicht gefunden"; exit 1; }
           # Passwoerter ueber env:, nicht pass: -- sonst stehen sie in der
-          # Prozessliste des Runners (Beta-Pruefung 14.10.2026). Der
-          # Schluessel wird auch bei einem Fehler entfernt.
+          # Prozessliste des Runners. Der Schluessel wird auch bei einem
+          # Fehler entfernt.
           trap 'rm -f "$RUNNER_TEMP/release.keystore"' EXIT
           ( umask 077; echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore" )
           "$apksigner" sign \
@@ -417,32 +442,27 @@ jobs:
             --ks-key-alias "$KEY_ALIAS" \
             --key-pass env:KEY_PASSWORD \
             "$APK"
-          # Ohne diese Pruefung wuerde eine fehlgeschlagene Signatur erst auf
-          # dem Geraet auffallen, mit einer Fehlermeldung des Installers, die
-          # die Ursache nicht nennt.
-          "$apksigner" verify --print-certs "$APK"
           rm -f "$RUNNER_TEMP/release.keystore"
-          echo "signed=upload-key" >> "$GITHUB_OUTPUT"
-
-      - name: Zusammenfassung
-        env:
-          APK: ${{ steps.apk.outputs.path }}
-        run: |
+          FP=$("$apksigner" verify --print-certs "$APK" | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}' | tr 'A-F' 'a-f')
+          if [ "$FP" != "$ERWARTETER_FINGERABDRUCK" ]; then
+            echo "::error title=Falscher Signaturschluessel::Fingerabdruck $FP, erwartet $ERWARTETER_FINGERABDRUCK. Ein Update bestehender Installationen waere unmoeglich -- oder es ist nicht der eigene Schluessel."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/signiert"
+          cp "$APK" "$RUNNER_TEMP/signiert/app-release.apk"
           {
-            echo "### APK gebaut"
+            echo "### APK signiert"
             echo ""
             echo "| | |"
             echo "|---|---|"
-            echo "| Datei | \`$(basename "$APK")\` |"
-            echo "| Groesse | $(du -h "$APK" | cut -f1) |"
-            echo "| Build-Typ | $VARIANT |"
-            echo "| Signatur | ${{ steps.sign.outputs.signed }} |"
+            echo "| SHA-256 der APK | \`$(sha256sum "$APK" | cut -d' ' -f1)\` |"
+            echo "| Zertifikat | \`$FP\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          name: aequitas-${{ inputs.variant || 'release' }}-apk
-          path: ${{ steps.apk.outputs.path }}
+          name: aequitas-release-apk
+          path: ${{ runner.temp }}/signiert/app-release.apk
           # Standard sind 90 Tage. Eine APK dieser App sollte nicht
           # monatelang abrufbar herumliegen.
           retention-days: 14

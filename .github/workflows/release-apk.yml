@@ -42,6 +42,10 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Was hier veroeffentlicht wird, installiert jeder neue Mensch (die Kette
+    # leitet /download/app.apk auf das neueste Release um). Deshalb dieselbe
+    # geschuetzte Umgebung wie das Signieren: nur mit Freigabe.
+    environment: app-signatur
     steps:
       - name: Eingaben pruefen
         run: |
@@ -49,12 +53,15 @@ jobs:
           [[ "$TAG" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { echo "::error::tag nur aus A-Z a-z 0-9 . _ -"; exit 1; }
 
       - name: Artefakt des Builds holen
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
+          # Nur das Ergebnis des Jobs "signieren" (build-apk.yml): ein
+          # Debug-Build oder ein unsigniertes Zwischenergebnis desselben Laufs
+          # wird so nie veroeffentlicht.
+          name: aequitas-release-apk
           run-id: ${{ env.RUN_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: /tmp/apk
-          merge-multiple: true
 
       - name: Pruefen, was da eigentlich liegt
         id: check
@@ -83,11 +90,22 @@ jobs:
           # Expo-Vorlage", waehrend der Build seit v1.6.0 mit dem eigenen
           # Release-Schluessel signiert. Eine Notiz, die das Gegenteil des
           # Builds sagt, ist schlimmer als keine.
-          RSA=$(unzip -Z1 /tmp/app-release.apk 'META-INF/*.RSA' 'META-INF/*.EC' 2>/dev/null | head -1 || true)
-          if [ -n "$RSA" ]; then
-            CERT=$(unzip -p /tmp/app-release.apk "$RSA" | openssl pkcs7 -inform DER -print_certs 2>/dev/null || true)
-            FP=$(echo "$CERT" | openssl x509 -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2 | tr -d ':' | tr 'A-F' 'a-f')
-            SUBJ=$(echo "$CERT" | openssl x509 -noout -subject 2>/dev/null | sed 's/^subject=//')
+          # Mit apksigner gelesen: eine APK mit minSdk >= 24 traegt oft nur die
+          # Signatur v2/v3 und gar kein META-INF/*.RSA -- dann waere der
+          # Fingerabdruck "unbekannt" gewesen.
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f 2>/dev/null | sort -V | tail -1)
+          if [ -n "$apksigner" ]; then
+            CERTS=$("$apksigner" verify --print-certs /tmp/app-release.apk)
+            FP=$(echo "$CERTS" | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}' | tr 'A-F' 'a-f')
+            SUBJ=$(echo "$CERTS" | grep -m1 'certificate DN' | sed 's/^.*certificate DN: //')
+          fi
+          # Falscher oder fehlender Schluessel: ABBRECHEN, nicht nur warnen
+          # (Audit 2026-10-21, H2). Die Kette leitet /download/app.apk auf das
+          # neueste Release um -- was hier durchgeht, installiert jeder neue
+          # Mensch. Der Debug-Schluessel der Expo-Vorlage ist oeffentlich.
+          if [ "${FP:-}" != "473e9de3a5ba2077d176af95daed88be50c0789815e35428d1c185ae2fc95288" ]; then
+            echo "::error title=Nicht der Release-Schluessel::Fingerabdruck ${FP:-unbekannt}. Veroeffentlicht wird nur, was mit dem eigenen Release-Schluessel signiert ist."
+            exit 1
           fi
           echo "signer=${SUBJ:-unbekannt}" >> "$GITHUB_OUTPUT"
           echo "fingerprint=${FP:-unbekannt}" >> "$GITHUB_OUTPUT"
