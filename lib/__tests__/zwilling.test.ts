@@ -17,18 +17,34 @@
 import { ethers } from 'ethers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'x' }));
-jest.mock('expo-file-system/legacy', () => ({ deleteAsync: jest.fn() }), { virtual: true });
+// Jede Datei "enthaelt" inhalt:<uri> -- fuer die Bindung an die Aufnahme;
+// gelesen wird blockweise (position/length), wie in der App.
+const dateiInhalt = (uri: string) => Buffer.from(`inhalt:${uri}`);
+jest.mock('expo-file-system/legacy', () => ({
+  deleteAsync: jest.fn(),
+  EncodingType: { Base64: 'base64' },
+  getInfoAsync: jest.fn(async (uri: string) => ({ exists: true, size: Buffer.from(`inhalt:${uri}`).length })),
+  readAsStringAsync: jest.fn(async (uri: string, o?: { position?: number; length?: number }) => {
+    const b = Buffer.from(`inhalt:${uri}`);
+    const von = o?.position ?? 0;
+    return b.subarray(von, o?.length === undefined ? b.length : von + o.length).toString('base64');
+  }),
+}), { virtual: true });
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
   deleteItemAsync: jest.fn(async () => undefined),
 }));
-// Wie lib/attestation.ts: haengt die drei Felder an, gebunden an den Nonce.
+// Wie lib/attestation.ts: haengt die drei Felder an, gebunden an den Nonce
+// bzw. (Zwillingsweg) an Nonce und Aufnahme. Die reinen Funktionen echt.
 jest.mock('../attestation', () => ({
-  attestierungAnhaengen: async (form: any, nonce?: string) => {
+  ...jest.requireActual('../attestation'),
+  attestierungAnhaengen: async (form: any, nonce?: string, bindung?: string) => {
+    if ((global as any).__keineAttestierung) return false;
     form.append('attestation_platform', 'android');
-    form.append('attestation_token', `token-fuer-${nonce}`);
+    form.append('attestation_token', `token-fuer-${bindung ?? nonce}`);
     form.append('attestation_key_id', 'schluessel-1');
+    return true;
   },
 }));
 jest.mock('../api', () => ({ submitLivenessRenewal: jest.fn(), submitProofOfLife: jest.fn() }));
@@ -603,9 +619,16 @@ describe('Netz', () => {
     expect(f.zwilling_bild).toEqual(['file:///zw.jpg']);
     expect(f.zwilling_video).toEqual(['file:///zw.mp4']);
     expect(f.zwilling_interval_ms).toEqual(['183']);
-    // Attestierung wie bei /register (der Coordinator verlangt sie hier).
+    // Attestierung (der Coordinator verlangt sie hier) -- gebunden an Nonce
+    // UND genau diese Dateien, in der festen Reihenfolge (#73 HOCH-2).
+    const at = jest.requireActual('../attestation');
+    const h = (uri: string) => at.datenHash(new Uint8Array(dateiInhalt(uri)));
+    const bindung = at.zwillingBindung('nonce-1', at.aufnahmeHashAus([
+      ['face_image', h('file:///solo.jpg')], ['face_burst_video', h('file:///solo.mp4')],
+      ['zwilling_bild', h('file:///zw.jpg')], ['zwilling_video', h('file:///zw.mp4')],
+    ]));
     expect(f.attestation_platform).toEqual(['android']);
-    expect(f.attestation_token).toEqual(['token-fuer-nonce-1']);
+    expect(f.attestation_token).toEqual([`token-fuer-${bindung}`]);
     expect(f.attestation_key_id).toEqual(['schluessel-1']);
   });
 
@@ -626,6 +649,65 @@ describe('Netz', () => {
     } finally {
       bio._setLoeschenFuerTest(null);
     }
+  });
+
+  it('Ohne gebundene Geraetepruefung: Abbruch vor dem Upload (Anfrage bleibt unverbraucht)', async () => {
+    const bio = require('../biometricIdentity');
+    await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
+    await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
+    (global as any).__keineAttestierung = true;
+    try {
+      await expect(bio.zwillingRegister(solo('nonce-1'), gemeinsam, {
+        anfrage: ANFRAGE, deviceId: 'd', walletAddress: WALLET_B, consent, signer: { signMessage: async () => '0xsig' },
+      })).rejects.toThrow('Geraetepruefung nicht verfuegbar');
+    } finally {
+      (global as any).__keineAttestierung = false;
+    }
+    expect(calls.some((c) => c.url.endsWith('/zwilling/register'))).toBe(false);
+  });
+
+  it('Datei fehlt, ist zu gross oder aendert sich beim Lesen: Abbruch vor dem Upload', async () => {
+    const bio = require('../biometricIdentity');
+    const fs = jest.requireMock('expo-file-system/legacy') as Record<string, jest.Mock>;
+    const faelle: Array<[string, () => void]> = [
+      ['nicht lesbar', () => fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: false }))],
+      ['zu gross', () => fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: true, size: bio.ZWILLING_DATEI_HOECHSTENS + 1 }))],
+      ['beim Lesen geaendert', () => fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: true, size: 10_000 }))],
+    ];
+    for (const [name, vorbereiten] of faelle) {
+      await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
+      await bio.requestChallenge(bio.zwillingBasis(ANFRAGE));
+      vorbereiten();
+      await expect(bio.zwillingRegister(solo('nonce-1'), gemeinsam, {
+        anfrage: ANFRAGE, deviceId: 'd', walletAddress: WALLET_B, consent, signer: { signMessage: async () => '0xsig' },
+      })).rejects.toThrow(`Datei der Aufnahme ${name === 'beim Lesen geaendert' ? 'hat sich beim Lesen geaendert' : name}`);
+      expect(calls.some((c) => c.url.endsWith('/zwilling/register'))).toBe(false);
+    }
+  });
+
+  it('dateiHash liest blockweise und trifft den gemeinsamen Testvektor (mehrere Bloecke)', async () => {
+    const bio = require('../biometricIdentity');
+    const fs = jest.requireMock('expo-file-system/legacy') as Record<string, jest.Mock>;
+    const gross = Buffer.alloc(256 * 12295);
+    for (let i = 0; i < gross.length; i++) gross[i] = i % 256;
+    const gelesen: number[] = [];
+    fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: true, size: gross.length }));
+    fs.readAsStringAsync.mockImplementation(async (_u: string, o: { position: number; length: number }) => {
+      gelesen.push(o.length);
+      return gross.subarray(o.position, o.position + o.length).toString('base64');
+    });
+    try {
+      expect(await bio.dateiHash('file:///gross.bin')).toBe('721656139dc2d9749502311edf357483f72cefcc783fea95c0e0f1a5e36e32ac');
+    } finally {
+      fs.readAsStringAsync.mockImplementation(async (uri: string, o?: { position?: number; length?: number }) => {
+        const b = Buffer.from(`inhalt:${uri}`);
+        const von = o?.position ?? 0;
+        return b.subarray(von, o?.length === undefined ? b.length : von + o.length).toString('base64');
+      });
+    }
+    // Nie mehr als ein Block auf einmal.
+    expect(Math.max(...gelesen)).toBe(1 << 20);
+    expect(gelesen.length).toBe(4);
   });
 
   it('/zwilling/challenge ohne "bereit" setzt keine Folge', async () => {

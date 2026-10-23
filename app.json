@@ -2,7 +2,7 @@
   "expo": {
     "name": "aequitas-app",
     "slug": "aequitas-app",
-    "version": "1.12.7",
+    "version": "1.12.8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "aequitasapp",
