@@ -32,7 +32,7 @@ describe('submitProofOfLife', () => {
     await expect(senden()).rejects.toThrow('daily distribution');
   });
 
-  it('500 ohne lesbaren Text wirft ebenfalls', async () => {
+  it('502 ohne lesbaren Koerper wirft ebenfalls', async () => {
     (global as any).fetch = jest.fn(async () => ({ ok: false, status: 502, json: async () => { throw new SyntaxError('x'); } }) as any);
     await expect(senden()).rejects.toThrow('HTTP 502');
   });
