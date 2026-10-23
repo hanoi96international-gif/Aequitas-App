@@ -280,8 +280,28 @@ export interface ProofOfLifeResponse {
   error?: string;
 }
 
-export function submitProofOfLife(nachweis: ProofOfLife) {
-  return apiPost<ProofOfLifeResponse>('/proof-of-life', nachweis);
+// Eine 5xx der Kette heisst "gerade nicht", nicht "abgelehnt": die Runde des
+// Grundeinkommens laeuft gleich und die Annahme ist kurz angehalten
+// (Retry-After, Aequitas#412), das Annahme-Tor oder die Datenbank ist kurz
+// nicht bereit. Die Bescheinigung bleibt 15 min gueltig -- darum ein Fehler
+// (lebensnachweisAnKette: nicht_erreichbar, "Noch einmal senden"), keine
+// Antwort, die als Ablehnung gelesen wird. 4xx bleibt eine Antwort.
+export async function submitProofOfLife(nachweis: ProofOfLife): Promise<ProofOfLifeResponse> {
+  const { res } = await fetchMitWartezeit('/proof-of-life', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(nachweis),
+  });
+  let d: ProofOfLifeResponse;
+  try {
+    d = await res.json();
+  } catch {
+    throw new Error(`Request failed (HTTP ${res.status})`);
+  }
+  if (res.status >= 500) {
+    throw new Error(typeof d?.error === 'string' ? d.error.slice(0, 300) : `Request failed (HTTP ${res.status})`);
+  }
+  return d;
 }
 
 export interface PricePoint {
