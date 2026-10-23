@@ -17,7 +17,8 @@ import * as Crypto from 'expo-crypto';
 // to, see the cleanupCaptureFiles() comment below.
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
-import { attestierungAnhaengen } from './attestation';
+import { ethers } from 'ethers';
+import { attestierungAnhaengen, aufnahmeHashAus, zwillingBindung } from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
 import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
@@ -1447,6 +1448,27 @@ export interface ZwillingAufnahme {
 /** B registriert: eigene Aufnahme wie bei /register plus die gemeinsame.
  *  Geht an den Coordinator der Anfrage, der auch den Nonce ausgestellt
  *  haben muss -- sonst wird abgebrochen, bevor ein Bild das Geraet verlaesst. */
+/** SHA-256 einer Datei (hex), so wie sie hochgeladen wird. */
+export async function dateiHash(uri: string): Promise<string> {
+  const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  return ethers.sha256(ethers.decodeBase64(b64)).slice(2);
+}
+
+/** Die Teile der Zwillingsaufnahme in der festen Reihenfolge von
+ *  aufnahmeHashAus (lib/attestation.ts) -- nicht der des Formulars. */
+export async function zwillingAufnahmeTeile(
+  capture: { faceUri: string; faceBurstUris: string[]; faceBurstVideoUri?: string | null },
+  gemeinsam: { bildUri: string; burstUris: string[]; videoUri?: string | null },
+): Promise<Array<[string, string]>> {
+  const teile: Array<[string, string]> = [['face_image', await dateiHash(capture.faceUri)]];
+  for (const uri of capture.faceBurstUris) teile.push(['face_burst', await dateiHash(uri)]);
+  if (capture.faceBurstVideoUri) teile.push(['face_burst_video', await dateiHash(capture.faceBurstVideoUri)]);
+  teile.push(['zwilling_bild', await dateiHash(gemeinsam.bildUri)]);
+  for (const uri of gemeinsam.burstUris) teile.push(['zwilling_burst', await dateiHash(uri)]);
+  if (gemeinsam.videoUri) teile.push(['zwilling_video', await dateiHash(gemeinsam.videoUri)]);
+  return teile;
+}
+
 export async function zwillingRegister(
   capture: BiometricCapture,
   gemeinsam: ZwillingAufnahme,
@@ -1508,7 +1530,16 @@ export async function zwillingRegister(
       form.append('zwilling_burst', toUploadFile(uri, `zwilling_${i}.jpg`));
     });
     form.append('zwilling_interval_ms', String(gemeinsam.intervalMs));
-    await attestierungAnhaengen(form, capture.challengeNonce);
+    // Das Token gilt nur fuer GENAU diese Dateien (#73 HOCH-2): erst jetzt,
+    // nach der Aufnahme, geholt. Laesst sich eine Datei nicht lesen, geht
+    // keine Attestierung mit -- der Coordinator weist dann ab.
+    let bindung: string | undefined;
+    try {
+      bindung = zwillingBindung(capture.challengeNonce, aufnahmeHashAus(await zwillingAufnahmeTeile(capture, gemeinsam)));
+    } catch (e) {
+      console.warn('[zwilling] Aufnahme nicht lesbar -- ohne Geraetepruefung', e);
+    }
+    if (bindung) await attestierungAnhaengen(form, capture.challengeNonce, bindung);
     const resp = await fetchMitFrist(`${base}/zwilling/register`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);

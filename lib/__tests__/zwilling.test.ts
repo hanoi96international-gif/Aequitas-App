@@ -17,17 +17,24 @@
 import { ethers } from 'ethers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'x' }));
-jest.mock('expo-file-system/legacy', () => ({ deleteAsync: jest.fn() }), { virtual: true });
+// Jede Datei "enthaelt" inhalt:<uri> -- fuer die Bindung an die Aufnahme.
+jest.mock('expo-file-system/legacy', () => ({
+  deleteAsync: jest.fn(),
+  EncodingType: { Base64: 'base64' },
+  readAsStringAsync: jest.fn(async (uri: string) => Buffer.from(`inhalt:${uri}`).toString('base64')),
+}), { virtual: true });
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
   deleteItemAsync: jest.fn(async () => undefined),
 }));
-// Wie lib/attestation.ts: haengt die drei Felder an, gebunden an den Nonce.
+// Wie lib/attestation.ts: haengt die drei Felder an, gebunden an den Nonce
+// bzw. (Zwillingsweg) an Nonce und Aufnahme. Die reinen Funktionen echt.
 jest.mock('../attestation', () => ({
-  attestierungAnhaengen: async (form: any, nonce?: string) => {
+  ...jest.requireActual('../attestation'),
+  attestierungAnhaengen: async (form: any, nonce?: string, bindung?: string) => {
     form.append('attestation_platform', 'android');
-    form.append('attestation_token', `token-fuer-${nonce}`);
+    form.append('attestation_token', `token-fuer-${bindung ?? nonce}`);
     form.append('attestation_key_id', 'schluessel-1');
   },
 }));
@@ -603,9 +610,16 @@ describe('Netz', () => {
     expect(f.zwilling_bild).toEqual(['file:///zw.jpg']);
     expect(f.zwilling_video).toEqual(['file:///zw.mp4']);
     expect(f.zwilling_interval_ms).toEqual(['183']);
-    // Attestierung wie bei /register (der Coordinator verlangt sie hier).
+    // Attestierung (der Coordinator verlangt sie hier) -- gebunden an Nonce
+    // UND genau diese Dateien, in der festen Reihenfolge (#73 HOCH-2).
+    const at = jest.requireActual('../attestation');
+    const h = (uri: string) => ethers.sha256(ethers.toUtf8Bytes(`inhalt:${uri}`)).slice(2);
+    const bindung = at.zwillingBindung('nonce-1', at.aufnahmeHashAus([
+      ['face_image', h('file:///solo.jpg')], ['face_burst_video', h('file:///solo.mp4')],
+      ['zwilling_bild', h('file:///zw.jpg')], ['zwilling_video', h('file:///zw.mp4')],
+    ]));
     expect(f.attestation_platform).toEqual(['android']);
-    expect(f.attestation_token).toEqual(['token-fuer-nonce-1']);
+    expect(f.attestation_token).toEqual([`token-fuer-${bindung}`]);
     expect(f.attestation_key_id).toEqual(['schluessel-1']);
   });
 
