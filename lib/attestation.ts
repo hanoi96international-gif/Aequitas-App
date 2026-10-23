@@ -62,7 +62,11 @@ export const ATTESTIERUNG_DOMAIN = 'aequitas-geraetepruefung-v1';
 // geholt. Gleich in coordinator/app/attestation.py (aufnahme_hash,
 // zwilling_bindung), gemeinsamer Testvektor in beiden Testsuiten:
 //
-//   aufnahme_hash = SHA-256 ueber "<feld>:<SHA-256 der Datei, hex>\n" je Teil,
+//   datei_hash    = SHA-256 ueber SHA-256(Block 1) || SHA-256(Block 2) || ...
+//                   (Bloecke zu DATEI_BLOCK = 1 MiB, rohe 32-Byte-Werte; leere
+//                   Datei: SHA-256 der leeren Eingabe) -- blockweise, damit nie
+//                   eine ganze Datei (bis zu zwei 20-s-Videos) im Speicher liegt
+//   aufnahme_hash = SHA-256 ueber "<feld>:<datei_hash, hex>\n" je Teil,
 //                   Reihenfolge: face_image, face_burst (je Datei),
 //                   face_burst_video, zwilling_bild, zwilling_burst (je Datei),
 //                   zwilling_video -- fehlende entfallen
@@ -71,7 +75,27 @@ export const ATTESTIERUNG_DOMAIN = 'aequitas-geraetepruefung-v1';
 //   iOS:     gebunden ist die App-Attest-Challenge
 export const ZWILLING_AUFNAHME_DOMAIN = 'aequitas-zwilling-aufnahme-v1';
 
-/** aufnahme_hash aus [feld, SHA-256 der Datei (hex)] in fester Reihenfolge. */
+/** Blockgroesse fuer datei_hash -- gleich im Coordinator (BLOCK_GROESSE). */
+export const DATEI_BLOCK = 1 << 20;
+
+/** SHA-256 eines Blocks, roh (32 Byte) -- ein Glied von datei_hash. */
+export function blockHash(block: Uint8Array): Uint8Array {
+  return ethers.getBytes(ethers.sha256(block));
+}
+
+/** datei_hash (hex) aus den Blockhashes in Reihenfolge. */
+export function dateiHashAus(blockHashes: Uint8Array[]): string {
+  return ethers.sha256(ethers.concat(blockHashes)).slice(2);
+}
+
+/** datei_hash einer Datei im Speicher (Tests, kleine Daten). */
+export function datenHash(daten: Uint8Array): string {
+  const glieder: Uint8Array[] = [];
+  for (let pos = 0; pos < daten.length; pos += DATEI_BLOCK) glieder.push(blockHash(daten.subarray(pos, pos + DATEI_BLOCK)));
+  return dateiHashAus(glieder);
+}
+
+/** aufnahme_hash aus [feld, datei_hash (hex)] in fester Reihenfolge. */
 export function aufnahmeHashAus(teile: ReadonlyArray<readonly [string, string]>): string {
   const zeilen = teile.map(([feld, hash]) => `${feld}:${hash}\n`).join('');
   return ethers.sha256(ethers.toUtf8Bytes(zeilen)).slice(2);
@@ -161,15 +185,16 @@ export async function getAttestationPayload(
 
 /** Haengt die Geraetepruefung an ein Anmeldeformular an -- oder nichts.
  *  bindung: zwillingBindung(...) -- dann gilt das Token nur fuer genau diese
- *  Aufnahme (Zwillingsweg). */
+ *  Aufnahme (Zwillingsweg). Ergebnis: ob etwas angehaengt wurde. */
 export async function attestierungAnhaengen(
   form: FormData,
   nonce: string | null | undefined,
   bindung?: string
-): Promise<void> {
+): Promise<boolean> {
   const attestation = await getAttestationPayload(nonce, ATTESTIERUNG_FRIST_MS, bindung);
-  if (!attestation) return;
+  if (!attestation) return false;
   form.append('attestation_platform', attestation.platform);
   form.append('attestation_token', attestation.token);
   if (attestation.keyId) form.append('attestation_key_id', attestation.keyId);
+  return true;
 }

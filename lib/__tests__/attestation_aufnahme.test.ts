@@ -18,10 +18,15 @@ jest.mock('@pagopa/io-react-native-integrity', () => ({
 }));
 
 const at = require('../attestation');
-const sha = (s: string) => ethers.sha256(ethers.toUtf8Bytes(s)).slice(2);
+const sha256Hex = (b: Uint8Array) => ethers.sha256(b).slice(2);
 
-const VEKTOR_AUFNAHME = 'fa4fa7047678b9872a3ebbc105fe2d2f2fea6a0e3e78d4548a88b31868a7d9ad';
-const VEKTOR_REQUEST_HASH = 'eb1a4ac55038b876c6ab07cdd21aad212862d01ab5b2cb479136787c6856660f';
+const VEKTOR_AUFNAHME = '000bc474adb1d265fb1ccc638547123d1376979f1fe4aff351f96a893d92486b';
+const VEKTOR_REQUEST_HASH = 'dd2748b84f18493eb649acbacf4a399fddadb2073dbe572504cac631dadbb112';
+// Ueber mehrere Bloecke: bytes(range(256)) * 12295 = 3.147.520 Byte.
+const VEKTOR_GROSS_HASH = '721656139dc2d9749502311edf357483f72cefcc783fea95c0e0f1a5e36e32ac';
+const LEER_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const gross = () => { const b = new Uint8Array(256 * 12295); for (let i = 0; i < b.length; i++) b[i] = i % 256; return b; };
+const dh = (s: string) => at.datenHash(ethers.toUtf8Bytes(s));
 
 describe('Bindung an die Aufnahme', () => {
   beforeEach(() => {
@@ -31,8 +36,12 @@ describe('Bindung an die Aufnahme', () => {
   afterEach(() => { delete process.env.EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER; });
 
   it('rechnet denselben Testvektor wie der Coordinator', () => {
-    const teile = [['face_image', sha('a')], ['face_burst', sha('b')], ['zwilling_bild', sha('c')], ['zwilling_video', sha('d')]] as const;
+    const teile = [['face_image', dh('a')], ['face_burst', dh('b')], ['zwilling_bild', dh('c')], ['zwilling_video', dh('d')]] as const;
     expect(at.aufnahmeHashAus(teile)).toBe(VEKTOR_AUFNAHME);
+    expect(at.datenHash(gross())).toBe(VEKTOR_GROSS_HASH);
+    expect(at.datenHash(new Uint8Array(0))).toBe(LEER_HASH);
+    // Blockweise, nicht SHA-256 der ganzen Datei.
+    expect(at.datenHash(gross())).not.toBe(sha256Hex(gross()));
     const gebunden = at.zwillingBindung('n0nce', VEKTOR_AUFNAHME);
     expect(gebunden).toBe(`aequitas-zwilling-aufnahme-v1|n0nce|${VEKTOR_AUFNAHME}`);
     expect(at.gebundenerHash(gebunden)).toBe(VEKTOR_REQUEST_HASH);

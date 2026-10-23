@@ -18,7 +18,7 @@ import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { ethers } from 'ethers';
-import { attestierungAnhaengen, aufnahmeHashAus, zwillingBindung } from './attestation';
+import { attestierungAnhaengen, aufnahmeHashAus, blockHash, dateiHashAus, DATEI_BLOCK, zwillingBindung } from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
 import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
@@ -1445,13 +1445,29 @@ export interface ZwillingAufnahme {
   intervalMs: number;
 }
 
-/** B registriert: eigene Aufnahme wie bei /register plus die gemeinsame.
- *  Geht an den Coordinator der Anfrage, der auch den Nonce ausgestellt
- *  haben muss -- sonst wird abgebrochen, bevor ein Bild das Geraet verlaesst. */
-/** SHA-256 einer Datei (hex), so wie sie hochgeladen wird. */
+/** So gross darf eine Datei der Zwillingsaufnahme hoechstens sein. Zwei
+ *  20-s-Videos liegen weit darunter; der Coordinator nimmt je Anfrage
+ *  hoechstens 160 MiB (Koerpergrenze). */
+export const ZWILLING_DATEI_HOECHSTENS = 64 << 20;
+
+/** datei_hash (lib/attestation.ts) einer Datei, so wie sie hochgeladen wird --
+ *  blockweise gelesen, nie die ganze Datei im Speicher. Wirft, wenn sie
+ *  fehlt, zu gross ist oder beim Lesen kuerzer wird. */
 export async function dateiHash(uri: string): Promise<string> {
-  const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-  return ethers.sha256(ethers.decodeBase64(b64)).slice(2);
+  const info = await FileSystem.getInfoAsync(uri);
+  const groesse = info.exists ? (info as { size?: number }).size : undefined;
+  if (typeof groesse !== 'number' || groesse < 0) throw new Error('Datei der Aufnahme nicht lesbar');
+  if (groesse > ZWILLING_DATEI_HOECHSTENS) throw new Error('Datei der Aufnahme zu gross');
+  const glieder: Uint8Array[] = [];
+  for (let pos = 0; pos < groesse; pos += DATEI_BLOCK) {
+    const laenge = Math.min(DATEI_BLOCK, groesse - pos);
+    const block = ethers.decodeBase64(await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64, position: pos, length: laenge,
+    }));
+    if (block.length !== laenge) throw new Error('Datei der Aufnahme hat sich beim Lesen geaendert');
+    glieder.push(blockHash(block));
+  }
+  return dateiHashAus(glieder);
 }
 
 /** Die Teile der Zwillingsaufnahme in der festen Reihenfolge von
@@ -1469,6 +1485,9 @@ export async function zwillingAufnahmeTeile(
   return teile;
 }
 
+/** B registriert: eigene Aufnahme wie bei /register plus die gemeinsame.
+ *  Geht an den Coordinator der Anfrage, der auch den Nonce ausgestellt
+ *  haben muss -- sonst wird abgebrochen, bevor ein Bild das Geraet verlaesst. */
 export async function zwillingRegister(
   capture: BiometricCapture,
   gemeinsam: ZwillingAufnahme,
@@ -1531,15 +1550,14 @@ export async function zwillingRegister(
     });
     form.append('zwilling_interval_ms', String(gemeinsam.intervalMs));
     // Das Token gilt nur fuer GENAU diese Dateien (#73 HOCH-2): erst jetzt,
-    // nach der Aufnahme, geholt. Laesst sich eine Datei nicht lesen, geht
-    // keine Attestierung mit -- der Coordinator weist dann ab.
-    let bindung: string | undefined;
-    try {
-      bindung = zwillingBindung(capture.challengeNonce, aufnahmeHashAus(await zwillingAufnahmeTeile(capture, gemeinsam)));
-    } catch (e) {
-      console.warn('[zwilling] Aufnahme nicht lesbar -- ohne Geraetepruefung', e);
+    // nach der Aufnahme, geholt. Ohne gebundene Geraetepruefung weist der
+    // Coordinator ohnehin ab -- dann gar nicht senden: sonst verliessen die
+    // Bilder das Geraet umsonst, und die Anfrage (A's Zustimmung) waere
+    // verbraucht (Pruefung von 56fd733).
+    const bindung = zwillingBindung(capture.challengeNonce, aufnahmeHashAus(await zwillingAufnahmeTeile(capture, gemeinsam)));
+    if (!(await attestierungAnhaengen(form, capture.challengeNonce, bindung))) {
+      throw new Error('zwilling: Geraetepruefung nicht verfuegbar -- ohne sie nimmt der Coordinator die Aufnahme nicht an');
     }
-    if (bindung) await attestierungAnhaengen(form, capture.challengeNonce, bindung);
     const resp = await fetchMitFrist(`${base}/zwilling/register`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
