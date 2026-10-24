@@ -14,9 +14,31 @@
 // dann nicht. Nur im Entwicklungsbuild (__DEV__) gilt http fuer lokale
 // Adressen (localhost, 127.0.0.1, 10.0.2.2 = Android-Emulator).
 const LOKAL = /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/|$)/;
+
+// ABGESCHALTETE SERVER (24.10.2026): proof2.aequitas.digital war C2
+// (194.163.188.71), 173.249.37.118 der erste Contabo1. Beide Server sind aus,
+// ihre IPs neu vergeben. v1.12.3 wurde mit proof2 in EXPO_PUBLIC_*_FALLBACKS
+// gebaut: antwortete proof1 nicht, gingen Gesichtsaufnahmen, API- und
+// RPC-Anfragen dorthin -- und wer die Adresse uebernimmt, kann ein gueltiges
+// Zertifikat fuer den Namen holen. Darum zaehlen diese Hosts nie, egal was
+// beim Bau in den Variablen steht (auch Unterdomains, Gross/Klein, Port,
+// Benutzerteil, Punkt am Ende).
+const ABGESCHALTET = ['proof2.aequitas.digital', '194.163.188.71', '173.249.37.118'];
+export function abgeschaltet(url: string): boolean {
+  const autoritaet = (url.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i) ?? [])[1];
+  if (autoritaet === undefined) return false;
+  const host = autoritaet
+    .slice(autoritaet.lastIndexOf('@') + 1)
+    .replace(/:\d*$/, '')
+    .replace(/\.+$/, '')
+    .toLowerCase();
+  return ABGESCHALTET.some((a) => host === a || host.endsWith('.' + a));
+}
+
 export function sichereAdresse(raw: string | undefined, dev: boolean): string | null {
   const v = (raw ?? '').trim();
   if (v === '') return null;
+  if (abgeschaltet(v)) return null;
   if (/^https:\/\/[^\s/]+/.test(v)) return v;
   if (dev && LOKAL.test(v)) return v;
   return null;
@@ -49,11 +71,10 @@ const PRIMARY_NODE = 'https://aequitas.digital';
 export const API_BASE = orDefault(process.env.EXPO_PUBLIC_API_BASE, PRIMARY_NODE + '/api');
 export const WEBAPP = orDefault(process.env.EXPO_PUBLIC_WEBAPP, PRIMARY_NODE);
 export const RPC_URL = orDefault(process.env.EXPO_PUBLIC_RPC_URL, PRIMARY_NODE + '/rpc');
-// Ausweichadressen (kommagetrennt). aequitas.digital haengt allein an
-// Contabo1; faellt die Box aus, laeuft die Kette auf Contabo2 weiter -- und
-// die App waere blind. proof2.aequitas.digital fuehrt seit 14.09.2026 /api/*
-// und /rpc zum zweiten Knoten. Auswahl und Wechsel: lib/api.ts (apiBase) und
-// lib/wallet.ts (FallbackProvider).
+// Ausweichadressen (kommagetrennt) fuer einen zweiten eigenen Knoten. Seit
+// dem 03.10.2026 gibt es keinen: C2 (proof2) ist abgeschaltet, seine Adressen
+// zaehlen nie (ABGESCHALTET oben). Auswahl und Wechsel: lib/api.ts (apiBase)
+// und lib/wallet.ts (FallbackProvider).
 function liste(raw: string | undefined): string[] {
   return String(raw ?? '')
     .split(',')
@@ -106,8 +127,8 @@ export const WALLETCONNECT_PROJECT_ID = process.env.EXPO_PUBLIC_WALLETCONNECT_PR
 export const BIOMETRIC_ENABLED = process.env.EXPO_PUBLIC_BIOMETRIC_ENABLED === 'true';
 export const ALLOW_DEVICE_SECRET_REGISTER = process.env.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER === 'true';
 export const COORDINATOR_BASE = sichereAdresse(process.env.EXPO_PUBLIC_COORDINATOR_BASE, istDev) ?? '';
-// Weitere Coordinatoren, kommagetrennt (z. B. proof2, wenn COORDINATOR_BASE
-// auf proof1 zeigt). Der erste erreichbare gewinnt -- und bleibt fuer den
+// Weitere Coordinatoren, kommagetrennt (eigene, unabhaengige Betreiber; proof2
+// ist abgeschaltet und zaehlt nie). Der erste erreichbare gewinnt -- und bleibt fuer den
 // ganzen Ablauf derselbe: ein Challenge-Nonce gilt nur bei dem Coordinator,
 // der ihn ausgegeben hat (coordinator/app/main.py, _pending_challenges liegt
 // im Arbeitsspeicher). Siehe lib/biometricIdentity.ts, coordinatorBase().

@@ -65,7 +65,8 @@ jobs:
       # Weitere Coordinatoren, kommagetrennt -- der erste erreichbare gewinnt
       # (lib/config.ts, COORDINATOR_FALLBACKS). Leer = nur COORDINATOR_BASE.
       EXPO_PUBLIC_COORDINATOR_FALLBACKS: ${{ vars.EXPO_PUBLIC_COORDINATOR_FALLBACKS }}
-      # Ausweichknoten fuer API und RPC (proof2.aequitas.digital/api bzw. /rpc).
+      # Ausweichknoten fuer API und RPC (nur eigene, laufende Knoten; proof2 ist
+      # abgeschaltet und zaehlt nie, lib/config.ts ABGESCHALTET).
       EXPO_PUBLIC_API_FALLBACKS: ${{ vars.EXPO_PUBLIC_API_FALLBACKS }}
       EXPO_PUBLIC_RPC_FALLBACKS: ${{ vars.EXPO_PUBLIC_RPC_FALLBACKS }}
       # Fehlte hier, obwohl lib/config.ts es liest: ohne diese Zeile bleibt

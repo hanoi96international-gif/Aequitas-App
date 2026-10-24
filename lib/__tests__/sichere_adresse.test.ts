@@ -21,6 +21,57 @@ describe('sichereAdresse', () => {
       expect(sichereAdresse(v as string | undefined, true)).toBeNull();
     }
   });
+
+  // Missbrauch (24.10.2026): v1.12.3 wich auf proof2 aus (C2, IP neu
+  // vergeben) -- mit Gesichtsaufnahmen. Abgeschaltete Server zaehlen nie,
+  // in keiner Schreibweise.
+  it('weist abgeschaltete Server ab, in jeder Schreibweise', () => {
+    for (const v of [
+      'https://proof2.aequitas.digital/coordinator',
+      'https://proof2.aequitas.digital/api',
+      'https://proof2.aequitas.digital/rpc',
+      'https://PROOF2.Aequitas.Digital/api',
+      'https://proof2.aequitas.digital./api',
+      'https://proof2.aequitas.digital:443/api',
+      'https://nutzer@proof2.aequitas.digital/api',
+      'https://proof1.aequitas.digital@proof2.aequitas.digital/api',
+      'https://x.proof2.aequitas.digital/api',
+      'https://194.163.188.71/api',
+      'https://173.249.37.118:8443/api',
+    ]) {
+      expect(sichereAdresse(v, false)).toBeNull();
+      expect(sichereAdresse(v, true)).toBeNull();
+    }
+  });
+  it('laesst die laufenden Server und aehnliche Namen durch', () => {
+    for (const v of [
+      'https://proof1.aequitas.digital/coordinator',
+      'https://aequitas.digital/api',
+      'https://proof2.aequitas.digital.example/api',
+      'https://notproof2.aequitas.digital/api',
+      'https://example.org/?r=proof2.aequitas.digital',
+    ]) {
+      expect(sichereAdresse(v, false)).toBe(v);
+    }
+  });
+});
+
+describe('Ausweichlisten ohne abgeschaltete Server', () => {
+  const ORIGINAL_ENV = process.env;
+  beforeEach(() => { jest.resetModules(); process.env = { ...ORIGINAL_ENV }; });
+  afterAll(() => { process.env = ORIGINAL_ENV; });
+
+  it('nimmt proof2 aus allen drei Ausweichlisten, auch wenn die Bauvariablen es nennen', () => {
+    process.env.EXPO_PUBLIC_COORDINATOR_FALLBACKS = 'https://proof2.aequitas.digital/coordinator';
+    process.env.EXPO_PUBLIC_API_FALLBACKS = 'https://proof2.aequitas.digital/api, https://proof1.aequitas.digital/api';
+    process.env.EXPO_PUBLIC_RPC_FALLBACKS = 'https://proof2.aequitas.digital/rpc';
+    process.env.EXPO_PUBLIC_COORDINATOR_BASE = 'https://proof2.aequitas.digital/coordinator';
+    const config = require('../config');
+    expect(config.COORDINATOR_FALLBACKS).toEqual([]);
+    expect(config.API_FALLBACKS).toEqual(['https://proof1.aequitas.digital/api']);
+    expect(config.RPC_FALLBACKS).toEqual([]);
+    expect(config.COORDINATOR_BASE).toBe('');
+  });
 });
 
 describe('fetchMitFrist', () => {
