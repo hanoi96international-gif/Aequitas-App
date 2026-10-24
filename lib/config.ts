@@ -23,15 +23,26 @@ const LOKAL = /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/|$)/;
 // Zertifikat fuer den Namen holen. Darum zaehlen diese Hosts nie, egal was
 // beim Bau in den Variablen steht (auch Unterdomains, Gross/Klein, Port,
 // Benutzerteil, Punkt am Ende).
+//
+// Fail-closed: der URL-Parser von fetch (WHATWG) liest manches anders als ein
+// einfacher Textvergleich -- \ als /, %2E als Punkt, Unicode-Zeichen, die zu
+// ASCII werden, 3265571911 oder 0xc2.163.188.71 als 194.163.188.71, IPv6 mit
+// eingebetteter IPv4. Ein Host, der nicht aus ASCII-Buchstaben, Ziffern,
+// Punkt und Bindestrich besteht, oder eine IPv4 in nicht-kanonischer Form
+// zaehlt darum ebenfalls nie.
 const ABGESCHALTET = ['proof2.aequitas.digital', '194.163.188.71', '173.249.37.118'];
+const IPV4_KANONISCH = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 export function abgeschaltet(url: string): boolean {
-  const autoritaet = (url.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i) ?? [])[1];
+  const autoritaet = (url.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#\\]*)/i) ?? [])[1];
   if (autoritaet === undefined) return false;
   const host = autoritaet
     .slice(autoritaet.lastIndexOf('@') + 1)
     .replace(/:\d*$/, '')
     .replace(/\.+$/, '')
     .toLowerCase();
+  if (!/^[a-z0-9.-]+$/.test(host)) return true;
+  const letztes = host.slice(host.lastIndexOf('.') + 1);
+  if (/^(0x[0-9a-f]*|\d+)$/.test(letztes) && !IPV4_KANONISCH.test(host)) return true;
   return ABGESCHALTET.some((a) => host === a || host.endsWith('.' + a));
 }
 

@@ -38,6 +38,16 @@ describe('sichereAdresse', () => {
       'https://x.proof2.aequitas.digital/api',
       'https://194.163.188.71/api',
       'https://173.249.37.118:8443/api',
+      // Schreibweisen, die der URL-Parser von fetch auf denselben Host abbildet
+      'https://proof2.aequitas.digital\\api',
+      'https://proof2%2Eaequitas.digital/api',
+      'https://ｐroof2.aequitas.digital/api',
+      'https://3265510471/api',
+      'https://0xc2a3bc47/api',
+      'https://0xc2.163.188.71/api',
+      'https://0194.163.188.71/api',
+      'https://194.163.48199/api',
+      'https://[::ffff:c2a3:bc47]/api',
     ]) {
       expect(sichereAdresse(v, false)).toBeNull();
       expect(sichereAdresse(v, true)).toBeNull();
@@ -50,6 +60,8 @@ describe('sichereAdresse', () => {
       'https://proof2.aequitas.digital.example/api',
       'https://notproof2.aequitas.digital/api',
       'https://example.org/?r=proof2.aequitas.digital',
+      'https://203.0.113.7/api',
+      'https://proof1.aequitas.digital:8443/api',
     ]) {
       expect(sichereAdresse(v, false)).toBe(v);
     }
