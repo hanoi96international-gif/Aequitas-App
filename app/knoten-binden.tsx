@@ -34,7 +34,13 @@ export default function KnotenBinden() {
     setErgebnis(null);
     try {
       const r = await withTimeout(knotenBinden(signer, b), SIGN_TIMEOUT_MS, t('trade.signTimeout'));
-      if (r.ok) {
+      if (r.ok && r.kette === 'eingetragen') {
+        setErgebnis({ ok: true, text: t('node.bindOkKette') });
+      } else if (r.ok && r.kette === 'fehlgeschlagen') {
+        // Beim Knoten gebunden, das Register auf der Kette nicht: als Fehler
+        // zeigen, damit der Knopf bleibt und ein zweiter Versuch moeglich ist.
+        setErgebnis({ ok: false, text: t('node.bindKetteFehler').replace('{meldung}', r.ketteMeldung ?? '') });
+      } else if (r.ok) {
         setErgebnis({ ok: true, text: t('node.bindOk') });
       } else if (r.fehler === 'andere_wallet') {
         setErgebnis({ ok: false, text: t('node.bindOtherWallet') });
@@ -75,6 +81,7 @@ export default function KnotenBinden() {
                 <Text style={S.wert}>{kontrollzahl(b.adresse)}</Text>
               </View>
               <Text style={S.warnung}>{t('node.bindWarning')}</Text>
+              <Text style={S.body}>{t('node.bindZweiUnterschriften')}</Text>
               {ergebnis ? (
                 <Text style={ergebnis.ok ? S.ok : S.fehler}>{ergebnis.text}</Text>
               ) : null}

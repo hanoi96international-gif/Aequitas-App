@@ -563,6 +563,9 @@ export interface Translations {
     bindWarning: string;
     bindConfirmBtn: string;
     bindOk: string;
+    bindOkKette: string;
+    bindKetteFehler: string;
+    bindZweiUnterschriften: string;
     bindOtherWallet: string;
     bindProofInvalid: string;
     bindRefused: string;

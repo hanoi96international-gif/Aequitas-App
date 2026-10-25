@@ -65,13 +65,130 @@ export function knotenNachweisGueltig(b: Knotenbindung): boolean {
   }
 }
 
+// ---------------------------------------------------------------- Kette
+//
+// VALIDATOR-REGISTER AUF DER KETTE (seit 25.10.2026 in derselben Bestaetigung).
+// Die Bindung oben gilt nur beim Knoten. Ins Register auf der Kette kommt ein
+// Knoten mit einer eigenen Transaktion (keeper/validator_register.go): Knoten
+// UND Mensch unterschreiben denselben Satz mit Zeitpunkt. Der Knoten liefert
+// seine Unterschrift mit der Bindungsanfrage (bindung_zeit,
+// bindung_signatur_knoten); die App prueft sie hier selbst, baut den Satz
+// selbst (nie vom Netz uebernommen) und reicht beides bei
+// /api/validator-bindung ein. Vorher ging das nur ueber die Browserseite
+// /node-binding -- wer der Ein-Schritt-Anleitung folgte, stand nie im
+// Register.
+
+/** Eingefroren wie im Knoten (eingefroreneChainID, chain_id_wechsel.go). */
+export const KETTENBINDUNG_CHAIN_ID = 1926;
+/** Die Annahme nimmt den Nachweis bis 10 min alt; eine Minute Puffer. */
+export const KETTENNACHWEIS_HOECHSTENS_ALT_S = 9 * 60;
+/** Wie nachweisHoechstensVoraus im Knoten. */
+export const KETTENNACHWEIS_HOECHSTENS_VORAUS_S = 5 * 60;
+
+export interface Kettennachweis {
+  /** Unix-Sekunden, die der Knoten unterschrieben hat. */
+  zeit: number;
+  /** Unterschrift der Signieradresse ueber kettenbindungsNachricht(...). */
+  signaturKnoten: string;
+}
+
+export function kettenbindungsNachricht(adresse: string, wallet: string, zeit: number): string {
+  return `Aequitas: bind validator ${adresse.toLowerCase()} to operator ${wallet.toLowerCase()} chain:${KETTENBINDUNG_CHAIN_ID} ts:${zeit}`;
+}
+
+/** Stammt der Kettennachweis vom Schluessel der Signieradresse, fuer genau diese Wallet? */
+export function kettennachweisGueltig(b: Knotenbindung, k: Kettennachweis): boolean {
+  if (!Number.isSafeInteger(k.zeit) || k.zeit <= 0 || !SIGNATUR.test(k.signaturKnoten)) return false;
+  try {
+    return ethers.verifyMessage(kettenbindungsNachricht(b.adresse, b.wallet, k.zeit), k.signaturKnoten).toLowerCase() === b.adresse;
+  } catch {
+    return false;
+  }
+}
+
+/** Nimmt die Annahme den Nachweis jetzt noch? */
+export function kettennachweisFrisch(k: Kettennachweis, jetztS: number): boolean {
+  return k.zeit >= jetztS - KETTENNACHWEIS_HOECHSTENS_ALT_S && k.zeit <= jetztS + KETTENNACHWEIS_HOECHSTENS_VORAUS_S;
+}
+
+/** Kanonische Schreibweise (klein, v = 27/28), wie die Kette sie verlangt (kanonischeSignatur). */
+function kanonisch(sig: string): string {
+  return ethers.Signature.from(sig).serialized.toLowerCase();
+}
+
 export type BindungsFehler = 'andere_wallet' | 'nachweis_ungueltig' | 'unterschrift_ungueltig' | 'abgelehnt';
+
+/** eingetragen: im Ausgang des Leiters, mit dem naechsten Block auf der Kette. */
+export type KettenErgebnis = 'eingetragen' | 'nicht_angeboten' | 'fehlgeschlagen';
 
 export interface BindungsErgebnis {
   ok: boolean;
   fehler?: BindungsFehler;
   /** Meldung des Knotens bei 'abgelehnt' (nur zur Anzeige). */
   meldung?: string;
+  /** Nur bei ok: was mit dem Eintrag im Register auf der Kette geschah. */
+  kette?: KettenErgebnis;
+  /** Meldung bei kette = 'fehlgeschlagen' (nur zur Anzeige). */
+  ketteMeldung?: string;
+}
+
+async function meldungAus(antwort: Response): Promise<string> {
+  let meldung = `HTTP ${antwort.status}`;
+  try {
+    const j = await antwort.json();
+    if (j && typeof j.error === 'string') meldung = j.error.slice(0, 200);
+  } catch {
+    /* Meldung bleibt der Statuscode */
+  }
+  return meldung;
+}
+
+/**
+ * Der frischeste Kettennachweis des Servers fuer diese Bindung -- unmittelbar
+ * vor dem Unterschreiben neu geholt (der Server meldet alle 3 Minuten neu).
+ * undefined, wenn keiner da, ungueltig oder zu alt ist.
+ */
+async function frischerKettennachweis(b: Knotenbindung, fetchFn: typeof fetch, jetztS: number): Promise<Kettennachweis | undefined> {
+  const liste = await holeBindungsanfragen(b.wallet, fetchFn);
+  const a = liste.find((e) => e.adresse === b.adresse && e.kette);
+  if (!a?.kette || !kettennachweisFrisch(a.kette, jetztS)) return undefined;
+  return a.kette;
+}
+
+/** Unterschreibt den Satz der Kettenbindung und reicht ihn ein. */
+async function ketteBinden(
+  signer: AequitasSigner,
+  b: Knotenbindung,
+  k: Kettennachweis,
+  fetchFn: typeof fetch,
+): Promise<Pick<BindungsErgebnis, 'kette' | 'ketteMeldung'>> {
+  const nachricht = kettenbindungsNachricht(b.adresse, b.wallet, k.zeit);
+  let unterschrift = '';
+  try {
+    unterschrift = kanonisch(await signer.signMessage(nachricht));
+    if (ethers.verifyMessage(nachricht, unterschrift).toLowerCase() !== b.wallet) {
+      return { kette: 'fehlgeschlagen', ketteMeldung: 'signature is not from this wallet' };
+    }
+  } catch (e: any) {
+    return { kette: 'fehlgeschlagen', ketteMeldung: String(e?.message ?? e).slice(0, 200) };
+  }
+  try {
+    const antwort = await fetchFn(`${API_BASE}/validator-bindung`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operator: b.wallet,
+        signing: b.adresse,
+        ts: k.zeit,
+        operator_signature: unterschrift,
+        signing_signature: kanonisch(k.signaturKnoten),
+      }),
+    });
+    if (!antwort.ok) return { kette: 'fehlgeschlagen', ketteMeldung: await meldungAus(antwort) };
+  } catch (e: any) {
+    return { kette: 'fehlgeschlagen', ketteMeldung: String(e?.message ?? e).slice(0, 200) };
+  }
+  return { kette: 'eingetragen' };
 }
 
 /**
@@ -84,9 +201,14 @@ export async function knotenBinden(
   signer: AequitasSigner,
   b: Knotenbindung,
   fetchFn: typeof fetch = fetch,
+  jetztS: () => number = () => Math.floor(Date.now() / 1000),
 ): Promise<BindungsErgebnis> {
   if (signer.address.toLowerCase() !== b.wallet) return { ok: false, fehler: 'andere_wallet' };
   if (!knotenNachweisGueltig(b)) return { ok: false, fehler: 'nachweis_ungueltig' };
+
+  // Vor dem ersten Unterschreiben holen: nach der Bindung beim Knoten raeumt
+  // das Netz die Anfrage weg (bindungsAnfragen.erledigt).
+  const kette = await frischerKettennachweis(b, fetchFn, jetztS());
 
   const nachricht = bindungsNachricht(b.adresse);
   const unterschrift = await signer.signMessage(nachricht);
@@ -109,16 +231,10 @@ export async function knotenBinden(
     }),
   });
   if (!antwort.ok) {
-    let meldung = `HTTP ${antwort.status}`;
-    try {
-      const j = await antwort.json();
-      if (j && typeof j.error === 'string') meldung = j.error.slice(0, 200);
-    } catch {
-      /* Meldung bleibt der Statuscode */
-    }
-    return { ok: false, fehler: 'abgelehnt', meldung };
+    return { ok: false, fehler: 'abgelehnt', meldung: await meldungAus(antwort) };
   }
-  return { ok: true };
+  if (!kette) return { ok: true, kette: 'nicht_angeboten' };
+  return { ok: true, ...(await ketteBinden(signer, b, kette, fetchFn)) };
 }
 
 /** Eine offene Anfrage eines Servers (keeper/bindungsanfrage.go). */
@@ -126,6 +242,8 @@ export interface Bindungsanfrage extends Knotenbindung {
   /** IP, von der der Server die Anfrage geschickt hat. */
   ip: string;
   zeit: string;
+  /** Nachweis fuer das Register auf der Kette, nur wenn er gueltig ist. */
+  kette?: Kettennachweis;
 }
 
 /**
@@ -144,7 +262,13 @@ export async function holeBindungsanfragen(wallet: string, fetchFn: typeof fetch
       const b = ausParametern(e?.signing_address, e?.wallet, e?.beweis);
       if (!b || b.wallet !== wallet.toLowerCase() || !knotenNachweisGueltig(b)) continue;
       const ip = typeof e?.ip === 'string' && /^[0-9a-fA-F:.]{2,45}$/.test(e.ip) ? e.ip : '?';
-      out.push({ ...b, ip, zeit: typeof e?.zeit === 'string' ? e.zeit : '' });
+      const anfrage: Bindungsanfrage = { ...b, ip, zeit: typeof e?.zeit === 'string' ? e.zeit : '' };
+      // Kettennachweis nur, wenn er selbst geprueft zu genau dieser Bindung passt.
+      const k = { zeit: e?.bindung_zeit, signaturKnoten: e?.bindung_signatur_knoten } as Kettennachweis;
+      if (typeof k.zeit === 'number' && typeof k.signaturKnoten === 'string' && kettennachweisGueltig(b, k)) {
+        anfrage.kette = { zeit: k.zeit, signaturKnoten: k.signaturKnoten };
+      }
+      out.push(anfrage);
     }
     return out;
   } catch {

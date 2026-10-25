@@ -2,7 +2,7 @@
   "expo": {
     "name": "aequitas-app",
     "slug": "aequitas-app",
-    "version": "1.12.9",
+    "version": "1.13.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "aequitasapp",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "digital.aequitas.app",
-      "versionCode": 33,
+      "versionCode": 34,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
