@@ -551,7 +551,7 @@ const tr: Translations = {
     bindConfirmBtn: 'Onayla',
     bindOk: 'Bağlandı. Sunucun bunu birkaç saniye içinde fark eder ve kurulumu kendisi tamamlar.',
     bindOkKette: 'Bağlandı – düğümde ve zincirdeki doğrulayıcı kaydında (bir sonraki blokla). Sunucun kurulumu birkaç saniye içinde kendisi tamamlar.',
-    bindKetteFehler: 'Düğümde bağlandı. Zincirdeki doğrulayıcı kaydına giriş başarısız oldu: {meldung}. Bağlamayı daha sonra yeniden başlat.',
+    bindKetteFehler: 'Düğümde bağlandı. Zincirdeki doğrulayıcı kaydına giriş başarısız oldu: {meldung}. Yeniden denemek için sunucuda kurulumu tekrar başlat (einrichten.sh) ve burada yeniden onayla.',
     bindZweiUnterschriften: 'Cüzdanın en fazla iki imza ister: biri düğüm, biri zincirdeki doğrulayıcı kaydı için. İkisi de ücretsiz.',
     bindOtherWallet: 'Bu kod başka bir cüzdan için oluşturuldu. einrichten.sh’i bu uygulamadaki cüzdan adresiyle başlat.',
     bindProofInvalid: 'Kod tutarlı değil (düğüm kanıtı veya imza hatalı). Hiçbir şey gönderilmedi.',

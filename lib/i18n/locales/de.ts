@@ -551,7 +551,7 @@ const de: Translations = {
     bindConfirmBtn: 'Bestätigen',
     bindOk: 'Verbunden. Dein Server merkt das in wenigen Sekunden und schließt die Einrichtung selbst ab.',
     bindOkKette: 'Verbunden – beim Knoten und im Validator-Register auf der Kette (mit dem nächsten Block). Dein Server schließt die Einrichtung in wenigen Sekunden selbst ab.',
-    bindKetteFehler: 'Beim Knoten verbunden. Der Eintrag im Validator-Register auf der Kette hat nicht geklappt: {meldung}. Starte die Bindung später noch einmal.',
+    bindKetteFehler: 'Beim Knoten verbunden. Der Eintrag im Validator-Register auf der Kette hat nicht geklappt: {meldung}. Für einen neuen Versuch die Einrichtung auf dem Server noch einmal starten (einrichten.sh) und hier erneut bestätigen.',
     bindZweiUnterschriften: 'Deine Wallet fragt bis zu zweimal nach einer Unterschrift: für den Knoten und für das Validator-Register auf der Kette. Beides kostet nichts.',
     bindOtherWallet: 'Dieser Code wurde für eine andere Wallet erzeugt. Starte einrichten.sh mit der Wallet-Adresse aus dieser App.',
     bindProofInvalid: 'Der Code passt nicht zusammen (Knotennachweis oder Unterschrift stimmt nicht). Es wurde nichts gesendet.',

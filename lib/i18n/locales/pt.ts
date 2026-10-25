@@ -551,7 +551,7 @@ const pt: Translations = {
     bindConfirmBtn: 'Confirmar',
     bindOk: 'Ligado. O teu servidor nota-o em poucos segundos e termina a configuração sozinho.',
     bindOkKette: 'Ligado – no nó e no registo de validadores da cadeia (com o próximo bloco). O teu servidor termina a configuração sozinho em poucos segundos.',
-    bindKetteFehler: 'Ligado no nó. A entrada no registo de validadores da cadeia não funcionou: {meldung}. Volta a iniciar a ligação mais tarde.',
+    bindKetteFehler: 'Ligado no nó. A entrada no registo de validadores da cadeia não funcionou: {meldung}. Para tentar de novo, volta a iniciar a configuração no servidor (einrichten.sh) e confirma aqui outra vez.',
     bindZweiUnterschriften: 'A tua wallet pede até duas assinaturas: uma para o nó e outra para o registo de validadores da cadeia. Ambas são gratuitas.',
     bindOtherWallet: 'Este código foi criado para outra carteira. Inicia o einrichten.sh com o endereço de carteira desta app.',
     bindProofInvalid: 'O código não bate certo (a prova do nó ou a assinatura está errada). Nada foi enviado.',

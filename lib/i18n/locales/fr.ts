@@ -551,7 +551,7 @@ const fr: Translations = {
     bindConfirmBtn: 'Confirmer',
     bindOk: 'Relié. Ton serveur le remarque en quelques secondes et termine l’installation tout seul.',
     bindOkKette: 'Relié – au nœud et dans le registre des validateurs sur la chaîne (avec le prochain bloc). Ton serveur termine l’installation tout seul en quelques secondes.',
-    bindKetteFehler: 'Relié au nœud. L’inscription dans le registre des validateurs sur la chaîne n’a pas fonctionné : {meldung}. Relance la liaison plus tard.',
+    bindKetteFehler: 'Relié au nœud. L’inscription dans le registre des validateurs sur la chaîne n’a pas fonctionné : {meldung}. Pour réessayer, relance l’installation sur le serveur (einrichten.sh) et confirme ici à nouveau.',
     bindZweiUnterschriften: 'Ton wallet demande jusqu’à deux signatures : une pour le nœud et une pour le registre des validateurs sur la chaîne. Les deux sont gratuites.',
     bindOtherWallet: 'Ce code a été créé pour un autre portefeuille. Lance einrichten.sh avec l’adresse de portefeuille de cette app.',
     bindProofInvalid: 'Le code n’est pas cohérent (la preuve du nœud ou la signature est fausse). Rien n’a été envoyé.',
