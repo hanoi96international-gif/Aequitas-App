@@ -1,6 +1,10 @@
 import { ethers } from 'ethers';
 import {
+  KETTENNACHWEIS_HOECHSTENS_ALT_S,
+  KETTENNACHWEIS_HOECHSTENS_VORAUS_S,
   ablehnungsNachricht,
+  kettenbindungsNachricht,
+  kettennachweisGueltig,
   ausParametern,
   bindungsanfrageAblehnen,
   holeBindungsanfragen,
@@ -81,8 +85,10 @@ describe('knotenBinden', () => {
     const b = leseKnotenbindung(await code())!;
     const fetchFn = okFetch();
     const r = await knotenBinden(signerAus(mensch), b, fetchFn as unknown as typeof fetch);
-    expect(r).toEqual({ ok: true });
-    const [url, init] = fetchFn.mock.calls[0];
+    expect(r).toEqual({ ok: true, kette: 'nicht_angeboten' });
+    const posts = fetchFn.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    const [url, init] = posts[0];
     expect(String(url)).toMatch(/\/register-validator-key$/);
     const body = JSON.parse(init.body);
     expect(body.signing_address).toBe(b.adresse);
@@ -116,7 +122,8 @@ describe('knotenBinden', () => {
     const fetchFn = okFetch();
     const r = await knotenBinden(signerAus(mensch, fremd), b, fetchFn as unknown as typeof fetch);
     expect(r).toEqual({ ok: false, fehler: 'unterschrift_ungueltig' });
-    expect(fetchFn).not.toHaveBeenCalled();
+    // Gelesen werden darf (offene Anfragen), eingereicht wird nichts.
+    expect(fetchFn.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
   });
 
   it('reports the node refusal', async () => {
@@ -184,5 +191,127 @@ describe('kontrollzahl', () => {
   it('differs between servers', () => {
     expect(kontrollzahl(knoten.address)).not.toBe(kontrollzahl(fremd.address));
     expect(kontrollzahl(knoten.address)).toMatch(/^\d{3} \d{3}$/);
+  });
+});
+
+describe('Kettenbindung (Validator-Register auf der Kette)', () => {
+  const JETZT = 1_792_900_000;
+  const jetzt = () => JETZT;
+
+  it('builds exactly the sentence the node checks (validatorBindungNachricht, chain frozen at 1926)', () => {
+    expect(kettenbindungsNachricht('0xABCDEF0000000000000000000000000000000001', '0x00000000000000000000000000000000000000Aa', 1792900000))
+      .toBe('Aequitas: bind validator 0xabcdef0000000000000000000000000000000001 to operator 0x00000000000000000000000000000000000000aa chain:1926 ts:1792900000');
+  });
+
+  async function anfrage(opts: { von?: ethers.HDNodeWallet; satzAdresse?: string; satzWallet?: string; zeit?: number; satzZeit?: number } = {}) {
+    const von = opts.von ?? knoten;
+    const zeit = opts.zeit ?? JETZT;
+    const satz = kettenbindungsNachricht(opts.satzAdresse ?? knoten.address, opts.satzWallet ?? mensch.address, opts.satzZeit ?? zeit);
+    return {
+      signing_address: knoten.address.toLowerCase(),
+      wallet: mensch.address.toLowerCase(),
+      beweis: await knoten.signMessage(knotenNachweisNachricht(mensch.address)),
+      ip: '203.0.113.7',
+      zeit: '2026-10-25T07:00:00Z',
+      bindung_zeit: zeit,
+      bindung_signatur_knoten: await von.signMessage(satz),
+    };
+  }
+
+  /** Netz-Attrappe: GET bindungsanfragen liefert `anfragen`, POSTs nach `antworten`. */
+  function netz(anfragen: unknown[], antworten: Record<string, { status: number; body: unknown }> = {}) {
+    return jest.fn(async (url: string, init?: any) => {
+      if (!init?.method || init.method === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ anfragen }) };
+      }
+      const pfad = String(url).replace(/^.*\/api/, '');
+      const a = antworten[pfad] ?? { status: 200, body: { success: true } };
+      return { ok: a.status < 300, status: a.status, json: async () => a.body };
+    });
+  }
+  const posts = (f: jest.Mock) => f.mock.calls.filter(([, init]) => init?.method === 'POST').map(([url, init]) => ({ url: String(url), body: JSON.parse(init.body) }));
+
+  it('one confirmation: binds at the node AND submits the chain binding with both signatures', async () => {
+    const a = await anfrage();
+    const f = netz([a]);
+    const b = leseKnotenbindung(await code())!;
+    const r = await knotenBinden(signerAus(mensch), b, f as any, jetzt);
+    expect(r).toEqual({ ok: true, kette: 'eingetragen' });
+    const p = posts(f);
+    expect(p.map((x) => x.url.replace(/^.*\/api/, ''))).toEqual(['/register-validator-key', '/validator-bindung']);
+    const k = p[1].body;
+    expect(k).toEqual({
+      operator: b.wallet,
+      signing: b.adresse,
+      ts: JETZT,
+      operator_signature: k.operator_signature,
+      signing_signature: a.bindung_signatur_knoten.toLowerCase(),
+    });
+    expect(ethers.verifyMessage(kettenbindungsNachricht(b.adresse, b.wallet, JETZT), k.operator_signature).toLowerCase()).toBe(b.wallet);
+    expect(k.operator_signature).toMatch(/^0x[0-9a-f]{130}$/);
+    expect(['1b', '1c']).toContain(k.operator_signature.slice(-2));
+  });
+
+  it('ignores a forged or foreign chain proof and binds only at the node', async () => {
+    const b = leseKnotenbindung(await code())!;
+    for (const a of [
+      await anfrage({ von: fremd }),                                    // nicht der Knotenschluessel
+      await anfrage({ satzWallet: fremd.address }),                     // Satz nennt eine andere Wallet
+      await anfrage({ satzAdresse: fremd.address }),                    // Satz nennt eine andere Signieradresse
+      await anfrage({ satzZeit: JETZT - 5 }),                           // Zeit passt nicht zum Satz
+      { ...(await anfrage()), bindung_zeit: String(JETZT) },            // Zeit als Text
+      { ...(await anfrage()), bindung_signatur_knoten: '0x1234' },      // kaputt
+    ]) {
+      const f = netz([a]);
+      const r = await knotenBinden(signerAus(mensch), b, f as any, jetzt);
+      expect(r).toEqual({ ok: true, kette: 'nicht_angeboten' });
+      expect(posts(f).map((x) => x.url)).toEqual([expect.stringMatching(/\/register-validator-key$/)]);
+    }
+  });
+
+  it('does not sign a stale or future chain proof (the chain would refuse it)', async () => {
+    const b = leseKnotenbindung(await code())!;
+    for (const zeit of [JETZT - KETTENNACHWEIS_HOECHSTENS_ALT_S - 1, JETZT - 3600, JETZT + KETTENNACHWEIS_HOECHSTENS_VORAUS_S + 1]) {
+      const signMessage = jest.fn((m: string) => mensch.signMessage(m));
+      const f = netz([await anfrage({ zeit })]);
+      const r = await knotenBinden({ ...signerAus(mensch), signMessage }, b, f as any, jetzt);
+      expect(r).toEqual({ ok: true, kette: 'nicht_angeboten' });
+      expect(signMessage).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('reports a chain refusal without undoing the node binding', async () => {
+    const b = leseKnotenbindung(await code())!;
+    const f = netz([await anfrage()], { '/validator-bindung': { status: 409, body: { error: 'binding too soon after the previous one' } } });
+    const r = await knotenBinden(signerAus(mensch), b, f as any, jetzt);
+    expect(r).toEqual({ ok: true, kette: 'fehlgeschlagen', ketteMeldung: 'binding too soon after the previous one' });
+  });
+
+  it('does not submit the chain binding when the wallet signs it with another key', async () => {
+    const b = leseKnotenbindung(await code())!;
+    const signMessage = (m: string) => (m.startsWith('Aequitas: bind validator') ? fremd : mensch).signMessage(m);
+    const f = netz([await anfrage()]);
+    const r = await knotenBinden({ ...signerAus(mensch), signMessage }, b, f as any, jetzt);
+    expect(r.ok).toBe(true);
+    expect(r.kette).toBe('fehlgeschlagen');
+    expect(posts(f).map((x) => x.url)).toEqual([expect.stringMatching(/\/register-validator-key$/)]);
+  });
+
+  it('never touches the chain when the node binding is refused', async () => {
+    const b = leseKnotenbindung(await code())!;
+    const f = netz([await anfrage()], { '/register-validator-key': { status: 403, body: { error: 'wallet is not a registered human' } } });
+    const r = await knotenBinden(signerAus(mensch), b, f as any, jetzt);
+    expect(r).toEqual({ ok: false, fehler: 'abgelehnt', meldung: 'wallet is not a registered human' });
+    expect(posts(f)).toHaveLength(1);
+  });
+
+  it('holeBindungsanfragen keeps the chain proof only when it checks out', async () => {
+    const gut = await holeBindungsanfragen(mensch.address, netz([await anfrage()]) as any);
+    expect(gut[0].kette).toEqual({ zeit: JETZT, signaturKnoten: expect.stringMatching(/^0x/) });
+    const b = leseKnotenbindung(await code())!;
+    expect(kettennachweisGueltig(b, gut[0].kette!)).toBe(true);
+    const falsch = await holeBindungsanfragen(mensch.address, netz([await anfrage({ von: fremd })]) as any);
+    expect(falsch).toHaveLength(1);
+    expect(falsch[0].kette).toBeUndefined();
   });
 });

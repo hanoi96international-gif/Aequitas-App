@@ -26,7 +26,8 @@ export default function KnotenBinden() {
   const params = useLocalSearchParams<{ adresse?: string; wallet?: string; beweis?: string }>();
   const b = useMemo(() => ausParametern(params.adresse, params.wallet, params.beweis), [params.adresse, params.wallet, params.beweis]);
   const [laeuft, setLaeuft] = useState(false);
-  const [ergebnis, setErgebnis] = useState<{ ok: boolean; text: string } | null>(null);
+  // warnung: beim Knoten gebunden, im Register auf der Kette nicht.
+  const [ergebnis, setErgebnis] = useState<{ ok: boolean; text: string; warnung?: boolean } | null>(null);
 
   async function bestaetigen() {
     if (!b || !signer) return;
@@ -34,7 +35,16 @@ export default function KnotenBinden() {
     setErgebnis(null);
     try {
       const r = await withTimeout(knotenBinden(signer, b), SIGN_TIMEOUT_MS, t('trade.signTimeout'));
-      if (r.ok) {
+      if (r.ok && r.kette === 'eingetragen') {
+        setErgebnis({ ok: true, text: t('node.bindOkKette') });
+      } else if (r.ok && r.kette === 'fehlgeschlagen') {
+        // Beim Knoten gebunden, das Register auf der Kette nicht. Kein zweiter
+        // Knopf: das Netz hat die Anfrage nach der Bindung beim Knoten schon
+        // weggeraeumt, ein neuer Versuch hier faende keinen Kettennachweis und
+        // meldete faelschlich "verbunden". Neuer Versuch = Server neu anfragen
+        // lassen (einrichten.sh / knoten-binden.yml), steht im Text.
+        setErgebnis({ ok: true, warnung: true, text: t('node.bindKetteFehler').replace('{meldung}', r.ketteMeldung ?? '') });
+      } else if (r.ok) {
         setErgebnis({ ok: true, text: t('node.bindOk') });
       } else if (r.fehler === 'andere_wallet') {
         setErgebnis({ ok: false, text: t('node.bindOtherWallet') });
@@ -75,8 +85,9 @@ export default function KnotenBinden() {
                 <Text style={S.wert}>{kontrollzahl(b.adresse)}</Text>
               </View>
               <Text style={S.warnung}>{t('node.bindWarning')}</Text>
+              <Text style={S.body}>{t('node.bindZweiUnterschriften')}</Text>
               {ergebnis ? (
-                <Text style={ergebnis.ok ? S.ok : S.fehler}>{ergebnis.text}</Text>
+                <Text style={ergebnis.warnung ? S.warnung : ergebnis.ok ? S.ok : S.fehler}>{ergebnis.text}</Text>
               ) : null}
               {!ergebnis?.ok && (
                 <TouchableOpacity style={[S.btn, laeuft && { opacity: 0.6 }]} onPress={bestaetigen} disabled={laeuft} activeOpacity={0.85}>
