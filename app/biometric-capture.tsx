@@ -130,11 +130,13 @@ function AltersbuergschaftKarte({ wallet, t, nochmal }: { wallet: string; t: TFu
 
 function WiderspruchKarte({ kennung, t }: { kennung: string; t: TFunc }) {
   const [stand, setStand] = useState<'offen' | 'sendet' | WiderspruchResult['status']>('offen');
+  const [antwortBis, setAntwortBis] = useState<number | undefined>(undefined);
   const [kopiert, setKopiert] = useState(false);
 
   async function einlegen() {
     setStand('sendet');
     const r = await widerspruchEinlegen(kennung);
+    setAntwortBis(r.antwortBis);
     setStand(r.status);
   }
 
@@ -156,7 +158,14 @@ function WiderspruchKarte({ kennung, t }: { kennung: string; t: TFunc }) {
       </View>
       <Text style={S.body}>{t('identity.widerspruchFrist', { tage: String(WIDERSPRUCH_FRIST_TAGE) })}</Text>
       {stand === 'aufgenommen' ? (
-        <Text style={S.body}>{t('identity.widerspruchAufgenommen')}</Text>
+        <>
+          <Text style={S.body}>{t('identity.widerspruchAufgenommen')}</Text>
+          {antwortBis ? (
+            <Text style={S.body}>
+              {t('identity.widerspruchAntwortBis', { date: new Date(antwortBis * 1000).toLocaleDateString() })}
+            </Text>
+          ) : null}
+        </>
       ) : (
         <>
           <GradientButton label={t('identity.widerspruchBtn')} onPress={einlegen} disabled={stand === 'sendet'} />

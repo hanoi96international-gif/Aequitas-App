@@ -383,6 +383,8 @@ export interface Translations {
     erneuernResultUnknownFace: string;
     erneuernResultUnsure: string;
     staffelJetzt: string;
+    staffelFrei: string;
+    staffelEinspruch: string;
     erneuernResultNichtNoetig: string;
     erneuernResultSchon: string;
     // Jaehrlicher Lebensnachweis (lib/lebensnachweis.ts, components/Lebensnachweis.tsx).
@@ -524,6 +526,7 @@ export interface Translations {
     widerspruchFrist: string;
     widerspruchBtn: string;
     widerspruchAufgenommen: string;
+    widerspruchAntwortBis: string;
     widerspruchUnbekannt: string;
     widerspruchNichtErreichbar: string;
     widerspruchKontakt: string;
