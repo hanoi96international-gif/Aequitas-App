@@ -132,3 +132,25 @@ describe('Widerspruch', () => {
     });
   });
 });
+
+describe('Widerspruch: Antwortfrist (1.13.1)', () => {
+  afterEach(() => { jest.resetModules(); (global as any).fetch = undefined; });
+
+  it('nennt, bis wann ein Mensch antwortet -- und nichts, wenn der Coordinator es nicht sagt', async () => {
+    for (const [antwort, erwartet] of [
+      [{ status: 'aufgenommen', antwort_bis: 1_800_000_000 }, 1_800_000_000],
+      [{ status: 'aufgenommen' }, undefined],
+      [{ status: 'aufgenommen', antwort_bis: 'morgen' }, undefined],
+      [{ status: 'aufgenommen', antwort_bis: -5 }, undefined],
+    ] as const) {
+      (global as any).fetch = jest.fn(async () => json(antwort));
+      await jest.isolateModulesAsync(async () => {
+        const bio = require('../biometricIdentity');
+        bio._setCoordinatorCandidatesForTest([C1]);
+        const erg = await bio.widerspruchEinlegen('W-FRIST');
+        expect(erg.status).toBe('aufgenommen');
+        expect(erg.antwortBis).toBe(erwartet);
+      });
+    }
+  });
+});

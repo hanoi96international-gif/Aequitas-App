@@ -234,6 +234,34 @@ export interface Staffel {
   // Ab wann die Zweitpruefung zaehlt (erneuerungFruehestens); fehlt bei
   // Knoten, die es noch nicht nennen -- dann staffelErneuerungAb().
   erneuerung_ab?: number;
+  // Spaetestens dann ist der ganze Rest frei (grant_staffel.go,
+  // staffelFreiAb): Tag 30, mit Einspruch hoechstens Tag 180. Fehlt bei
+  // aelteren Knoten -- dann staffelFreiAb() mit bis.
+  frei_ab?: number;
+  // Einspruch zweier Betreiber gegen die Freigabe an Tag 30
+  // (staffel_einspruch.go); fehlt ohne Einspruch.
+  einspruch_am?: number;
+}
+
+// Spaetestens dann ist der ganze Rest frei. 0, wenn unbekannt.
+export function staffelFreiAb(st: Staffel): number {
+  if (st.frei_ab && st.frei_ab > 0) return st.frei_ab;
+  return st.bis > 0 ? st.bis : 0;
+}
+
+// Haelt ein Einspruch die Freigabe an? Wie die Kette: nur, solange keine
+// Zweitpruefung NACH dem Einspruch kam (staffelErneuertGueltig).
+export function staffelEingesprochen(st: Staffel): boolean {
+  return !!st.einspruch_am && st.einspruch_am > 0 && !(st.erneuert_am > st.einspruch_am);
+}
+
+// Kann die Zweitpruefung jetzt gemacht werden? Ab Tag 7, solange sie noch
+// nicht zaehlt: keine bisher, oder eine von vor einem Einspruch -- dann
+// beendet eine neue den Einspruch sofort.
+export function staffelZweitpruefungFaellig(st: Staffel, jetzt: number): boolean {
+  const ab = staffelErneuerungAb(st);
+  const offen = st.erneuert_am === 0 || staffelEingesprochen(st);
+  return !st.laeuft && offen && ab > 0 && jetzt >= ab;
 }
 
 // Tag 7 nach der Registrierung, wie die Kette rechnet: GrantStagedUntil
