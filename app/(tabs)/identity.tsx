@@ -9,7 +9,7 @@ import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
 import { storedBioHash, deleteEnrollment, nachgezogenAt, zwillingWegAbgeschaltet } from '@/lib/biometricIdentity';
-import { staffelErneuerungAb } from '@/lib/api';
+import { staffelEingesprochen, staffelErneuerungAb, staffelFreiAb, staffelZweitpruefungFaellig } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
 import { LebensnachweisKarte } from '@/components/Lebensnachweis';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, redTintBorder } from '@/constants/aequitas-theme';
@@ -427,7 +427,11 @@ export default function Identity() {
           // only the date -- a capture now would not count. From then on the
           // card asks for the check; the balance poll re-renders it.
           const ab = staffelErneuerungAb(st);
-          const faellig = !st.laeuft && st.erneuert_am === 0 && ab > 0 && Date.now() / 1000 >= ab;
+          const faellig = staffelZweitpruefungFaellig(st, Date.now() / 1000);
+          // Spaetestens dann ist der ganze Rest frei, auch ohne Zweitpruefung
+          // (Tag 30; mit Einspruch hoechstens Tag 180).
+          const frei = staffelFreiAb(st);
+          const freiDatum = frei ? new Date(frei * 1000).toLocaleDateString() : '—';
           return (
             <View style={S.nachziehCard}>
               <Text style={S.nachziehTitle}>{t('identity.staffelTitle', { rest: formatBalance(st.rest_aeq) })}</Text>
@@ -445,6 +449,13 @@ export default function Identity() {
               ) : (
                 <Text style={S.deleteBody}>
                   {t('identity.staffelWartet', { date: ab ? new Date(ab * 1000).toLocaleDateString() : '—' })}
+                </Text>
+              )}
+              {!st.laeuft && (
+                <Text style={S.deleteBody}>
+                  {staffelEingesprochen(st)
+                    ? t('identity.staffelEinspruch', { date: freiDatum })
+                    : t('identity.staffelFrei', { date: freiDatum })}
                 </Text>
               )}
             </View>

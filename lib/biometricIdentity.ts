@@ -118,6 +118,8 @@ export interface WiderspruchResult {
   //                     erreichbar: vielleicht genau der richtige. Spaeter
   //                     nochmal -- NICHT dasselbe wie "unbekannt".
   status: 'aufgenommen' | 'unbekannt' | 'nicht_erreichbar';
+  // Nur bei aufgenommen: bis wann (Unix-Sekunden) ein Mensch antwortet.
+  antwortBis?: number;
 }
 
 /** Legt Widerspruch gegen eine automatische Abweisung ein.
@@ -143,7 +145,12 @@ export async function widerspruchEinlegen(kennung: string): Promise<WiderspruchR
       });
       if (!resp.ok) { einerFehlte = true; continue; }
       const body = await resp.json();
-      if (body?.status === 'aufgenommen') return { status: 'aufgenommen' };
+      if (body?.status === 'aufgenommen') {
+        // Bis wann ein Mensch antwortet (coordinator widerspruch.py,
+        // antwort_bis) -- fehlt bei aelteren Coordinatoren.
+        const bis = typeof body?.antwort_bis === 'number' && body.antwort_bis > 0 ? body.antwort_bis : undefined;
+        return bis ? { status: 'aufgenommen', antwortBis: bis } : { status: 'aufgenommen' };
+      }
     } catch {
       einerFehlte = true;
     }
