@@ -5,15 +5,22 @@ der Betreiber tun kann, steht unter „Deine Schritte“.
 
 ## 1. Deine Schritte (nur du)
 
-1. **Entwicklerkonto anlegen** – play.google.com/console, 25 US-Dollar einmalig,
-   Ausweisprüfung.
-   - **Organisationskonto empfohlen.** Im Store erscheint dann der Name der
-     Organisation, nicht deiner. Voraussetzung: eine eingetragene Rechtsform
-     (GmbH, UG, Verein, Stiftung) und eine **D-U-N-S-Nummer** (kostenlos über
-     Dun & Bradstreet, Bearbeitung einige Tage bis Wochen).
-   - Ein Privatkonto zeigt deinen Namen und dein Land öffentlich und verlangt
-     vor dem öffentlichen Start einen **geschlossenen Test mit mindestens 12
-     Testern über 14 Tage**.
+1. **Privates Entwicklerkonto anlegen** (Entscheidung des Betreibers,
+   07.11.2026) – play.google.com/console, 25 US-Dollar einmalig,
+   Ausweisprüfung und Telefonnummer.
+   - Im Store erscheinen der **Entwicklername** (frei wählbar, z. B.
+     „Aequitas“), das **Land** und eine **Kontakt-E-Mail**. Google prüft
+     intern den echten Namen. Eine Postanschrift wird bei einer App ohne
+     Käufe nicht angezeigt -- vor dem Start in der Play Console nachsehen,
+     was dort für das Konto steht.
+   - **Pflicht für neue Privatkonten:** vor der Produktion ein
+     **geschlossener Test mit mindestens 12 Testern, 14 Tage am Stück**.
+     Danach in der Play Console „Zugriff auf die Produktion beantragen“.
+   - Krypto-Richtlinie: Aequitas ist eine **nicht verwahrende** Wallet (die
+     Schlüssel bleiben auf dem Gerät). Nicht verwahrende Wallets fallen
+     nicht unter Googles Lizenzpflicht für Börsen und Wallets
+     (Klarstellung von Google, August 2025) -- in der Erklärung genau so
+     angeben.
 2. **Rechtstexte mit echten Angaben** des Rechtsträgers: Impressum und
    Datenschutzerklärung auf aequitas.digital. Google prüft die URL der
    Datenschutzerklärung.
@@ -22,7 +29,11 @@ der Betreiber tun kann, steht unter „Deine Schritte“.
    (PEPK) hochladen. Dann sind Play- und Website-Fassung dieselbe App und
    lassen sich gegenseitig aktualisieren. Der Schlüssel liegt verschlüsselt in
    der Sicherung (Aufgabe „Schlüssel-Sicherung“).
-4. **Bundle hochladen:** Workflow „Android APK bauen“ mit `variant: bundle`
+4. **12 Tester einladen:** eine Google-Gruppe oder E-Mail-Liste mit
+   mindestens 12 Personen (Android, Google-Konto), in der Play Console unter
+   „Geschlossener Test“ eintragen, Einladungslink verschicken (Vorlage
+   unten). Die Tester müssen die App installieren und 14 Tage behalten.
+5. **Bundle hochladen:** Workflow „Android APK bauen“ mit `variant: bundle`
    starten, Freigabe `app-signatur` erteilen, das Artefakt
    `aequitas-release-aab` herunterladen und in der Play Console als Release
    hochladen (zuerst interner Test, dann geschlossener Test, dann Produktion).
@@ -86,3 +97,12 @@ Text für „App-Zugriff“ in der Play Console:
 - Updates außerhalb des Stores: die App meldet neue Versionen selbst
   (`components/UpdateHinweis.tsx`). Wer über den Store installiert, bekommt
   Updates über den Store.
+
+## 7. Einladung an die Tester (Vorlage)
+
+> Hallo! Ich suche 12 Menschen, die die Android-App **Aequitas** zwei Wochen
+> lang testen – Pflicht von Google vor dem Start im Play Store. So geht's:
+> 1. Diesem Link folgen und „Tester werden“ antippen: <Link aus der Play Console>
+> 2. Die App aus dem Play Store installieren und **14 Tage installiert lassen**.
+> 3. Gern einmal öffnen und eine Wallet anlegen; die Gesichtsprüfung ist freiwillig.
+> Danke!
