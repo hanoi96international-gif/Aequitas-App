@@ -18,7 +18,10 @@ import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { ethers } from 'ethers';
-import { attestierungAnhaengen, aufnahmeHashAus, blockHash, dateiHashAus, DATEI_BLOCK, zwillingBindung } from './attestation';
+import {
+  attestierungAnhaengen, aufnahmeBindung, aufnahmeHashAus, AUFNAHME_BINDUNG_FORM, blockHash, dateiHashAus, DATEI_BLOCK,
+  zwillingBindung,
+} from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
 import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
@@ -609,7 +612,7 @@ export async function registerBiometric(
     // coordinator's own attestation_status read "not_configured" (see
     // attestation.py). Gebunden an challengeNonce, hoechstens
     // ATTESTIERUNG_FRIST_MS lang (lib/attestation.ts).
-    await attestierungAnhaengen(form, capture.challengeNonce);
+    await geraetepruefungAnhaengen(form, capture);
 
     const resp = await fetchMitFrist(`${base}/register`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
@@ -931,7 +934,7 @@ export async function nachziehenBiometric(
     if (capture.imuSamples?.length) {
       form.append('imu_samples', JSON.stringify(capture.imuSamples));
     }
-    await attestierungAnhaengen(form, capture.challengeNonce);
+    await geraetepruefungAnhaengen(form, capture);
     const resp = await fetchMitFrist(`${base}/nachziehen`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
@@ -1058,7 +1061,7 @@ export async function erneuernBiometric(
     if (capture.imuSamples?.length) {
       form.append('imu_samples', JSON.stringify(capture.imuSamples));
     }
-    await attestierungAnhaengen(form, capture.challengeNonce);
+    await geraetepruefungAnhaengen(form, capture);
     const resp = await fetchMitFrist(`${base}/erneuern`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
@@ -1200,7 +1203,7 @@ export async function lebensnachweisBiometric(
     if (capture.imuSamples?.length) {
       form.append('imu_samples', JSON.stringify(capture.imuSamples));
     }
-    await attestierungAnhaengen(form, capture.challengeNonce);
+    await geraetepruefungAnhaengen(form, capture);
     const resp = await fetchMitFrist(`${base}/lebensnachweis`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
     if (!resp.ok) {
       throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
@@ -1479,13 +1482,44 @@ export async function dateiHash(uri: string): Promise<string> {
 
 /** Die Teile der Zwillingsaufnahme in der festen Reihenfolge von
  *  aufnahmeHashAus (lib/attestation.ts) -- nicht der des Formulars. */
-export async function zwillingAufnahmeTeile(
+/** [feld, datei_hash] der eigenen Aufnahme, in der festen Reihenfolge von
+ *  coordinator/app/attestation.py (aufnahme_hash): face_image, face_burst
+ *  (je Datei), face_burst_video. */
+export async function aufnahmeTeile(
   capture: { faceUri: string; faceBurstUris: string[]; faceBurstVideoUri?: string | null },
-  gemeinsam: { bildUri: string; burstUris: string[]; videoUri?: string | null },
 ): Promise<Array<[string, string]>> {
   const teile: Array<[string, string]> = [['face_image', await dateiHash(capture.faceUri)]];
   for (const uri of capture.faceBurstUris) teile.push(['face_burst', await dateiHash(uri)]);
   if (capture.faceBurstVideoUri) teile.push(['face_burst_video', await dateiHash(capture.faceBurstVideoUri)]);
+  return teile;
+}
+
+/** Haengt die Geraetepruefung an, gebunden an GENAU die Bilder dieses
+ *  Formulars (lib/attestation.ts, aufnahmeBindung) -- auf Registrierung,
+ *  Nachziehen, Erneuern und Lebensnachweis. Laesst sich die Aufnahme nicht
+ *  hashen (Datei unlesbar oder zu gross), wie bisher nur am Nonce: der
+ *  Coordinator stuft das als gelb ein (gestaffelt), nie als Ausschluss. */
+export async function geraetepruefungAnhaengen(
+  form: FormData,
+  capture: { faceUri: string; faceBurstUris: string[]; faceBurstVideoUri?: string | null; challengeNonce?: string | null },
+): Promise<void> {
+  const nonce = capture.challengeNonce;
+  if (!nonce) return;
+  let bindung: string | undefined;
+  try {
+    bindung = aufnahmeBindung(nonce, aufnahmeHashAus(await aufnahmeTeile(capture)));
+  } catch (e) {
+    console.warn('[attestation] Aufnahme nicht gehasht -- Pruefung nur am Nonce', e);
+  }
+  const angehaengt = await attestierungAnhaengen(form, nonce, bindung);
+  if (angehaengt && bindung) form.append('attestierung_bindung', AUFNAHME_BINDUNG_FORM);
+}
+
+export async function zwillingAufnahmeTeile(
+  capture: { faceUri: string; faceBurstUris: string[]; faceBurstVideoUri?: string | null },
+  gemeinsam: { bildUri: string; burstUris: string[]; videoUri?: string | null },
+): Promise<Array<[string, string]>> {
+  const teile = await aufnahmeTeile(capture);
   teile.push(['zwilling_bild', await dateiHash(gemeinsam.bildUri)]);
   for (const uri of gemeinsam.burstUris) teile.push(['zwilling_burst', await dateiHash(uri)]);
   if (gemeinsam.videoUri) teile.push(['zwilling_video', await dateiHash(gemeinsam.videoUri)]);
