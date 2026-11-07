@@ -1,0 +1,9 @@
+Aequitas adalah dompet untuk uang yang memberi setiap manusia saldo awal yang sama dan pendapatan dasar harian – tepat sekali per orang.
+
+• Satu manusia, satu akun: pemeriksaan wajah singkat dengan memutar kepala memastikan tidak ada yang mendaftar dua kali. Hanya ekstrak terenkripsi yang disimpan, tidak pernah foto. Kamu bisa menghapus datamu kapan saja dan menyimpannya lagi nanti.
+• Dompetmu milikmu: kunci tetap di ponselmu (non-kustodial).
+• Pendapatan dasar: setiap manusia yang terkonfirmasi menerima bagian harian. Setahun sekali kamu mengonfirmasi dengan bukti hidup.
+• Adil untuk semua: uang yang diam mengembalikan sebagian kecil ke semua orang. Transfer gratis.
+• Terdesentralisasi dan terbuka: seluruh kode bersifat publik.
+
+Catatan: Aequitas dalam tahap beta publik. Untuk usia 18 tahun ke atas.

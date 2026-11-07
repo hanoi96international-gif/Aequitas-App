@@ -1,0 +1,9 @@
+Aequitas é uma carteira para um dinheiro que dá a cada pessoa o mesmo saldo inicial e um rendimento básico diário – exatamente uma vez por pessoa.
+
+• Uma pessoa, uma conta: uma breve verificação facial com rotação da cabeça garante que ninguém se regista duas vezes. Só é guardado um extrato cifrado, nunca uma foto. Podes apagar os teus dados a qualquer momento e registá-los de novo mais tarde.
+• A tua carteira é tua: as chaves ficam no telemóvel (sem custódia).
+• Rendimento básico: cada pessoa confirmada recebe uma parte diária. Uma vez por ano confirmas com uma prova de vida que continuas aqui.
+• Justo: o dinheiro parado devolve uma pequena parte a todos. As transferências são gratuitas.
+• Descentralizado e aberto: todo o código é público.
+
+Nota: Aequitas está em beta pública. Para maiores de 18 anos.

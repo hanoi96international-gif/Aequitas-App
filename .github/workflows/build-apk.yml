@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: "release = minifiziert, braucht die Keystore-Secrets · debug = sofort installierbar, selbstsigniert"
+        description: "release = APK, minifiziert, mit Release-Schluessel · bundle = App-Bundle (AAB) fuer Google Play, mit demselben Schluessel · debug = sofort installierbar, selbstsigniert"
         required: true
         default: release
         type: choice
-        options: [release, debug]
+        options: [release, bundle, debug]
       allow_unconfigured:
         description: "Auch ohne WalletConnect-Projekt-ID bauen (die App hat dann keinen Wallet-verbinden-Knopf)"
         required: false
@@ -328,6 +328,10 @@ jobs:
           fi
           if [ "$VARIANT" = "debug" ]; then
             ./gradlew assembleDebug --no-daemon
+          elif [ "$VARIANT" = "bundle" ]; then
+            # Google Play nimmt nur App-Bundles (AAB). Signiert wird unten im
+            # Job "signieren-aab", mit demselben Release-Schluessel wie die APK.
+            ./gradlew bundleRelease --no-daemon
           else
             ./gradlew assembleRelease --no-daemon
           fi
@@ -337,7 +341,11 @@ jobs:
         run: |
           # -print -quit statt head: bricht bei der ersten Fundstelle ab und
           # vermeidet ein SIGPIPE, das den Schritt rot faerben wuerde.
-          path=$(find android/app/build/outputs/apk -name '*.apk' -print -quit)
+          if [ "$VARIANT" = "bundle" ]; then
+            path=$(find android/app/build/outputs/bundle -name '*.aab' -print -quit)
+          else
+            path=$(find android/app/build/outputs/apk -name '*.apk' -print -quit)
+          fi
           if [ -z "$path" ]; then
             echo "::error::Kein APK erzeugt — Gradle-Ausgabe oben pruefen."
             exit 1
@@ -379,7 +387,7 @@ jobs:
       # Job "signieren" weiter (siehe unten), nur einen Tag aufbewahrt.
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          name: ${{ env.VARIANT == 'debug' && 'aequitas-debug-apk' || 'aequitas-unsigniert-apk' }}
+          name: ${{ env.VARIANT == 'debug' && 'aequitas-debug-apk' || (env.VARIANT == 'bundle' && 'aequitas-unsigniert-aab' || 'aequitas-unsigniert-apk') }}
           path: ${{ steps.apk.outputs.path }}
           retention-days: ${{ env.VARIANT == 'debug' && 14 || 1 }}
           if-no-files-found: error
@@ -466,5 +474,77 @@ jobs:
           path: ${{ runner.temp }}/signiert/app-release.apk
           # Standard sind 90 Tage. Eine APK dieser App sollte nicht
           # monatelang abrufbar herumliegen.
+          retention-days: 14
+          if-no-files-found: error
+
+  # App-Bundle fuer Google Play: mit DEMSELBEN Release-Schluessel wie die APK
+  # (jarsigner, AAB ist ein JAR-signiertes Archiv). In der Play Console wird
+  # dieser Schluessel als App-Signaturschluessel hinterlegt ("vorhandenen
+  # Schluessel verwenden") -- dann sind Play- und Website-Fassung dieselbe
+  # App und lassen sich gegenseitig aktualisieren. Bricht ab, wenn das
+  # Zertifikat nicht den bekannten Fingerabdruck traegt.
+  signieren-aab:
+    needs: build
+    if: ${{ inputs.variant == 'bundle' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: app-signatur
+    permissions:
+      contents: read
+    env:
+      ERWARTETER_FINGERABDRUCK: 473e9de3a5ba2077d176af95daed88be50c0789815e35428d1c185ae2fc95288
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: aequitas-unsigniert-aab
+          path: ${{ runner.temp }}/aab
+
+      - name: Mit Release-Schluessel signieren
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          AAB=$(find "$RUNNER_TEMP/aab" -name '*.aab' -print -quit)
+          [ -n "$AAB" ] || { echo "::error::Kein AAB im Artefakt"; exit 1; }
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error title=Kein Release-Schluessel::ANDROID_KEYSTORE_BASE64 fehlt in der Umgebung app-signatur."
+            exit 1
+          fi
+          trap 'rm -f "$RUNNER_TEMP/release.keystore"' EXIT
+          ( umask 077; echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore" )
+          # Eine vorhandene Debug-Signatur aus dem Gradle-Bau entfernen, dann
+          # neu signieren. Passwoerter ueber :env, nie auf der Befehlszeile.
+          zip -q -d "$AAB" 'META-INF/*.SF' 'META-INF/*.RSA' 'META-INF/*.EC' 'META-INF/*.DSA' 2>/dev/null || true
+          jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore "$RUNNER_TEMP/release.keystore" \
+            -storepass:env KEYSTORE_PASSWORD -keypass:env KEY_PASSWORD \
+            "$AAB" "$KEY_ALIAS" > /dev/null
+          rm -f "$RUNNER_TEMP/release.keystore"
+          jarsigner -verify "$AAB" > /dev/null
+          FP=$(keytool -printcert -jarfile "$AAB" | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+          if [ "$FP" != "$ERWARTETER_FINGERABDRUCK" ]; then
+            echo "::error title=Falscher Signaturschluessel::Fingerabdruck $FP, erwartet $ERWARTETER_FINGERABDRUCK."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/signiert"
+          cp "$AAB" "$RUNNER_TEMP/signiert/app-release.aab"
+          {
+            echo "### App-Bundle (AAB) fuer Google Play signiert"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| SHA-256 des AAB | \`$(sha256sum "$AAB" | cut -d' ' -f1)\` |"
+            echo "| Zertifikat | \`$FP\` |"
+            echo ""
+            echo "Hochladen: Play Console -> Test und Release -> neuer Release -> dieses AAB."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: aequitas-release-aab
+          path: ${{ runner.temp }}/signiert/app-release.aab
           retention-days: 14
           if-no-files-found: error

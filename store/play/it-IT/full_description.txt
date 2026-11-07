@@ -1,0 +1,9 @@
+Aequitas è un wallet per una moneta che dà a ogni persona lo stesso saldo iniziale e un reddito di base giornaliero – una sola volta per persona.
+
+• Una persona, un conto: una breve verifica del volto con rotazione della testa garantisce che nessuno si registri due volte. Si conserva solo un estratto cifrato, mai una foto. Puoi cancellare i tuoi dati in qualsiasi momento e registrarli di nuovo in seguito.
+• Il tuo wallet è tuo: le chiavi restano sul telefono (non custodial).
+• Reddito di base: ogni persona confermata riceve una quota giornaliera. Una volta l’anno confermi con una prova di vita di esserci ancora.
+• Equo: il denaro fermo restituisce una piccola parte a tutti. I trasferimenti sono gratuiti.
+• Decentralizzato e aperto: tutto il codice è pubblico.
+
+Nota: Aequitas è in beta pubblica. Dai 18 anni in su.
