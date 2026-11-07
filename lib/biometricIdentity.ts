@@ -1463,15 +1463,30 @@ export const ZWILLING_DATEI_HOECHSTENS = 64 << 20;
 /** datei_hash (lib/attestation.ts) einer Datei, so wie sie hochgeladen wird --
  *  blockweise gelesen, nie die ganze Datei im Speicher. Wirft, wenn sie
  *  fehlt, zu gross ist oder beim Lesen kuerzer wird. */
+// Tests only: liest Dateien ohne Modul-Mock -- derselbe Grund wie bei
+// _setLoeschenFuerTest: ein jest.mock von expo-file-system/legacy griff bei
+// kaltem Jest-Cache nicht zuverlaessig (attestation_alle_wege, CI 07.11.2026).
+type DateiLeser = {
+  info: (uri: string) => Promise<{ exists: boolean; size?: number }>;
+  lesen: (uri: string, position: number, laenge: number) => Promise<string>;
+};
+let dateiLeserFuerTest: DateiLeser | null = null;
+
+/** Tests only. */
+export function _setDateiLeserFuerTest(l: DateiLeser | null): void {
+  dateiLeserFuerTest = l;
+}
+
 export async function dateiHash(uri: string): Promise<string> {
-  const info = await FileSystem.getInfoAsync(uri);
+  const leser = dateiLeserFuerTest;
+  const info = leser ? await leser.info(uri) : await FileSystem.getInfoAsync(uri);
   const groesse = info.exists ? (info as { size?: number }).size : undefined;
   if (typeof groesse !== 'number' || groesse < 0) throw new Error('Datei der Aufnahme nicht lesbar');
   if (groesse > ZWILLING_DATEI_HOECHSTENS) throw new Error('Datei der Aufnahme zu gross');
   const glieder: Uint8Array[] = [];
   for (let pos = 0; pos < groesse; pos += DATEI_BLOCK) {
     const laenge = Math.min(DATEI_BLOCK, groesse - pos);
-    const block = ethers.decodeBase64(await FileSystem.readAsStringAsync(uri, {
+    const block = ethers.decodeBase64(leser ? await leser.lesen(uri, pos, laenge) : await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64, position: pos, length: laenge,
     }));
     if (block.length !== laenge) throw new Error('Datei der Aufnahme hat sich beim Lesen geaendert');
