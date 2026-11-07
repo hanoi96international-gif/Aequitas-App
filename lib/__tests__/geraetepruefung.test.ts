@@ -76,10 +76,38 @@ describe('Android', () => {
     expect(integritaet.requestIntegrityToken).toHaveBeenCalledWith(attestierungsHash(NONCE));
   });
 
-  it('ohne Projektnummer: nichts', async () => {
+  it('ohne Projektnummer: Key Attestation mit dem Hash des Server-Nonce', async () => {
     delete process.env.EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER;
-    expect(await getAttestationPayload(NONCE)).toBeNull();
+    integritaet.getAttestation.mockResolvedValueOnce('schluessel-kette');
+    const p = await getAttestationPayload(NONCE);
+    expect(p).toEqual({ platform: 'android_key', token: 'schluessel-kette' });
     expect(integritaet.requestIntegrityToken).not.toHaveBeenCalled();
+    const [challenge, alias] = integritaet.getAttestation.mock.calls[0];
+    expect(challenge).toBe(attestierungsHash(NONCE));
+    // Der Alias haengt am Challenge -- ein zweiter Nonce bekommt einen eigenen.
+    expect(alias).toBe(`aequitas-geraet-${attestierungsHash(NONCE).slice(0, 24)}`);
+  });
+
+  it('ohne Play Services: ebenfalls Key Attestation', async () => {
+    integritaet.isPlayServicesAvailable.mockResolvedValueOnce(false);
+    integritaet.getAttestation.mockResolvedValueOnce('schluessel-kette');
+    expect(await getAttestationPayload(NONCE)).toEqual({ platform: 'android_key', token: 'schluessel-kette' });
+    expect(integritaet.prepareIntegrityToken).not.toHaveBeenCalled();
+  });
+
+  it('Emulator ohne Hardware-Schluessel: nichts, kein Abbruch', async () => {
+    delete process.env.EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER;
+    integritaet.getAttestation.mockRejectedValueOnce(new Error('KEY_IS_NOT_HARDWARE_BACKED'));
+    expect(await getAttestationPayload(NONCE)).toBeNull();
+  });
+
+  it('Zwillingsweg: Challenge ist der Hash der gebundenen Zeichenkette', async () => {
+    delete process.env.EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER;
+    const bindung = 'aequitas-zwilling-aufnahme-v1|n|abc';
+    await getAttestationPayload(NONCE, ATTESTIERUNG_FRIST_MS, bindung);
+    expect(integritaet.getAttestation.mock.calls[0][0]).toBe(
+      ethers.sha256(ethers.toUtf8Bytes(bindung)).slice(2)
+    );
   });
 
   it('ohne Nonce: nichts -- ein ungebundenes Token wird nie angefordert', async () => {

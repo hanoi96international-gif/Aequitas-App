@@ -117,7 +117,10 @@ export function gebundenerHash(bindung: string): string {
 export const ATTESTIERUNG_FRIST_MS = 15_000;
 
 export interface AttestationPayload {
-  platform: 'android' | 'ios';
+  /** android = Play Integrity, android_key = Android Key Attestation
+   *  (hardwaregestuetzt, ohne Google-Konto; Coordinator
+   *  app/android_key_attestation.py). */
+  platform: 'android' | 'android_key' | 'ios';
   token: string;
   /** Nur iOS: der App-Attest-keyId (Base64, SHA-256 des Geraeteschluessels). */
   keyId?: string;
@@ -131,12 +134,21 @@ export function attestierungsHash(nonce: string): string {
 async function erzeugen(nonce: string, bindung?: string): Promise<AttestationPayload | null> {
   try {
     if (Platform.OS === 'android') {
+      const challenge = bindung ? gebundenerHash(bindung) : attestierungsHash(nonce);
       const projectNumber = process.env.EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER;
-      if (!projectNumber) return null;
-      if (!(await isPlayServicesAvailable())) return null;
-      await prepareIntegrityToken(projectNumber);
-      const token = await requestIntegrityToken(bindung ? gebundenerHash(bindung) : attestierungsHash(nonce));
-      return { platform: 'android', token };
+      if (projectNumber && (await isPlayServicesAvailable())) {
+        await prepareIntegrityToken(projectNumber);
+        const token = await requestIntegrityToken(challenge);
+        return { platform: 'android', token };
+      }
+      // Ohne Play-Konto (oder ohne Play Services): Android Key Attestation.
+      // Der Sicherheitschip erzeugt einen Schluessel und bescheinigt in der
+      // Zertifikatskette unseren Challenge, gesperrten Bootloader und
+      // unveraendertes System, unsere App und ihre Signatur (07.11.2026,
+      // gegen Kamera-Einspeisung in Emulatoren und auf gerooteten Telefonen).
+      // Der Alias haengt am Challenge: ein Nonce gilt ohnehin nur einmal.
+      const token = await getAttestation(challenge, `aequitas-geraet-${challenge.slice(0, 24)}`);
+      return { platform: 'android_key', token };
     }
 
     if (Platform.OS === 'ios') {
