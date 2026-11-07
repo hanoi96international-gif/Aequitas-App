@@ -843,8 +843,39 @@ export async function deleteEnrollment(bioHash: string): Promise<DeleteEnrollmen
     } catch {
       /* the server state is what matters; a stale local copy is harmless */
     }
+    // Wiederanmeldung moeglich machen: die Karte "Gesicht wieder hinterlegen"
+    // erscheint (app/(tabs)/identity.tsx), der alte Nachzieh-Merker darf sie
+    // nicht verdecken.
+    try {
+      await SecureStore.setItemAsync(GELOESCHT_KEY, String(Math.floor(Date.now() / 1000)));
+      await SecureStore.deleteItemAsync(NACHGEZOGEN_KEY);
+    } catch {
+      /* hoechstens fehlt die Karte; der Weg ueber "nachziehen" bleibt */
+    }
   }
   return result;
+}
+
+// Seit wann sind die biometrischen Daten geloescht (Widerruf)? null: nicht
+// geloescht oder schon wieder hinterlegt.
+const GELOESCHT_KEY = 'aequitas_biometric_geloescht_v1';
+
+export async function geloeschtAt(): Promise<number | null> {
+  try {
+    const v = await SecureStore.getItemAsync(GELOESCHT_KEY);
+    return v ? Number(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Nach "wieder_hinterlegt": der Merker faellt weg. */
+export async function wiederHinterlegtMerken(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(GELOESCHT_KEY);
+  } catch {
+    /* harmlos: die Karte bleibt sichtbar, ein zweiter Versuch sagt "bereits" */
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -868,7 +899,7 @@ export function nachziehenMessage(walletAddress: string, nonce: string): string 
 }
 
 export interface NachziehenResult {
-  // nachgezogen | bereits_in_galerie | nicht_registriert | kette_nicht_erreichbar |
+  // nachgezogen | wieder_hinterlegt | bereits_in_galerie | nicht_registriert | kette_nicht_erreichbar |
   // signatur_ungueltig | nonce_ungueltig | capture_failed | liveness_failed |
   // risk_blocked | quorum_failed | commit_quorum_failed | missing_consent
   decision: string;

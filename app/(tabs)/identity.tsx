@@ -8,7 +8,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
-import { storedBioHash, deleteEnrollment, nachgezogenAt, zwillingWegAbgeschaltet } from '@/lib/biometricIdentity';
+import { storedBioHash, deleteEnrollment, nachgezogenAt, geloeschtAt, zwillingWegAbgeschaltet } from '@/lib/biometricIdentity';
 import { staffelEingesprochen, staffelErneuerungAb, staffelFreiAb, staffelZweitpruefungFaellig } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
 import { LebensnachweisKarte } from '@/components/Lebensnachweis';
@@ -64,6 +64,8 @@ export default function Identity() {
   // null = never added a face via the Nachziehen step on this device; a
   // timestamp once it was done (or the gallery already knew the face).
   const [nachgezogen, setNachgezogen] = useState<number | null>(null);
+  // Biometrische Daten geloescht (Widerruf): Karte "Gesicht wieder hinterlegen".
+  const [geloescht, setGeloescht] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -113,6 +115,7 @@ export default function Identity() {
   useEffect(() => {
     storedBioHash().then(setBioHash).catch(() => setBioHash(null));
     nachgezogenAt().then(setNachgezogen).catch(() => setNachgezogen(null));
+    geloeschtAt().then(setGeloescht).catch(() => setGeloescht(null));
   }, []);
 
   // Re-read after the capture screen closes: rememberBioHash() and
@@ -128,6 +131,7 @@ export default function Identity() {
       const lesen = () => {
         storedBioHash().then(setBioHash).catch(() => undefined);
         nachgezogenAt().then(setNachgezogen).catch(() => undefined);
+        geloeschtAt().then(setGeloescht).catch(() => undefined);
       };
       lesen();
       const timer = setInterval(lesen, 3000);
@@ -158,6 +162,8 @@ export default function Identity() {
       const res = await deleteEnrollment(bioHash);
       if (res.status === 'deleted' || res.status === 'not_found') {
         setBioHash(null);
+        setNachgezogen(null);
+        geloeschtAt().then(setGeloescht).catch(() => undefined);
         setDeleteMsg({ text: t('identity.deleteDone'), ok: true });
         addLog(t('identity.deleteDone'), 'success');
       } else if (res.status === 'partial') {
@@ -382,7 +388,21 @@ export default function Identity() {
             the face. Offer the one step that closes that gap. Shown until
             done; the coordinator answers bereits_in_galerie if it was ever
             done elsewhere, which counts as done too. */}
-        {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && nachgezogen === null && (
+        {/* Nach dem Loeschen: dasselbe Gesicht wieder hinterlegen -- der
+            Coordinator reaktiviert DIESELBE Einschreibung, wenn ihr Nullifier
+            zu dieser Wallet gehoert (nachziehen.py, wieder_hinterlegt). */}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && geloescht !== null && (
+          <View style={S.nachziehCard}>
+            <Text style={S.nachziehTitle}>{t('identity.wiederTitel')}</Text>
+            <Text style={S.deleteBody}>{t('identity.wiederBody')}</Text>
+            <TouchableOpacity onPress={() => router.push('/biometric-capture?zweck=nachziehen')} activeOpacity={0.85}>
+              <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                <Text style={S.btnPrimaryText}>{t('identity.wiederBtn')}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+        {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && geloescht === null && nachgezogen === null && (
           <View style={S.nachziehCard}>
             <Text style={S.nachziehTitle}>{t('identity.nachziehenTitle')}</Text>
             <Text style={S.deleteBody}>{t('identity.nachziehenBody')}</Text>
@@ -393,7 +413,7 @@ export default function Identity() {
             </TouchableOpacity>
           </View>
         )}
-        {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && nachgezogen !== null && (
+        {BIOMETRIC_ENABLED && status === 'already_registered' && !bioHash && geloescht === null && nachgezogen !== null && (
           <View style={S.nachziehCard}>
             <Text style={S.nachziehDone}>{t('identity.nachziehenDone')}</Text>
           </View>
