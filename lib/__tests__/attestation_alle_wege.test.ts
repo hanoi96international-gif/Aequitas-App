@@ -112,10 +112,10 @@ describe('Geraetepruefung an die Aufnahme gebunden', () => {
     expect(f.felder).toEqual([]);
   });
 
-  it('alle vier Wege nutzen die gebundene Pruefung', () => {
+  it('alle fuenf Wege nutzen die gebundene Pruefung (mit dem Umzug)', () => {
     const fs = require('fs');
     const quelle: string = fs.readFileSync(require.resolve('../biometricIdentity.ts'), 'utf8');
-    expect(quelle.match(/await geraetepruefungAnhaengen\(form, capture\);/g)).toHaveLength(4);
+    expect(quelle.match(/await geraetepruefungAnhaengen\(form, capture\);/g)).toHaveLength(5);
     // Der blosse Nonce-Weg bleibt nur im Zwillingsweg (dort mit eigener Bindung).
     expect(quelle.match(/await attestierungAnhaengen\(/g)).toHaveLength(2);
   });

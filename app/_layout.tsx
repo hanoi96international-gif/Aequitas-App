@@ -40,6 +40,8 @@ function Navigation() {
         <Stack.Screen name="knoten-binden" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="coordinator-binden" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="pruefer" options={{ headerShown: false }} />
+        <Stack.Screen name="umzug" options={{ headerShown: false }} />
+        <Stack.Screen name="wiederherstellungscode" options={{ headerShown: false }} />
         <Stack.Screen name="unternehmen" options={{ headerShown: false }} />
         <Stack.Screen name="verzeichnis" options={{ headerShown: false }} />
         <Stack.Screen name="alter-buergen" options={{ presentation: 'modal', headerShown: false }} />

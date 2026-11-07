@@ -7,9 +7,11 @@ import { AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import { neonTint, neonTintBorder, theme } from '@/constants/aequitas-theme';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { DOWNLOAD_URL, eigeneVersion, updateVerfuegbar } from '@/lib/appUpdate';
+import { DOWNLOAD_URL, eigeneVersion, istNeuer, neuesteVersion } from '@/lib/appUpdate';
 
 const PRUEFEN_ALLE_MS = 6 * 60 * 60 * 1000;
+// Nach einem Fehlschlag: so bald noch einmal.
+const WIEDERHOLEN_MS = 2 * 60 * 1000;
 let ausgeblendetFuer: string | null = null;
 
 export default function UpdateHinweis() {
@@ -19,11 +21,26 @@ export default function UpdateHinweis() {
   useEffect(() => {
     let aktiv = true;
     let zuletzt = 0;
+    let wiederholung: ReturnType<typeof setTimeout> | null = null;
     const pruefen = () => {
       if (Date.now() - zuletzt < PRUEFEN_ALLE_MS) return;
       zuletzt = Date.now();
-      updateVerfuegbar().then((v) => {
-        if (aktiv) setNeu(v);
+      neuesteVersion().then((stand) => {
+        if (!aktiv) return;
+        if (stand === null) {
+          // Knoten nicht erreichbar (z. B. offline beim Start): bald noch
+          // einmal, nicht erst in 6 Stunden. Hoechstens ein Versuch wartet.
+          zuletzt = 0;
+          if (!wiederholung) {
+            wiederholung = setTimeout(() => {
+              wiederholung = null;
+              pruefen();
+            }, WIEDERHOLEN_MS);
+          }
+          return;
+        }
+        const eigene = eigeneVersion();
+        setNeu(eigene && istNeuer(stand, eigene) ? stand : null);
       });
     };
     pruefen();
@@ -32,6 +49,7 @@ export default function UpdateHinweis() {
     });
     return () => {
       aktiv = false;
+      if (wiederholung) clearTimeout(wiederholung);
       abo.remove();
     };
   }, []);
