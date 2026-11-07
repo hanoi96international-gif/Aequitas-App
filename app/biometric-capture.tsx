@@ -11,6 +11,7 @@ import { Camera, CommonResolutions, useCameraDevice, useCameraPermission, useVid
 import { useImageFaceDetector, type Face } from 'react-native-vision-camera-face-detector';
 import { Gyroscope } from 'expo-sensors';
 import * as Speech from 'expo-speech';
+import { aufnahmeSpielen, stoppen } from '@/lib/sprachausgabe';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
@@ -29,6 +30,7 @@ import {
   erneuernBiometric,
   type ErneuernResult,
   lebensnachweisBiometric,
+  umzugBiometric,
   lebensnachweisAnKette,
   type LebensnachweisResult,
   aufnahmeDateiLoeschen,
@@ -61,6 +63,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
 import { withTimeout } from '@/lib/signer';
 import { lebensnachweisMeldung } from '@/lib/lebensnachweis';
+import { umzugErgebnisMerken } from '@/lib/umzug';
 import { AufnahmeDateien } from '@/lib/aufnahmeDateien';
 import {
   zwillingAblauf,
@@ -684,6 +687,9 @@ export default function BiometricCapture() {
         onDone?.();
         return;
       }
+      // Zuerst die mitgelieferte Aufnahme mit natuerlicher Stimme
+      // (lib/sprachausgabe.ts); nur ohne sie die Geraetestimme.
+      if (aufnahmeSpielen(lang, text, onDone)) return;
       const baseOpts = { language: SPEECH_LOCALE[lang] ?? 'en-US', rate: 0.92, pitch: 0.9 };
       const doneOnce = onDone ? { called: false } : null;
       const fireDone = () => {
@@ -710,7 +716,7 @@ export default function BiometricCapture() {
           setTimeout(() => {
             if (voiceStatusRef.current === 'untested') {
               voiceStatusRef.current = 'broken';
-              Speech.stop();
+              stoppen();
             }
           }, 1200);
         }
@@ -731,7 +737,7 @@ export default function BiometricCapture() {
       // interrupt: a new instruction replacing an old one should be heard
       // immediately, not queued behind speech for a step the user already
       // moved past.
-      Speech.stop();
+      stoppen();
       speakRaw(text);
     },
     [speakRaw]
@@ -767,11 +773,14 @@ export default function BiometricCapture() {
   // hat, zaehlt (lib/biometricIdentity.ts, lebensnachweisBiometric). Kein
   // Alter, kein Zuschuss; die Kette nimmt die Bescheinigung danach an.
   const lebensnachweis = zweck === 'lebensnachweis';
+  // ?zweck=umzug: eine NEUE Wallet holt das Menschsein (lib/umzug.ts). Das
+  // Gesicht wird nur wiedererkannt; das Ergebnis geht an app/umzug.tsx.
+  const umzug = zweck === 'umzug';
   // Kein Altersschritt: das wurde bei der Registrierung geprueft.
-  const ohneAlter = erneuern || lebensnachweis;
+  const ohneAlter = erneuern || lebensnachweis || umzug;
   // None of these paths mints anything at capture time, so none asks for the
   // bonus consent nor offers the pending registration step.
-  const ohneZuschuss = nachziehen || erneuern || lebensnachweis;
+  const ohneZuschuss = nachziehen || erneuern || lebensnachweis || umzug;
   const [step, setStep] = useState<Step>('consent');
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
@@ -895,7 +904,7 @@ export default function BiometricCapture() {
         // chain's own first utterance.
         break;
       default:
-        Speech.stop();
+        stoppen();
         break;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -905,7 +914,7 @@ export default function BiometricCapture() {
   // shouldn't leave the voice talking over whatever comes next.
   useEffect(() => {
     return () => {
-      Speech.stop();
+      stoppen();
     };
   }, []);
 
@@ -1395,7 +1404,7 @@ export default function BiometricCapture() {
     // step-instruction effect deliberately skips Speech.stop() for the
     // 'face_burst' case to avoid racing with this chain's own first
     // utterance (see that effect's own comment).
-    Speech.stop();
+    stoppen();
     sayStage(t('identity.biometricBurstHoldOval'), () => {
       // Ohne "· 3 Sekunden halten": Blinzeln haelt man nicht, und die kurze
       // Ansage laesst der Aufnahme Luft bis BURST_MAX_DURATION_S.
@@ -1637,7 +1646,7 @@ export default function BiometricCapture() {
     const nachZeit = (ms: number, fn: () => void) => {
       countdownTimersRef.current.push(setTimeout(() => { if (!burstChainCancelledRef.current) fn(); }, ms));
     };
-    Speech.stop();
+    stoppen();
     try {
       // Feste Dauer: n * 2 s + 1 s. Die Farbfolge laeuft in gleich langen,
       // lueckenlosen Abschnitten ueber die ganze Aufnahme, wie
@@ -1666,7 +1675,7 @@ export default function BiometricCapture() {
               if (e.ansage) {
                 setZwSchrittAktiv(e.schritt);
                 setBurstStageText(schrittText(e, t));
-                Speech.stop();
+                stoppen();
                 speakRaw(schrittText(e, t, true));
               }
             });
@@ -1745,6 +1754,21 @@ export default function BiometricCapture() {
     setSubmitError('');
     try {
       const deviceId = await getOrCreateDeviceId();
+      if (umzug) {
+        const uz = await umzugBiometric(
+          {
+            faceUri: finalFaceUri,
+            ...serie,
+            burstIntervalMs: BURST_INTERVAL_MS,
+            imuSamples: finalImu,
+            challengeNonce: challenge?.nonce,
+          },
+          { deviceId, walletAddress: address, signer, consent }
+        );
+        umzugErgebnisMerken(uz.status, uz.bescheinigung);
+        router.replace('/umzug');
+        return;
+      }
       if (lebensnachweis) {
         const ln = await lebensnachweisBiometric(
           {
@@ -1941,8 +1965,8 @@ export default function BiometricCapture() {
             </View>
           ) : null}
           <View style={S.card}>
-            <Text style={S.title}>{lebensnachweis ? t('identity.lnConsentTitle') : erneuern ? t('identity.erneuernConsentTitle') : nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
-            <Text style={S.body}>{lebensnachweis ? t('identity.lnConsentBody') : erneuern ? t('identity.erneuernConsentBody') : nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
+            <Text style={S.title}>{umzug ? t('umzug.consentTitle') : lebensnachweis ? t('identity.lnConsentTitle') : erneuern ? t('identity.erneuernConsentTitle') : nachziehen ? t('identity.nachziehenConsentTitle') : t('identity.biometricConsentTitle')}</Text>
+            <Text style={S.body}>{umzug ? t('umzug.consentBody') : lebensnachweis ? t('identity.lnConsentBody') : erneuern ? t('identity.erneuernConsentBody') : nachziehen ? t('identity.nachziehenConsentBody') : t('identity.biometricConsentBody')}</Text>
             {/* Einwilligung v4: jaehrlicher Lebensnachweis und Auffrischen der
                 Vorlage -- Teil des Textes, dem in JEDEM Ablauf zugestimmt wird. */}
             <Text style={S.body}>{t('identity.biometricConsentLebensnachweis')}</Text>
@@ -2210,6 +2234,15 @@ export default function BiometricCapture() {
                 {/* Zwillinge bekommen den Startzuschuss gestaffelt (zwilling.py);
                     die Karte dazu steht danach im Identitaets-Tab. */}
                 {zwilling && registriert === 'neu' ? <Text style={S.body}>{t('identity.zwErfolgGestaffelt')}</Text> : null}
+                {/* Gleich nach der Registrierung: der Wiederherstellungscode
+                    (lib/umzug.ts) -- warum er aufbewahrt werden muss, steht
+                    auf dem Bildschirm selbst. */}
+                {registriert === 'neu' ? (
+                  <>
+                    <Text style={S.body}>{t('umzug.karteOhne')}</Text>
+                    <GradientButton label={t('umzug.karteLink')} onPress={() => router.replace('/wiederherstellungscode')} />
+                  </>
+                ) : null}
               </>
             ) : null}
             {submitError ? (

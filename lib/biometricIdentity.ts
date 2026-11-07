@@ -26,6 +26,7 @@ import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
 import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
 import { LEBENSNACHWEIS_FAELLIG_NACH_TAGE, type LebensnachweisKette } from './lebensnachweis';
+import { bescheinigungAusAntwort, startNachricht as umzugStartNachricht, type UmzugBescheinigung } from './umzug';
 import {
   istAnfrage,
   challengeAntwortLesen,
@@ -1261,6 +1262,61 @@ export async function lebensnachweisBiometric(
     Object.assign(ergebnis, await lebensnachweisAnKette(nachweis));
   }
   return ergebnis;
+}
+
+/**
+ * Umzug (lib/umzug.ts): die NEUE Wallet zeigt das Gesicht, der Coordinator
+ * erkennt es und bescheinigt -- gebunden an diese Wallet. Eingereicht wird
+ * bei der Kette danach mit eigener Unterschrift (antragEinreichen).
+ */
+export interface UmzugAntwort {
+  status: string;
+  bescheinigung: UmzugBescheinigung | null;
+}
+
+export async function umzugBiometric(
+  capture: BiometricCapture,
+  opts: { deviceId: string; walletAddress: string; signer: AequitasSigner; consent?: ConsentDecision }
+): Promise<UmzugAntwort> {
+  try {
+    if (!capture.challengeNonce) {
+      throw new NachziehenNeedsChallenge();
+    }
+    const base = await basisFuerNonce(capture.challengeNonce);
+    const signature = await opts.signer.signMessage(umzugStartNachricht(opts.walletAddress, capture.challengeNonce));
+    const form = new FormData();
+    form.append('wallet_address', opts.walletAddress.toLowerCase());
+    form.append('wallet_signature', signature);
+    form.append('challenge_nonce', capture.challengeNonce);
+    form.append('device_id', opts.deviceId);
+    if (opts.consent?.biometricConsent) {
+      form.append('consent_version', CONSENT_VERSION);
+      form.append('consented_at', String(opts.consent.consentedAt));
+    }
+    form.append('face_image', toUploadFile(capture.faceUri, 'face.jpg'));
+    capture.faceBurstUris.forEach((uri, i) => {
+      form.append('face_burst', toUploadFile(uri, `burst_${i}.jpg`));
+    });
+    if (capture.faceBurstVideoUri) {
+      form.append('face_burst_video', toUploadFile(capture.faceBurstVideoUri, 'face_burst.mp4', 'video/mp4'));
+    }
+    form.append('burst_interval_ms', String(capture.burstIntervalMs));
+    if (capture.imuSamples?.length) {
+      form.append('imu_samples', JSON.stringify(capture.imuSamples));
+    }
+    await geraetepruefungAnhaengen(form, capture);
+    const resp = await fetchMitFrist(`${base}/umzug`, { method: 'POST', body: form }, FRIST_AUFNAHME_MS);
+    if (!resp.ok) {
+      throw new Error(`Coordinator request failed (HTTP ${resp.status})`);
+    }
+    const roh = await resp.json();
+    if (!roh || typeof roh !== 'object' || typeof roh.status !== 'string') {
+      throw new Error('Coordinator answer without status');
+    }
+    return { status: roh.status.slice(0, 40), bescheinigung: bescheinigungAusAntwort(roh) };
+  } finally {
+    await cleanupCaptureFiles(capture);
+  }
 }
 
 /** Die Bescheinigung an die Kette (/api/proof-of-life) -- auch fuer ein

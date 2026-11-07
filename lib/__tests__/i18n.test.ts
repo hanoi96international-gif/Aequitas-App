@@ -28,6 +28,8 @@ describe('translation resources', () => {
     'trade.ammTitle',
     'trade.ammFormula',
     'wallet.scanBtn',
+    // Platzhalter fuer den Wiederherstellungscode: nur die Form, keine Sprache.
+    'umzug.codeEingabe',
   ]);
 
   // Deutsch ist die Standardsprache der App. Dort auf englischen Text

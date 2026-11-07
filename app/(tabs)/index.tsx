@@ -12,6 +12,7 @@ import LanguagePicker from '@/components/LanguagePicker';
 import OfflineHinweis from '@/components/OfflineHinweis';
 import BindungsHinweis from '@/components/BindungsHinweis';
 import UpdateHinweis from '@/components/UpdateHinweis';
+import { UmzugHinweis } from '@/components/UmzugKarten';
 import { LebensnachweisHinweis } from '@/components/Lebensnachweis';
 import { useAbfrage } from '@/hooks/use-abfrage';
 
@@ -145,6 +146,7 @@ export default function Home() {
         </View>
 
         <UpdateHinweis />
+        <UmzugHinweis />
         <BindungsHinweis />
         <LebensnachweisHinweis />
 
