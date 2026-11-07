@@ -1,0 +1,9 @@
+Aequitas es una cartera para un dinero que da a cada persona el mismo saldo inicial y una renta básica diaria, exactamente una vez por persona.
+
+• Una persona, una cuenta: una breve verificación facial con giro de cabeza garantiza que nadie se registre dos veces. Solo se guarda un extracto cifrado, nunca una foto. Puedes borrar tus datos en cualquier momento y volver a registrarlos después.
+• Tu cartera es tuya: las claves se quedan en tu móvil (sin custodia).
+• Renta básica: cada persona confirmada recibe una parte diaria. Una vez al año confirmas con una prueba de vida que sigues aquí.
+• Justo para todos: el dinero inactivo devuelve una pequeña parte a todos. Las transferencias son gratuitas.
+• Descentralizado y abierto: todo el código es público.
+
+Aviso: Aequitas está en fase de prueba pública. Para mayores de 18 años.

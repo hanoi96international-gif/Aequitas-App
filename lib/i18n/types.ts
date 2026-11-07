@@ -14,6 +14,10 @@ export interface Translations {
   };
   home: {
     bindHinweisTitel: string;
+    updateTitel: string;
+    updateText: string;
+    updateJetzt: string;
+    updateSpaeter: string;
     bindHinweisText: string;
     bindHinweisMehrere: string;
     bindHinweisLink: string;
@@ -373,6 +377,10 @@ export interface Translations {
     nachziehenResultSignature: string;
     nachziehenResultNoChallenge: string;
     nachziehenResultChainDown: string;
+    wiederTitel: string;
+    wiederBody: string;
+    wiederBtn: string;
+    nachziehenResultWieder: string;
     staffelTitle: string;
     staffelWartet: string;
     staffelLaeuft: string;

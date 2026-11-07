@@ -41,6 +41,7 @@ import {
   ZwillingAndereWallet,
   type ZwillingAufnahme,
   rememberNachgezogen,
+  wiederHinterlegtMerken,
   NachziehenNeedsChallenge,
   widerspruchEinlegen,
   type NachziehenResult,
@@ -1791,8 +1792,11 @@ export default function BiometricCapture() {
           { deviceId, walletAddress: address, signer, consent }
         );
         setNachziehResult(nz);
-        if (nz.decision === 'nachgezogen' || nz.decision === 'bereits_in_galerie') {
+        if (nz.decision === 'nachgezogen' || nz.decision === 'bereits_in_galerie' || nz.decision === 'wieder_hinterlegt') {
           await rememberNachgezogen();
+        }
+        if (nz.decision === 'wieder_hinterlegt') {
+          await wiederHinterlegtMerken();
         }
         setStep('result');
         return;
@@ -2236,6 +2240,7 @@ export default function BiometricCapture() {
                     if (nachziehen) {
                       switch (nachziehResult?.decision) {
                         case 'nachgezogen': return t('identity.nachziehenResultDone');
+                        case 'wieder_hinterlegt': return t('identity.nachziehenResultWieder');
                         case 'bereits_in_galerie': return t('identity.nachziehenResultAlready');
                         case 'nicht_registriert': return t('identity.nachziehenResultNotRegistered');
                         case 'kette_nicht_erreichbar': return t('identity.nachziehenResultChainDown');

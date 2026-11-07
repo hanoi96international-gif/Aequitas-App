@@ -11,6 +11,7 @@ import { theme, purpleTint, purpleTintBorder, tealTint, tealTintBorder, neonTint
 import LanguagePicker from '@/components/LanguagePicker';
 import OfflineHinweis from '@/components/OfflineHinweis';
 import BindungsHinweis from '@/components/BindungsHinweis';
+import UpdateHinweis from '@/components/UpdateHinweis';
 import { LebensnachweisHinweis } from '@/components/Lebensnachweis';
 import { useAbfrage } from '@/hooks/use-abfrage';
 
@@ -143,6 +144,7 @@ export default function Home() {
           </View>
         </View>
 
+        <UpdateHinweis />
         <BindungsHinweis />
         <LebensnachweisHinweis />
 

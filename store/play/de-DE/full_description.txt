@@ -1,0 +1,10 @@
+Aequitas ist eine Wallet für ein Geld, das jedem Menschen gleich viel Startguthaben und ein tägliches Grundeinkommen gibt – genau einmal pro Mensch.
+
+• Ein Mensch, ein Konto: Eine kurze Gesichtsprüfung mit Kopfdrehung stellt sicher, dass sich niemand doppelt anmeldet. Gespeichert wird nur ein verschlüsselter Auszug, kein Foto. Du kannst deine Daten jederzeit löschen und später wieder hinterlegen.
+• Deine Wallet gehört dir: Die Schlüssel bleiben auf deinem Handy (nicht verwahrend). Niemand kann für dich überweisen.
+• Grundeinkommen: Jeder bestätigte Mensch erhält einen täglichen Anteil. Einmal im Jahr bestätigst du mit einem Lebensnachweis, dass du noch da bist.
+• Fair für alle: Liegendes Geld gibt einen kleinen Teil an alle zurück (Gleichgewicht). Überweisungen sind kostenlos.
+• Dezentral: Prüfer werden von zwei Dritteln der bestehenden Prüfer aufgenommen, jeder Knoten prüft jede Regel selbst.
+• Offen: Der gesamte Code ist öffentlich.
+
+Hinweis: Aequitas befindet sich im öffentlichen Testbetrieb. Nutzung ab 18 Jahren.

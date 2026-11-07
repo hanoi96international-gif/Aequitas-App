@@ -1,0 +1,10 @@
+Aequitas is a wallet for money that gives every human the same starting balance and a daily basic income – exactly once per person.
+
+• One human, one account: a short face check with a head turn makes sure nobody registers twice. Only an encrypted extract is stored, never a photo. You can delete your data at any time and store it again later.
+• Your wallet is yours: the keys stay on your phone (non-custodial). Nobody can transfer on your behalf.
+• Basic income: every confirmed human receives a daily share. Once a year you confirm with a proof of life that you are still here.
+• Fair for everyone: idle money returns a small part to all (equilibrium). Transfers are free.
+• Decentralised: verifiers are admitted by two thirds of the existing verifiers, every node checks every rule itself.
+• Open: the entire code is public.
+
+Note: Aequitas is in public beta. For ages 18 and over.

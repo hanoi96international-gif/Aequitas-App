@@ -1,0 +1,9 @@
+Aequitas est un portefeuille pour une monnaie qui donne à chaque humain le même solde de départ et un revenu de base quotidien – une seule fois par personne.
+
+• Un humain, un compte : une courte vérification du visage avec rotation de la tête garantit que personne ne s’inscrit deux fois. Seul un extrait chiffré est conservé, jamais une photo. Tu peux supprimer tes données à tout moment et les réenregistrer plus tard.
+• Ton portefeuille t’appartient : les clés restent sur ton téléphone (non dépositaire).
+• Revenu de base : chaque humain confirmé reçoit une part quotidienne. Une fois par an, tu confirmes par une preuve de vie que tu es toujours là.
+• Équitable : l’argent qui dort rend une petite part à tous. Les virements sont gratuits.
+• Décentralisé et ouvert : tout le code est public.
+
+Remarque : Aequitas est en bêta publique. Réservé aux 18 ans et plus.
