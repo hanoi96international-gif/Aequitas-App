@@ -134,13 +134,16 @@ export interface Translations {
     feeFree: string;
     totalLabel: string;
     feeNote: string;
+    feeNoteGG: string;
     confirmSendDetail: string;
     monthTitle: string;
     monthFeeFree: string;
     monthLevy: string;
     monthNote: string;
+    monthNoteGG: string;
     freeAddressNote: string;
     levyNotice: string;
+    levyNoticeGG: string;
     errUnknown: string;
     err_abgebrochen: string;
     err_zeitueberschreitung: string;
@@ -632,6 +635,7 @@ export interface Translations {
     guthaben: string;
     nichtAktiv: string;
     liegegeld: string;
+    umlaufGG: string;
     kasse: string;
     betrag: string;
     betragUngueltig: string;

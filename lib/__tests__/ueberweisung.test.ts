@@ -1,4 +1,4 @@
-import { fehlerArt, freierRest, gebuehrFuer, hoechstbetrag, type WirtschaftKonto } from '../ueberweisung';
+import { fehlerArt, freierRest, gebuehrFuer, hoechstbetrag, imGleichgewicht, type WirtschaftKonto } from '../ueberweisung';
 
 const mensch = (rest: number): WirtschaftKonto => ({ art: 'mensch', guthaben: 0, aktiv: true, gebuehrenfrei_rest_monat: rest });
 
@@ -19,6 +19,23 @@ describe('Gebuehr wie die Kette (gebuehrMitWirtschaft)', () => {
   it('rundet auf Mikro-AEQ', () => {
     expect(gebuehrFuer(0.0001234, mensch(0))).toBe(0);
     expect(gebuehrFuer(1.2345678, mensch(0))).toBe(0.001235);
+  });
+});
+
+describe('Gleichgewicht: keine Gebuehr, nur wenn der Knoten es meldet', () => {
+  const gg = (k: WirtschaftKonto, v: unknown) => ({ ...k, gleichgewicht: v }) as WirtschaftKonto;
+  it('kostet nichts und erlaubt das ganze Guthaben', () => {
+    expect(gebuehrFuer(5000, gg(mensch(0), true))).toBe(0);
+    expect(gebuehrFuer(5000, gg({ art: 'unternehmen', guthaben: 0, aktiv: true }, true))).toBe(0);
+    expect(hoechstbetrag(1234.5678919, gg(mensch(0), true))).toBe(1234.567891);
+  });
+  it('Missbrauch/Fehler: alles ausser einem echten true laesst die Gebuehr stehen', () => {
+    for (const v of [false, 'true', 1, null, undefined, {}]) {
+      expect(imGleichgewicht(gg(mensch(0), v))).toBe(false);
+      expect(gebuehrFuer(100, gg(mensch(0), v))).toBeCloseTo(0.1, 6);
+    }
+    expect(imGleichgewicht(null)).toBe(false);
+    expect(gebuehrFuer(100, null)).toBeCloseTo(0.1, 6);
   });
 });
 
