@@ -119,7 +119,7 @@ function Kopf({ firma }: { firma: GespeichertesUnternehmen }) {
           {konto.art !== 'unternehmen' ? <Text style={S.warnung}>{t('firma.nichtAktiv')}</Text> : null}
           {typeof konto.abgabe_pro_monat_bei_diesem_stand === 'number' ? (
             <Text style={S.klein}>
-              {t('firma.liegegeld').replace('{betrag}', konto.abgabe_pro_monat_bei_diesem_stand.toFixed(2))}
+              {t(konto.gleichgewicht === true ? 'firma.umlaufGG' : 'firma.liegegeld').replace('{betrag}', konto.abgabe_pro_monat_bei_diesem_stand.toFixed(2))}
             </Text>
           ) : null}
         </>

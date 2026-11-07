@@ -8,6 +8,11 @@
 // Den gebuehrenfreien Rest liefert /api/wirtschaft/konto. Ohne diese Auskunft
 // rechnet die App mit 0,1 % auf den ganzen Betrag: lieber eine Gebuehr zu
 // hoch anzeigen als eine Ueberweisung scheitern lassen.
+//
+// Gleichgewicht (wirtschaft3.go): Ab dem Stichtag kostet keine Ueberweisung
+// etwas. Ob es gilt, meldet der Knoten (gleichgewicht: true) -- die App hat
+// keine eigene Uhr dafuer, ein verschobener Stichtag braucht kein Update.
+// Fehlt das Feld (alter Knoten, keine Auskunft), bleibt es bei der Gebuehr.
 
 export const GEBUEHR_BPS = 10; // 0,1 %
 const MIKRO = 1_000_000;
@@ -20,6 +25,7 @@ export interface WirtschaftKonto {
   tausch_frei_rest_monat?: number;
   abgabe_pro_monat_bei_diesem_stand?: number;
   grenze?: number;
+  gleichgewicht?: boolean;
 }
 
 function runde6(x: number): number {
@@ -32,9 +38,15 @@ export function freierRest(konto: WirtschaftKonto | null | undefined): number {
   return Math.max(0, konto.gebuehrenfrei_rest_monat ?? 0);
 }
 
+/** Gilt laut Knoten das Gleichgewicht (keine Ueberweisungsgebuehr)? Nur ein echtes true zaehlt. */
+export function imGleichgewicht(konto: WirtschaftKonto | null | undefined): boolean {
+  return konto?.gleichgewicht === true;
+}
+
 /** Gebuehr fuer betrag, wie die Kette sie berechnet (Absender-Sicht). */
 export function gebuehrFuer(betrag: number, konto: WirtschaftKonto | null | undefined): number {
   if (!(betrag > 0) || !Number.isFinite(betrag)) return 0;
+  if (imGleichgewicht(konto)) return 0;
   const pflichtig = Math.max(0, betrag - freierRest(konto));
   return runde6((pflichtig * GEBUEHR_BPS) / 10_000);
 }
@@ -42,6 +54,7 @@ export function gebuehrFuer(betrag: number, konto: WirtschaftKonto | null | unde
 /** Groesster Betrag, der samt Gebuehr ins Guthaben passt (auf Mikro-AEQ abgerundet). */
 export function hoechstbetrag(guthaben: number, konto: WirtschaftKonto | null | undefined): number {
   if (!(guthaben > 0)) return 0;
+  if (imGleichgewicht(konto)) return Math.floor(guthaben * MIKRO) / MIKRO;
   const frei = freierRest(konto);
   const satz = GEBUEHR_BPS / 10_000;
   const roh = guthaben <= frei ? guthaben : (guthaben + satz * frei) / (1 + satz);

@@ -10,7 +10,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import type { TranslationKey } from '@/contexts/LanguageContext';
 import { formatBalance, isValidAddress, parseAEQToWei, shortWallet } from '@/lib/format';
 import { getWirtschaftKonto, postFaucet } from '@/lib/api';
-import { betragText, fehlerArt, freierRest, gebuehrFuer, hoechstbetrag, type WirtschaftKonto } from '@/lib/ueberweisung';
+import { betragText, fehlerArt, freierRest, gebuehrFuer, hoechstbetrag, imGleichgewicht, type WirtschaftKonto } from '@/lib/ueberweisung';
 import { leseZahlungsziel } from '@/lib/zahlungslink';
 import { leseQr as leseBuergschaftsQr } from '@/lib/altersbuergschaft';
 import { QrScanner } from '@/components/QrScanner';
@@ -58,6 +58,7 @@ export default function Wallet() {
   const betragGueltig = Number.isFinite(betragZahl) && betragZahl > 0;
   const gebuehr = betragGueltig ? gebuehrFuer(betragZahl, konto) : 0;
   const frei = freierRest(konto);
+  const gg = imGleichgewicht(konto);
   const zuWenig = betragGueltig && betragZahl + gebuehr > guthaben + 1e-9;
 
   function fehlerText(e: unknown): string {
@@ -224,7 +225,7 @@ export default function Wallet() {
           {(konto?.abgabe_pro_monat_bei_diesem_stand ?? 0) > 0 && (
             <View style={S.demurrageWarn}>
               <Text style={S.demurrageText}>
-                {t('wallet.levyNotice', { levy: betragText(konto?.abgabe_pro_monat_bei_diesem_stand ?? 0) })}
+                {t(gg ? 'wallet.levyNoticeGG' : 'wallet.levyNotice', { levy: betragText(konto?.abgabe_pro_monat_bei_diesem_stand ?? 0) })}
               </Text>
             </View>
           )}
@@ -253,15 +254,17 @@ export default function Wallet() {
         {konto?.aktiv && konto.art === 'mensch' && (
           <View style={S.card}>
             <Text style={S.cardTitle}>{t('wallet.monthTitle')}</Text>
-            <View style={S.row}>
-              <Text style={S.rowLabel}>{t('wallet.monthFeeFree')}</Text>
-              <Text style={S.rowValue}>{betragText(frei)} AEQ</Text>
-            </View>
+            {!gg && (
+              <View style={S.row}>
+                <Text style={S.rowLabel}>{t('wallet.monthFeeFree')}</Text>
+                <Text style={S.rowValue}>{betragText(frei)} AEQ</Text>
+              </View>
+            )}
             <View style={S.row}>
               <Text style={S.rowLabel}>{t('wallet.monthLevy')}</Text>
               <Text style={S.rowValue}>{betragText(konto.abgabe_pro_monat_bei_diesem_stand ?? 0)} AEQ</Text>
             </View>
-            <Text style={S.monthNote}>{t('wallet.monthNote')}</Text>
+            <Text style={S.monthNote}>{t(gg ? 'wallet.monthNoteGG' : 'wallet.monthNote')}</Text>
           </View>
         )}
         {konto?.aktiv && konto.art === 'frei' && (
@@ -309,7 +312,7 @@ export default function Wallet() {
                 <Text style={S.rowLabel}>{t('wallet.totalLabel')}</Text>
                 <Text style={[S.rowValue, zuWenig && { color: theme.red }]}>{betragText(betragZahl + gebuehr)} AEQ</Text>
               </View>
-              <Text style={S.monthNote}>{t('wallet.feeNote')}</Text>
+              <Text style={S.monthNote}>{t(gg ? 'wallet.feeNoteGG' : 'wallet.feeNote')}</Text>
             </View>
           )}
           {sendStatus ? <Text style={S.statusText}>{sendStatus}</Text> : null}
