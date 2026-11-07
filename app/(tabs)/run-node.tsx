@@ -186,6 +186,15 @@ export default function RunNode() {
           </TouchableOpacity>
         </View>
 
+        {/* Pruefer: Schluessel des eigenen Coordinators freigeben (Pruefer-Register). */}
+        <View style={S.card}>
+          <Text style={S.cardTitle}>{t('node.pruefTitle')}</Text>
+          <Text style={S.faucetDesc}>{t('node.pruefKarte')}</Text>
+          <TouchableOpacity style={S.githubBtn} onPress={() => router.push('/coordinator-binden')} activeOpacity={0.8}>
+            <Text style={S.githubBtnText}>{t('node.pruefOeffnen')}</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={S.card}>
           <Text style={S.cardTitle}>{t('node.rpcTitle')}</Text>
           <DetailRow label={t('node.networkName')} value="Aequitas" />
