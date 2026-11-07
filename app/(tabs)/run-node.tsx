@@ -193,6 +193,9 @@ export default function RunNode() {
           <TouchableOpacity style={S.githubBtn} onPress={() => router.push('/coordinator-binden')} activeOpacity={0.8}>
             <Text style={S.githubBtnText}>{t('node.pruefOeffnen')}</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={S.githubBtn} onPress={() => router.push('/pruefer')} activeOpacity={0.8}>
+            <Text style={S.githubBtnText}>{t('node.regOeffnen')}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={S.card}>
