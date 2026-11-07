@@ -106,6 +106,25 @@ export function zwillingBindung(nonce: string, aufnahme: string): string {
   return `${ZWILLING_AUFNAHME_DOMAIN}|${nonce}|${aufnahme}`;
 }
 
+// BINDUNG AN DIE AUFNAHME AUF ALLEN WEGEN (07.11.2026). Wie beim Zwilling,
+// jetzt auch bei Registrierung, Nachziehen, Erneuern und Lebensnachweis:
+//
+//   aufnahme_hash ueber face_image, face_burst (je Datei), face_burst_video
+//   gebunden = aequitas-aufnahme-v1|<challenge_nonce>|<aufnahme_hash>
+//
+// Sonst holte ein echtes Telefon das Token zum Nonce, und ein eigener Client
+// legte eingespeiste Bilder daneben. Die App meldet die Bindung mit dem
+// Formularfeld attestierung_bindung=aufnahme-v1. Gegenstueck:
+// coordinator/app/attestation.py, aufnahme_bindung; gemeinsamer Testvektor in
+// lib/__tests__/attestation_aufnahme.test.ts und
+// coordinator/tests/test_attestierung_aufnahme_alle_wege.py.
+export const AUFNAHME_DOMAIN = 'aequitas-aufnahme-v1';
+export const AUFNAHME_BINDUNG_FORM = 'aufnahme-v1';
+
+export function aufnahmeBindung(nonce: string, aufnahme: string): string {
+  return `${AUFNAHME_DOMAIN}|${nonce}|${aufnahme}`;
+}
+
 /** Der requestHash fuer Play Integrity zu einer gebundenen Zeichenkette. */
 export function gebundenerHash(bindung: string): string {
   return ethers.sha256(ethers.toUtf8Bytes(bindung)).slice(2);
