@@ -753,7 +753,7 @@ const en: Translations = {
     codeFehler: 'Not saved: {grund}',
     codeSeit: 'Saved since {datum}.',
     codeNeu: 'Create a new code',
-    codeNeuWarnung: 'A new code replaces the old one. The old one stops working.',
+    codeNeuWarnung: 'Another code is added, at most three. Every saved code stays valid, but it is useless to anyone without your face.',
     codeNurMensch: 'Only a registered wallet can save a code.',
     karteTitel: 'Recovery code',
     karteOhne: 'No code saved yet. Without a code, recovery after a loss takes 14 days.',

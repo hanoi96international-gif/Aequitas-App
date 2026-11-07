@@ -1,7 +1,9 @@
 // Umzug: das Menschsein auf eine neue Wallet holen (Kette: umzug.go,
 // Entscheidungen vom 07.11.2026).
 //
-//   - Wiederherstellungscode: die App erzeugt ihn EINMAL und zeigt ihn EINMAL.
+//   - Wiederherstellungscode: die App erzeugt ihn EINMAL und zeigt ihn EINMAL
+//     (hoechstens drei je Wallet; ein neuer ersetzt keinen alten -- sonst
+//     ersetzte ein Dieb mit dem Seed den Code des Menschen).
 //     Auf der Kette steht nur sein Hash, an die Wallet gebunden. Er wird nicht
 //     gespeichert, nicht verschickt und kann nirgends erneut angefordert
 //     werden. Mit Gesicht + Code geschieht ein Umzug sofort, und die alte

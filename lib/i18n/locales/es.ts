@@ -753,7 +753,7 @@ const es: Translations = {
     codeFehler: 'No guardado: {grund}',
     codeSeit: 'Guardado desde {datum}.',
     codeNeu: 'Crear un código nuevo',
-    codeNeuWarnung: 'Un código nuevo sustituye al antiguo. El antiguo deja de valer.',
+    codeNeuWarnung: 'Se añade otro código, como máximo tres. Cada código guardado sigue siendo válido, pero no sirve a nadie sin tu cara.',
     codeNurMensch: 'Solo una wallet registrada puede guardar un código.',
     karteTitel: 'Código de recuperación',
     karteOhne: 'Aún no hay código. Sin código, la recuperación tras una pérdida tarda 14 días.',

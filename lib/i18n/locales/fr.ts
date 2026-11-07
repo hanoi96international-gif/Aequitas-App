@@ -753,7 +753,7 @@ const fr: Translations = {
     codeFehler: 'Non enregistré : {grund}',
     codeSeit: 'Enregistré depuis le {datum}.',
     codeNeu: 'Créer un nouveau code',
-    codeNeuWarnung: 'Un nouveau code remplace l\'ancien. L\'ancien ne vaut plus.',
+    codeNeuWarnung: 'Un code supplémentaire s\'ajoute, trois au maximum. Chaque code enregistré reste valable, mais il ne sert à personne sans ton visage.',
     codeNurMensch: 'Seul un wallet enregistré peut enregistrer un code.',
     karteTitel: 'Code de récupération',
     karteOhne: 'Pas encore de code. Sans code, la récupération après une perte prend 14 jours.',

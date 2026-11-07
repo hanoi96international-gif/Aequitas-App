@@ -753,7 +753,7 @@ const id: Translations = {
     codeFehler: 'Tidak tersimpan: {grund}',
     codeSeit: 'Tersimpan sejak {datum}.',
     codeNeu: 'Buat kode baru',
-    codeNeuWarnung: 'Kode baru menggantikan yang lama. Kode lama tidak berlaku lagi.',
+    codeNeuWarnung: 'Kode lain ditambahkan, paling banyak tiga. Setiap kode yang tersimpan tetap berlaku, tetapi tidak berguna bagi siapa pun tanpa wajahmu.',
     codeNurMensch: 'Hanya wallet terdaftar yang dapat menyimpan kode.',
     karteTitel: 'Kode pemulihan',
     karteOhne: 'Belum ada kode. Tanpa kode, pemulihan setelah kehilangan memakan waktu 14 hari.',

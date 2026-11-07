@@ -753,7 +753,7 @@ const zh: Translations = {
     codeFehler: '未保存：{grund}',
     codeSeit: '自 {datum} 起已保存。',
     codeNeu: '生成新的恢复码',
-    codeNeuWarnung: '新恢复码会替换旧的，旧恢复码随即失效。',
+    codeNeuWarnung: '会再添加一个恢复码，最多三个。每个已保存的恢复码都保持有效，但没有你的脸，任何人都无法使用。',
     codeNurMensch: '只有已注册的钱包才能保存恢复码。',
     karteTitel: '恢复码',
     karteOhne: '尚未保存恢复码。没有恢复码时，丢失后的恢复需要 14 天。',

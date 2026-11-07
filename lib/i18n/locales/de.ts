@@ -753,7 +753,7 @@ const de: Translations = {
     codeFehler: 'Nicht hinterlegt: {grund}',
     codeSeit: 'Hinterlegt seit {datum}.',
     codeNeu: 'Neuen Code erzeugen',
-    codeNeuWarnung: 'Ein neuer Code ersetzt den alten. Der alte gilt danach nicht mehr.',
+    codeNeuWarnung: 'Ein weiterer Code kommt dazu, höchstens drei. Jeder hinterlegte Code bleibt gültig, nützt aber niemandem ohne dein Gesicht.',
     codeNurMensch: 'Einen Code kann nur eine registrierte Wallet hinterlegen.',
     karteTitel: 'Wiederherstellungscode',
     karteOhne: 'Noch kein Code hinterlegt. Ohne Code dauert die Wiederherstellung nach einem Verlust 14 Tage.',

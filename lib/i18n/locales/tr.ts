@@ -753,7 +753,7 @@ const tr: Translations = {
     codeFehler: 'Kaydedilmedi: {grund}',
     codeSeit: '{datum} tarihinden beri kayıtlı.',
     codeNeu: 'Yeni kod oluştur',
-    codeNeuWarnung: 'Yeni kod eskisinin yerini alır. Eski kod artık geçmez.',
+    codeNeuWarnung: 'Bir kod daha eklenir, en fazla üç. Kayıtlı her kod geçerli kalır, ama yüzün olmadan kimsenin işine yaramaz.',
     codeNurMensch: 'Yalnızca kayıtlı bir cüzdan kod kaydedebilir.',
     karteTitel: 'Kurtarma kodu',
     karteOhne: 'Henüz kod yok. Kod olmadan kayıptan sonra kurtarma 14 gün sürer.',
