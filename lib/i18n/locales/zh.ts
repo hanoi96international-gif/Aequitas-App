@@ -785,6 +785,8 @@ const zh: Translations = {
     warnWiderrufenOk: '已阻止转移。',
     laeuftTitel: '转移进行中',
     laeuftText: '如果旧钱包不反对，你的人类身份将于 {datum} 到达这个钱包。',
+    nurMitCode: '此次检查不够严格，无法在没有恢复码的情况下转移（需要带硬件验证的 Android 设备和明确的活体检测）。使用恢复码即可。',
+    warnFestText: '正在将你的人类身份转移到钱包 {neu}，将于 {datum} 生效。你今年已经阻止过一次，因此无法再阻止。如果不是你本人：请立即用你的脸和恢复码把账户转移到新钱包。这会立即完成并终止此次转移。',
     inaktiv: '自 {datum} 起可用。',
   },
 };

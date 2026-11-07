@@ -57,9 +57,9 @@ describe('Code', () => {
 });
 
 describe('Bescheinigung des Coordinators', () => {
-  const gut = { status: 'bescheinigt', alt: ALT, nullifier: '42', zeit: 1800000000, modus: 'test', bescheinigung: ['v3:' + 'a'.repeat(128)] };
+  const gut = { status: 'bescheinigt', alt: ALT, nullifier: '42', zeit: 1800000000, modus: 'test', bescheinigung: ['v3:' + 'a'.repeat(128)], pruefung: 'streng' };
   it('gute Form', () => {
-    expect(bescheinigungAusAntwort(gut)).toEqual({ alt: ALT, nullifier: '42', zeit: 1800000000, modus: 'test', bescheinigung: gut.bescheinigung });
+    expect(bescheinigungAusAntwort(gut)).toEqual({ alt: ALT, nullifier: '42', zeit: 1800000000, modus: 'test', bescheinigung: gut.bescheinigung, pruefung: 'streng' });
   });
   it.each([
     { ...gut, status: 'unbekanntes_gesicht' },
@@ -70,6 +70,8 @@ describe('Bescheinigung des Coordinators', () => {
     { ...gut, bescheinigung: [] },
     { ...gut, bescheinigung: ['x:' + 'a'.repeat(10)] },
     { ...gut, bescheinigung: ['v3:a,b'] },
+    { ...gut, pruefung: 'Streng' },
+    { ...gut, pruefung: undefined },
   ])('Missbrauch wird nicht weitergereicht (%#)', (j) => {
     expect(bescheinigungAusAntwort(j)).toBeNull();
   });
@@ -101,7 +103,7 @@ describe('An den Knoten', () => {
   });
   it('Antrag: Unterschrift der neuen Wallet, Code normalisiert, Frist gemeldet', async () => {
     const { f, aufrufe } = fetchMerker({ ok: true, sofort: false, frei_ab: 123 });
-    const b = { alt: ALT, nullifier: '42', zeit: 9, modus: 'test' as const, bescheinigung: ['v3:' + 'a'.repeat(128)] };
+    const b = { alt: ALT, nullifier: '42', zeit: 9, modus: 'test' as const, bescheinigung: ['v3:' + 'a'.repeat(128)], pruefung: 'streng' as const };
     const r = await antragEinreichen(signerVon(w as any), b, null, f);
     expect(r).toEqual({ ok: true, sofort: false, freiAb: 123 });
     expect(aufrufe[0].body.code).toBe('');
@@ -109,13 +111,19 @@ describe('An den Knoten', () => {
   });
   it('Antrag mit kaputtem Code geht nicht raus', async () => {
     const { f, aufrufe } = fetchMerker({ ok: true });
-    const b = { alt: ALT, nullifier: '42', zeit: 9, modus: 'test' as const, bescheinigung: ['v3:' + 'a'.repeat(128)] };
+    const b = { alt: ALT, nullifier: '42', zeit: 9, modus: 'test' as const, bescheinigung: ['v3:' + 'a'.repeat(128)], pruefung: 'streng' as const };
     expect((await antragEinreichen(signerVon(w as any), b, 'O0O0', f)).ok).toBe(false);
+    expect(aufrufe).toHaveLength(0);
+  });
+  it('ohne Code und nur einfach geprueft: geht nicht raus (die Kette lehnte ab)', async () => {
+    const { f, aufrufe } = fetchMerker({ ok: true });
+    const b = { alt: ALT, nullifier: '42', zeit: 9, modus: 'test' as const, bescheinigung: ['v3:' + 'a'.repeat(128)], pruefung: 'einfach' as const };
+    expect(await antragEinreichen(signerVon(w as any), b, null, f)).toEqual({ ok: false, meldung: 'nur_mit_code' });
     expect(aufrufe).toHaveLength(0);
   });
   it('Widerruf nur fuer die eigene alte Wallet', async () => {
     const { f, aufrufe } = fetchMerker({ ok: true });
-    const fremd = { nullifier: '42', alt: ALT, neu: '0x00000000000000000000000000000000000000b2', angekuendigt: 5, freiAb: 0 };
+    const fremd = { nullifier: '42', alt: ALT, neu: '0x00000000000000000000000000000000000000b2', angekuendigt: 5, freiAb: 0, fest: false };
     expect((await widerrufen(signerVon(w as any), fremd, f)).ok).toBe(false);
     expect(aufrufe).toHaveLength(0);
     const eigen = { ...fremd, alt: w.address.toLowerCase() };
@@ -124,7 +132,7 @@ describe('An den Knoten', () => {
   });
   it('Fehler des Knotens kommen als Meldung zurueck', async () => {
     const { f } = fetchMerker({ error: 'rejected: umzug_code: passt nicht' }, 409);
-    const b = { alt: ALT, nullifier: '42', zeit: 9, modus: 'test' as const, bescheinigung: ['v3:' + 'a'.repeat(128)] };
+    const b = { alt: ALT, nullifier: '42', zeit: 9, modus: 'test' as const, bescheinigung: ['v3:' + 'a'.repeat(128)], pruefung: 'streng' as const };
     const r = await antragEinreichen(signerVon(w as any), b, 'abcd-efgh-jkmn-pqrs-tvwx-yz01', f);
     expect(r.ok).toBe(false);
     expect(r.meldung).toContain('umzug_code');

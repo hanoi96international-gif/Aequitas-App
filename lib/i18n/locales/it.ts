@@ -785,6 +785,8 @@ const it: Translations = {
     warnWiderrufenOk: 'Spostamento fermato.',
     laeuftTitel: 'Spostamento in corso',
     laeuftText: 'Il tuo status di persona arriva su questo wallet il {datum}, salvo opposizione del vecchio wallet.',
+    nurMitCode: 'La verifica non è stata abbastanza rigorosa per uno spostamento senza codice (serve un dispositivo Android con verifica hardware e un controllo di vitalità chiaro). Con il tuo codice di recupero funziona.',
+    warnFestText: 'È in corso uno spostamento del tuo status di persona sul wallet {neu}, con effetto il {datum}. Ne hai già fermato uno quest\'anno, quindi non si può più fermare. Se non sei stato tu: sposta subito il tuo account su un nuovo wallet con il viso e il codice di recupero. È immediato e chiude questo spostamento.',
     inaktiv: 'Disponibile dal {datum}.',
   },
 };

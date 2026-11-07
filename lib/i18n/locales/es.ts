@@ -785,6 +785,8 @@ const es: Translations = {
     warnWiderrufenOk: 'Traslado detenido.',
     laeuftTitel: 'Traslado en curso',
     laeuftText: 'Tu condición de persona llega a esta wallet el {datum}, salvo que la wallet antigua se oponga.',
+    nurMitCode: 'La comprobación no fue lo bastante estricta para un traslado sin código (hace falta un dispositivo Android con verificación por hardware y una prueba de vida clara). Con tu código de recuperación sí funciona.',
+    warnFestText: 'Hay un traslado de tu condición de persona a la wallet {neu}, efectivo el {datum}. Ya detuviste uno este año, así que ya no se puede detener. Si no fuiste tú: traslada ahora tu cuenta a una wallet nueva con tu cara y tu código de recuperación. Es inmediato y termina este traslado.',
     inaktiv: 'Disponible desde el {datum}.',
   },
 };

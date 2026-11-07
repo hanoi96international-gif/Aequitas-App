@@ -785,6 +785,8 @@ const de: Translations = {
     warnWiderrufenOk: 'Umzug gestoppt.',
     laeuftTitel: 'Umzug läuft',
     laeuftText: 'Dein Menschsein kommt am {datum} auf diese Wallet, wenn die alte Wallet nicht widerspricht.',
+    nurMitCode: 'Die Prüfung war nicht streng genug für einen Umzug ohne Code (dafür braucht es ein Android-Gerät mit Hardware-Prüfung und eine eindeutige Lebendigkeitsprüfung). Mit deinem Wiederherstellungscode geht es.',
+    warnFestText: 'Für dein Menschsein läuft ein Umzug auf die Wallet {neu}, wirksam am {datum}. Du hast in diesem Jahr schon einmal gestoppt, darum geht Stoppen nicht mehr. Warst du das nicht: Hol dein Konto jetzt mit Gesicht und Wiederherstellungscode auf eine neue Wallet. Das geht sofort und beendet diesen Umzug.',
     inaktiv: 'Verfügbar ab {datum}.',
   },
 };

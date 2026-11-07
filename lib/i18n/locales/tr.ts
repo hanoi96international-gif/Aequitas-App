@@ -785,6 +785,8 @@ const tr: Translations = {
     warnWiderrufenOk: 'Taşıma durduruldu.',
     laeuftTitel: 'Taşıma sürüyor',
     laeuftText: 'Eski cüzdan itiraz etmezse insan statün {datum} tarihinde bu cüzdana gelir.',
+    nurMitCode: 'Kontrol, kodsuz taşıma için yeterince sıkı değildi (bunun için donanım doğrulamalı bir Android cihaz ve net bir canlılık kontrolü gerekir). Kurtarma kodunla olur.',
+    warnFestText: 'İnsan statünün {neu} cüzdanına taşınması sürüyor, {datum} tarihinde geçerli olacak. Bu yıl zaten bir kez durdurdun, bu yüzden artık durdurulamaz. Bu sen değilsen: Hesabını şimdi yüzün ve kurtarma kodunla yeni bir cüzdana taşı. Bu hemen olur ve bu taşımayı bitirir.',
     inaktiv: '{datum} tarihinden itibaren kullanılabilir.',
   },
 };

@@ -799,6 +799,8 @@ export interface Translations {
     warnWiderrufenOk: string;
     laeuftTitel: string;
     laeuftText: string;
+    nurMitCode: string;
+    warnFestText: string;
     inaktiv: string;
   };
 }

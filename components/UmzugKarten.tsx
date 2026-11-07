@@ -74,6 +74,14 @@ export function UmzugHinweis() {
         },
       ]);
     };
+    if (o.fest) {
+      return (
+        <View style={[S.karte, S.warnKarte]}>
+          <Text style={S.warnTitel}>{t('umzug.warnTitel')}</Text>
+          <Text style={S.text}>{t('umzug.warnFestText').replace('{neu}', kurz(o.neu)).replace('{datum}', datum(o.freiAb))}</Text>
+        </View>
+      );
+    }
     return (
       <View style={[S.karte, S.warnKarte]}>
         <Text style={S.warnTitel}>{t('umzug.warnTitel')}</Text>

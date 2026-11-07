@@ -785,6 +785,8 @@ const pt: Translations = {
     warnWiderrufenOk: 'Transferência parada.',
     laeuftTitel: 'Transferência em curso',
     laeuftText: 'O teu estatuto de pessoa chega a esta wallet a {datum}, salvo oposição da wallet antiga.',
+    nurMitCode: 'A verificação não foi suficientemente rigorosa para uma transferência sem código (é preciso um dispositivo Android com verificação por hardware e uma prova de vida clara). Com o teu código de recuperação funciona.',
+    warnFestText: 'Está em curso uma transferência do teu estatuto de pessoa para a wallet {neu}, com efeito a {datum}. Já paraste uma este ano, por isso já não pode ser parada. Se não foste tu: transfere já a tua conta para uma wallet nova com a tua cara e o código de recuperação. É imediato e termina esta transferência.',
     inaktiv: 'Disponível a partir de {datum}.',
   },
 };

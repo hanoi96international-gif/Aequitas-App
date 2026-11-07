@@ -785,6 +785,8 @@ const id: Translations = {
     warnWiderrufenOk: 'Pemindahan dihentikan.',
     laeuftTitel: 'Pemindahan berjalan',
     laeuftText: 'Status manusiamu tiba di wallet ini pada {datum}, kecuali wallet lama keberatan.',
+    nurMitCode: 'Pemeriksaan tidak cukup ketat untuk pemindahan tanpa kode (dibutuhkan perangkat Android dengan verifikasi perangkat keras dan pemeriksaan keaktifan yang jelas). Dengan kode pemulihanmu bisa.',
+    warnFestText: 'Pemindahan status manusiamu ke wallet {neu} sedang berjalan, berlaku pada {datum}. Kamu sudah menghentikan satu tahun ini, jadi tidak bisa dihentikan lagi. Jika bukan kamu: pindahkan akunmu sekarang ke wallet baru dengan wajah dan kode pemulihanmu. Itu langsung dan mengakhiri pemindahan ini.',
     inaktiv: 'Tersedia mulai {datum}.',
   },
 };

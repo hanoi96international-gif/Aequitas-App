@@ -137,14 +137,18 @@ export default function Umzug() {
             >
               <Text style={S.knopfText}>{t('umzug.mitCode')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[S.knopfLeise, laeuft && S.aus]}
-              disabled={laeuft}
-              onPress={() => einreichen(false)}
-              accessibilityRole="button"
-            >
-              <Text style={S.knopfLeiseText}>{t('umzug.ohneCode')}</Text>
-            </TouchableOpacity>
+            {bescheinigung.pruefung === 'streng' ? (
+              <TouchableOpacity
+                style={[S.knopfLeise, laeuft && S.aus]}
+                disabled={laeuft}
+                onPress={() => einreichen(false)}
+                accessibilityRole="button"
+              >
+                <Text style={S.knopfLeiseText}>{t('umzug.ohneCode')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={S.hinweis}>{t('umzug.nurMitCode')}</Text>
+            )}
             {laeuft ? <ActivityIndicator color={theme.purple} style={S.abstand} /> : null}
           </>
         ) : null}

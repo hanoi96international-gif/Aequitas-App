@@ -86,6 +86,8 @@ export interface UmzugOffen {
   neu: string;
   angekuendigt: number;
   freiAb: number;
+  /** Nicht mehr widerrufbar (schon ein Widerruf im letzten Jahr). */
+  fest: boolean;
 }
 
 export interface UmzugStand {
@@ -106,7 +108,7 @@ export async function umzugStand(wallet: string, fetchFn: typeof fetch = fetch):
     const o = j?.offen;
     const offen =
       o && ADRESSE.test(o.alt) && ADRESSE.test(o.neu) && NULLIFIER.test(o.nullifier)
-        ? { nullifier: o.nullifier, alt: o.alt, neu: o.neu, angekuendigt: zahl(o.angekuendigt), freiAb: zahl(o.frei_ab) }
+        ? { nullifier: o.nullifier, alt: o.alt, neu: o.neu, angekuendigt: zahl(o.angekuendigt), freiAb: zahl(o.frei_ab), fest: o.fest === true }
         : null;
     return { aktivAb: zahl(j?.aktiv_ab), codeSeit: zahl(j?.code_seit), offen };
   } catch {
@@ -169,6 +171,8 @@ export interface UmzugBescheinigung {
   zeit: number;
   modus: 'test' | 'real';
   bescheinigung: string[];
+  /** streng: auch ohne Code moeglich; einfach: nur mit Code (Kette: umzug.go). */
+  pruefung: 'streng' | 'einfach';
 }
 
 export function bescheinigungAusAntwort(j: any): UmzugBescheinigung | null {
@@ -176,10 +180,11 @@ export function bescheinigungAusAntwort(j: any): UmzugBescheinigung | null {
   const e = Array.isArray(j.bescheinigung) ? j.bescheinigung : [];
   if (!ADRESSE.test(j.alt) || !NULLIFIER.test(j.nullifier) || !Number.isSafeInteger(j.zeit) || j.zeit <= 0) return null;
   if (j.modus !== 'test' && j.modus !== 'real') return null;
+  if (j.pruefung !== 'streng' && j.pruefung !== 'einfach') return null;
   if (e.length === 0 || e.length > 34 || !e.every((x: unknown) => typeof x === 'string' && /^v3k?:[0-9a-zA-Z.:_x]{1,600}$/.test(x))) {
     return null;
   }
-  return { alt: j.alt, nullifier: j.nullifier, zeit: j.zeit, modus: j.modus, bescheinigung: e };
+  return { alt: j.alt, nullifier: j.nullifier, zeit: j.zeit, modus: j.modus, bescheinigung: e, pruefung: j.pruefung };
 }
 
 /** Den Umzug bei der Kette beantragen -- mit Code sofort, sonst 14 Tage. */
@@ -195,11 +200,13 @@ export async function antragEinreichen(
     normal = codeNormal(code);
     if (!normal) return { ok: false, meldung: 'code' };
   }
+  // Ohne Code nimmt die Kette nur eine streng gepruefte Bescheinigung.
+  if (!normal && b.pruefung !== 'streng') return { ok: false, meldung: 'nur_mit_code' };
   const sig = await unterschreibe(signer, antragNachricht(b.nullifier, b.alt, neu, b.zeit));
   if (!sig) return { ok: false, meldung: 'unterschrift' };
   const r = await senden(
     '/umzug/antrag',
-    { neu, alt: b.alt, nullifier: b.nullifier, zeit: b.zeit, modus: b.modus, bescheinigung: b.bescheinigung, code: normal ?? '', sig },
+    { neu, alt: b.alt, nullifier: b.nullifier, zeit: b.zeit, modus: b.modus, bescheinigung: b.bescheinigung, pruefung: b.pruefung, code: normal ?? '', sig },
     fetchFn
   );
   if (!r.ok) return { ok: false, meldung: r.meldung };
