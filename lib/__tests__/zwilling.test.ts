@@ -30,6 +30,24 @@ jest.mock('expo-file-system/legacy', () => ({
     return b.subarray(von, o?.length === undefined ? b.length : von + o.length).toString('base64');
   }),
 }), { virtual: true });
+// Gelesen wird ueber die Testschnittstelle: der Modul-Mock oben griff bei
+// kaltem Jest-Cache nicht immer (attestation_alle_wege, CI 07.11.2026).
+// Einzelne Tests ueberschreiben das naechste info() bzw. das Lesen.
+type InfoFn = (uri: string) => Promise<{ exists: boolean; size?: number }>;
+let infoEinmal: InfoFn[] = [];
+let lesenAnders: ((uri: string, von: number, laenge: number) => Promise<string>) | null = null;
+beforeEach(() => {
+  infoEinmal = [];
+  lesenAnders = null;
+  require('../biometricIdentity')._setDateiLeserFuerTest({
+    info: async (uri: string) => {
+      const f = infoEinmal.shift();
+      return f ? f(uri) : { exists: true, size: dateiInhalt(uri).length };
+    },
+    lesen: async (uri: string, von: number, laenge: number) =>
+      lesenAnders ? lesenAnders(uri, von, laenge) : dateiInhalt(uri).subarray(von, von + laenge).toString('base64'),
+  });
+});
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
@@ -668,11 +686,10 @@ describe('Netz', () => {
 
   it('Datei fehlt, ist zu gross oder aendert sich beim Lesen: Abbruch vor dem Upload', async () => {
     const bio = require('../biometricIdentity');
-    const fs = jest.requireMock('expo-file-system/legacy') as Record<string, jest.Mock>;
-    const faelle: Array<[string, () => void]> = [
-      ['nicht lesbar', () => fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: false }))],
-      ['zu gross', () => fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: true, size: bio.ZWILLING_DATEI_HOECHSTENS + 1 }))],
-      ['beim Lesen geaendert', () => fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: true, size: 10_000 }))],
+    const faelle: [string, () => void][] = [
+      ['nicht lesbar', () => { infoEinmal.push(async () => ({ exists: false })); }],
+      ['zu gross', () => { infoEinmal.push(async () => ({ exists: true, size: bio.ZWILLING_DATEI_HOECHSTENS + 1 })); }],
+      ['beim Lesen geaendert', () => { infoEinmal.push(async () => ({ exists: true, size: 10_000 })); }],
     ];
     for (const [name, vorbereiten] of faelle) {
       await bio.zwillingAnfrageAnlegen(WALLET_B, 2);
@@ -687,24 +704,15 @@ describe('Netz', () => {
 
   it('dateiHash liest blockweise und trifft den gemeinsamen Testvektor (mehrere Bloecke)', async () => {
     const bio = require('../biometricIdentity');
-    const fs = jest.requireMock('expo-file-system/legacy') as Record<string, jest.Mock>;
     const gross = Buffer.alloc(256 * 12295);
     for (let i = 0; i < gross.length; i++) gross[i] = i % 256;
     const gelesen: number[] = [];
-    fs.getInfoAsync.mockImplementationOnce(async () => ({ exists: true, size: gross.length }));
-    fs.readAsStringAsync.mockImplementation(async (_u: string, o: { position: number; length: number }) => {
-      gelesen.push(o.length);
-      return gross.subarray(o.position, o.position + o.length).toString('base64');
-    });
-    try {
-      expect(await bio.dateiHash('file:///gross.bin')).toBe('721656139dc2d9749502311edf357483f72cefcc783fea95c0e0f1a5e36e32ac');
-    } finally {
-      fs.readAsStringAsync.mockImplementation(async (uri: string, o?: { position?: number; length?: number }) => {
-        const b = Buffer.from(`inhalt:${uri}`);
-        const von = o?.position ?? 0;
-        return b.subarray(von, o?.length === undefined ? b.length : von + o.length).toString('base64');
-      });
-    }
+    infoEinmal.push(async () => ({ exists: true, size: gross.length }));
+    lesenAnders = async (_u: string, von: number, laenge: number) => {
+      gelesen.push(laenge);
+      return gross.subarray(von, von + laenge).toString('base64');
+    };
+    expect(await bio.dateiHash('file:///gross.bin')).toBe('721656139dc2d9749502311edf357483f72cefcc783fea95c0e0f1a5e36e32ac');
     // Nie mehr als ein Block auf einmal.
     expect(Math.max(...gelesen)).toBe(1 << 20);
     expect(gelesen.length).toBe(4);

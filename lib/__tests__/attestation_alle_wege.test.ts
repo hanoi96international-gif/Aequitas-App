@@ -11,16 +11,6 @@ import { ethers } from 'ethers';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'x' }));
 const inhalt: Record<string, Buffer> = {};
-jest.mock('expo-file-system/legacy', () => ({
-  deleteAsync: jest.fn(),
-  EncodingType: { Base64: 'base64' },
-  getInfoAsync: jest.fn(async (uri: string) => (inhalt[uri] ? { exists: true, size: inhalt[uri].length } : { exists: false })),
-  readAsStringAsync: jest.fn(async (uri: string, o?: { position?: number; length?: number }) => {
-    const b = inhalt[uri];
-    const von = o?.position ?? 0;
-    return b.subarray(von, o?.length === undefined ? b.length : von + o.length).toString('base64');
-  }),
-}), { virtual: true });
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
@@ -40,6 +30,13 @@ jest.mock('../api', () => ({ submitLivenessRenewal: jest.fn(), submitProofOfLife
 
 const at = jest.requireActual('../attestation');
 const bio = require('../biometricIdentity');
+// Dateien ueber die Testschnittstelle, nicht per jest.mock von
+// expo-file-system/legacy: der griff bei kaltem Jest-Cache nicht immer.
+bio._setDateiLeserFuerTest({
+  info: async (uri: string) => (inhalt[uri] ? { exists: true, size: inhalt[uri].length } : { exists: false }),
+  lesen: async (uri: string, von: number, laenge: number) => inhalt[uri].subarray(von, von + laenge).toString('base64'),
+});
+afterAll(() => bio._setDateiLeserFuerTest(null));
 
 const VEKTOR_AUFNAHME = '3d5eb6fe56a52c3c85c5b2fb3dd66f07dc588704883ac0c0b77d8790dc990bc6';
 const VEKTOR_REQUEST_HASH = '536c54a194afcf9bfa8f15a8767dff49cc93e3dff7920ffe39e8f19af40970c3';
