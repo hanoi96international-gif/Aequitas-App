@@ -11,6 +11,7 @@ import { Camera, CommonResolutions, useCameraDevice, useCameraPermission, useVid
 import { useImageFaceDetector, type Face } from 'react-native-vision-camera-face-detector';
 import { Gyroscope } from 'expo-sensors';
 import * as Speech from 'expo-speech';
+import { aufnahmeSpielen, stoppen } from '@/lib/sprachausgabe';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
@@ -684,6 +685,9 @@ export default function BiometricCapture() {
         onDone?.();
         return;
       }
+      // Zuerst die mitgelieferte Aufnahme mit natuerlicher Stimme
+      // (lib/sprachausgabe.ts); nur ohne sie die Geraetestimme.
+      if (aufnahmeSpielen(lang, text, onDone)) return;
       const baseOpts = { language: SPEECH_LOCALE[lang] ?? 'en-US', rate: 0.92, pitch: 0.9 };
       const doneOnce = onDone ? { called: false } : null;
       const fireDone = () => {
@@ -710,7 +714,7 @@ export default function BiometricCapture() {
           setTimeout(() => {
             if (voiceStatusRef.current === 'untested') {
               voiceStatusRef.current = 'broken';
-              Speech.stop();
+              stoppen();
             }
           }, 1200);
         }
@@ -731,7 +735,7 @@ export default function BiometricCapture() {
       // interrupt: a new instruction replacing an old one should be heard
       // immediately, not queued behind speech for a step the user already
       // moved past.
-      Speech.stop();
+      stoppen();
       speakRaw(text);
     },
     [speakRaw]
@@ -895,7 +899,7 @@ export default function BiometricCapture() {
         // chain's own first utterance.
         break;
       default:
-        Speech.stop();
+        stoppen();
         break;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -905,7 +909,7 @@ export default function BiometricCapture() {
   // shouldn't leave the voice talking over whatever comes next.
   useEffect(() => {
     return () => {
-      Speech.stop();
+      stoppen();
     };
   }, []);
 
@@ -1395,7 +1399,7 @@ export default function BiometricCapture() {
     // step-instruction effect deliberately skips Speech.stop() for the
     // 'face_burst' case to avoid racing with this chain's own first
     // utterance (see that effect's own comment).
-    Speech.stop();
+    stoppen();
     sayStage(t('identity.biometricBurstHoldOval'), () => {
       // Ohne "· 3 Sekunden halten": Blinzeln haelt man nicht, und die kurze
       // Ansage laesst der Aufnahme Luft bis BURST_MAX_DURATION_S.
@@ -1637,7 +1641,7 @@ export default function BiometricCapture() {
     const nachZeit = (ms: number, fn: () => void) => {
       countdownTimersRef.current.push(setTimeout(() => { if (!burstChainCancelledRef.current) fn(); }, ms));
     };
-    Speech.stop();
+    stoppen();
     try {
       // Feste Dauer: n * 2 s + 1 s. Die Farbfolge laeuft in gleich langen,
       // lueckenlosen Abschnitten ueber die ganze Aufnahme, wie
@@ -1666,7 +1670,7 @@ export default function BiometricCapture() {
               if (e.ansage) {
                 setZwSchrittAktiv(e.schritt);
                 setBurstStageText(schrittText(e, t));
-                Speech.stop();
+                stoppen();
                 speakRaw(schrittText(e, t, true));
               }
             });
