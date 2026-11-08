@@ -143,13 +143,12 @@ jobs:
 
           # GERAETE-ATTESTIERUNG: lieber sichtbar fehlend als still behauptet.
           #
-          # lib/attestation.ts liest EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER und
-          # gibt ohne sie null zurueck -- die App schickt dann kein Token, und
-          # der Coordinator vermerkt attestation_status "not_configured". Diese
-          # Variable ist in diesem Repository nie gesetzt gewesen und wurde von
-          # diesem Workflow bis heute nicht einmal durchgereicht, also lief Play
-          # Integrity in KEINER ausgelieferten APK -- waehrend die Release-Notiz
-          # zu v1.5.0 schrieb, die Attestierung laufe "jetzt mit".
+          # lib/attestation.ts liest EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER.
+          # Ohne sie (bis heute nie gesetzt) laeuft kein Play Integrity; seit
+          # 1.14.0 prueft die App das Geraet dann mit Android Key Attestation
+          # (platform=android_key, Coordinator app/android_key_attestation.py).
+          # Bis 1.13.x schickte sie in diesem Fall gar nichts -- waehrend die
+          # Release-Notiz zu v1.5.0 schrieb, die Attestierung laufe "jetzt mit".
           #
           # Kein Abbruch: die Attestierung ist erklaertermassen nur ein
           # Risikosignal und niemals eine Huerde (Geraetequalitaet darf ueber
@@ -157,7 +156,7 @@ jobs:
           # kein Grund, niemanden zu registrieren -- wohl aber einer, es nicht
           # als vorhanden auszuweisen.
           if [ -z "$EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER" ]; then
-            echo "::warning title=APK ohne Geraete-Attestierung::EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER ist nicht gesetzt. getAttestationPayload() liefert null, die App sendet kein Play-Integrity-Token, und der Coordinator sieht attestation_status=not_configured. Das blockiert niemanden -- aber diese APK darf nicht als attestiert beschrieben werden. Zum Aktivieren: Repository-Variable mit der GCP-Projektnummer anlegen."
+            echo "::notice title=APK ohne Play Integrity::EXPO_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER ist nicht gesetzt. Die App prueft das Geraet dann mit Android Key Attestation (lib/attestation.ts, platform=android_key; Sicherheitschip, gesperrter Bootloader, App-Signatur) statt mit Play Integrity. Geraete ohne Hardware-Schluessel (Emulatoren) liefern nichts und bekommen nur die einfache Pruefstufe. Play Integrity zusaetzlich: Repository-Variable mit der GCP-Projektnummer anlegen."
           fi
 
           # Railway ist am 14.08.2026 abgeschaltet worden und hostet keinen
