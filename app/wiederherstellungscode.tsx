@@ -22,7 +22,6 @@ export default function Wiederherstellungscode() {
   const { t } = useLanguage();
   const { signer } = useWallet();
   const [codeSeit, setCodeSeit] = useState(0);
-  const [gueltigAb, setGueltigAb] = useState(0);
   const [aktivAb, setAktivAb] = useState(0);
   const [code, setCode] = useState<string | null>(null);
   const [eingabe, setEingabe] = useState('');
@@ -35,7 +34,6 @@ export default function Wiederherstellungscode() {
       if (!signer) return;
       umzugStand(signer.address).then((s) => {
         setCodeSeit(s?.codeSeit ?? 0);
-        setGueltigAb(s?.codeGueltigAb ?? 0);
         setAktivAb(s?.aktivAb ?? 0);
       });
     }, [signer]),
@@ -87,9 +85,6 @@ export default function Wiederherstellungscode() {
         {codeSeit > 0 && !code ? (
           <Text style={S.hinweis}>
             {t('umzug.codeSeit').replace('{datum}', new Date(codeSeit * 1000).toLocaleDateString())}
-            {gueltigAb > Math.floor(Date.now() / 1000)
-              ? ' ' + t('umzug.codeGueltigAb').replace('{datum}', new Date(gueltigAb * 1000).toLocaleDateString())
-              : ''}
           </Text>
         ) : null}
 

@@ -99,9 +99,6 @@ export interface UmzugStand {
   aktivAb: number;
   /** Seit wann ein Code hinterlegt ist (0 = keiner). */
   codeSeit: number;
-  /** Ab wann der Code bei einem Umzug zaehlt (0 = unbekannt; Kette: 14 Tage
-   *  nach dem Hinterlegen, Regeln vom 08.11.2026). */
-  codeGueltigAb: number;
   offen: UmzugOffen | null;
 }
 
@@ -118,7 +115,7 @@ export async function umzugStand(wallet: string, fetchFn: typeof fetch = fetch):
       o && ADRESSE.test(o.alt) && ADRESSE.test(o.neu) && NULLIFIER.test(o.nullifier)
         ? { nullifier: o.nullifier, alt: o.alt, neu: o.neu, angekuendigt: zahl(o.angekuendigt), freiAb: zahl(o.frei_ab), fest: o.fest === true }
         : null;
-    return { aktivAb: zahl(j?.aktiv_ab), codeSeit: zahl(j?.code_seit), codeGueltigAb: zahl(j?.code_gueltig_ab), offen };
+    return { aktivAb: zahl(j?.aktiv_ab), codeSeit: zahl(j?.code_seit), offen };
   } catch {
     return null;
   }
@@ -195,16 +192,8 @@ export function bescheinigungAusAntwort(j: any): UmzugBescheinigung | null {
   return { alt: j.alt, nullifier: j.nullifier, zeit: j.zeit, modus: j.modus, bescheinigung: e, pruefung: j.pruefung };
 }
 
-/**
- * Lehnt die Kette ab, weil der Code noch nicht gilt (umzug_code_unreif), steht
- * in der Meldung, ab wann (Unix-Sekunden). Sonst 0.
- */
-export function codeUnreifAb(meldung: string | undefined): number {
-  const m = /umzug_code_unreif\b.*?\b(\d{9,12})\b/.exec(meldung ?? '');
-  return m ? Number(m[1]) : 0;
-}
-
-/** Lehnt die Kette einen weiteren Code ab (umzug_code_fest)? */
+/** Lehnt die Kette einen weiteren Code ab (umzug_code_fest: ein Code je
+ *  Wallet, nicht aenderbar -- Regeln vom 08.11.2026)? */
 export function codeSchonDa(meldung: string | undefined): boolean {
   return /\bumzug_code_fest\b/.test(meldung ?? '');
 }
