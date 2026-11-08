@@ -1,7 +1,9 @@
 // Umzug (lib/umzug.ts) in der App:
 //   - UmzugHinweis (Home, ganz oben): die ALTE Wallet sieht sofort und
 //     unuebersehbar, wenn jemand ihr Menschsein umziehen will, und kann es
-//     stoppen. Die NEUE Wallet sieht, wann es ankommt.
+//     stoppen. Die NEUE Wallet sieht, wann es ankommt. Ein Mensch ohne
+//     hinterlegten Code sieht, dass er einen einrichten sollte (wer sich vor
+//     dem Stichtag registriert hat, konnte es noch nicht).
 //   - UmzugIdentitaet (Identitaets-Tab): Wiederherstellungscode einrichten
 //     (fuer Menschen) oder "Alte Wallet verloren?" (fuer neue Wallets).
 // Vor dem Stichtag (aktiv_ab der Kette) zeigen beide nichts.
@@ -43,13 +45,25 @@ const aktiv = (s: UmzugStand | null) => !!s && s.aktivAb > 0 && s.aktivAb <= Mat
 
 export function UmzugHinweis() {
   const { t } = useLanguage();
-  const { signer } = useWallet();
+  const { signer, balance } = useWallet();
   const [stand, laden] = useUmzugStand();
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState('');
   const ich = signer?.address.toLowerCase() ?? '';
   const o = stand?.offen;
-  if (!aktiv(stand) || !o) return null;
+  if (!aktiv(stand)) return null;
+  if (!o) {
+    if (balance?.is_human !== true || (stand?.codeSeit ?? 0) > 0) return null;
+    return (
+      <View style={S.karte} testID="umzug-code-fehlt">
+        <Text style={S.titel}>{t('umzug.karteTitel')}</Text>
+        <Text style={S.text}>{t('umzug.karteOhne')}</Text>
+        <TouchableOpacity style={S.knopf} onPress={() => router.push('/wiederherstellungscode')} accessibilityRole="button">
+          <Text style={S.knopfText}>{t('umzug.karteLink')}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (o.alt === ich) {
     const stoppen = () => {
