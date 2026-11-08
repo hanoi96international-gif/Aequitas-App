@@ -49,7 +49,12 @@ describe('Code', () => {
     ['abcd-efgh-jkmn-pqrs-tvwx-yz01', 'ABCDEFGHJKMNPQRSTVWXYZ01'],
     ['ABCD EFGH JKMN PQRS TVWX YZ01', 'ABCDEFGHJKMNPQRSTVWXYZ01'],
     ['ABCD-EFGH-JKMN-PQRS-TVWX-YZ0', null], // zu kurz
-    ['ABCD-EFGH-JKMN-PQRS-TVWX-YZOI', null], // O und I gibt es nicht
+    // Abgeschrieben: O -> 0, I und L -> 1 (kommen in keinem Code vor).
+    ['ABCD-EFGH-JKMN-PQRS-TVWX-YZOI', 'ABCDEFGHJKMNPQRSTVWXYZ01'],
+    ['abcd-efgh-jkmn-pqrs-tvwx-yzol', 'ABCDEFGHJKMNPQRSTVWXYZ01'],
+    ['ABCD-EFGH-JKMN-PQRS-TVWX-YZ0U', null], // U gibt es nicht
+    ['ABCD-EFGH-JKMN-PQRS-TVWX-YZ0!', null],
+    ['ABCD-EFGH-JKMN-PQRS-TVWX-YZ0\u0130', null], // tuerkisches I mit Punkt
     ['', null],
   ])('%s -> %s', (roh, erwartet) => {
     expect(codeNormal(roh)).toBe(erwartet);

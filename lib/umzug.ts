@@ -34,10 +34,15 @@ export function codeErzeugen(zufall: (n: number) => Uint8Array = (n) => Crypto.g
   return s;
 }
 
-/** Grossbuchstaben, ohne Bindestriche und Leerzeichen -- oder null. */
+/**
+ * Grossbuchstaben, ohne Bindestriche und Leerzeichen -- oder null.
+ * Von Hand abgeschrieben wird leicht O statt 0 und I oder L statt 1; diese
+ * Buchstaben kommen in keinem Code vor (CODE_ZEICHEN), die Zuordnung ist also
+ * eindeutig (wie bei Crockford Base32). U bleibt ungueltig.
+ */
 export function codeNormal(roh: string): string | null {
   if (typeof roh !== 'string' || roh.length > 64) return null;
-  const s = roh.toUpperCase().replace(/[-\s]/g, '');
+  const s = roh.toUpperCase().replace(/[-\s]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
   if (s.length !== CODE_LAENGE) return null;
   for (const c of s) if (!CODE_ZEICHEN.includes(c)) return null;
   return s;
