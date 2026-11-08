@@ -3,7 +3,8 @@
 //     unuebersehbar, wenn jemand ihr Menschsein umziehen will, und kann es
 //     stoppen. Die NEUE Wallet sieht, wann es ankommt. Ein Mensch ohne
 //     hinterlegten Code sieht, dass er einen einrichten sollte (wer sich vor
-//     dem Stichtag registriert hat, konnte es noch nicht).
+//     dem Stichtag registriert hat, konnte es noch nicht).  Mit Code: nichts
+//     (ein Code je Wallet, nicht aenderbar).
 //   - UmzugIdentitaet (Identitaets-Tab): Wiederherstellungscode einrichten
 //     (fuer Menschen) oder "Alte Wallet verloren?" (fuer neue Wallets).
 // Vor dem Stichtag (aktiv_ab der Kette) zeigen beide nichts.
@@ -125,12 +126,21 @@ export function UmzugIdentitaet({ istMensch }: { istMensch: boolean }) {
   if (!aktiv(stand) || stand?.offen) return null;
   if (istMensch) {
     const seit = stand?.codeSeit ?? 0;
+    // Ein Code je Wallet, nicht aenderbar: mit Code kein Knopf mehr.
+    if (seit > 0) {
+      return (
+        <View style={S.karte}>
+          <Text style={S.titel}>{t('umzug.karteTitel')}</Text>
+          <Text style={S.text}>{t('umzug.karteMit').replace('{datum}', datum(seit))}</Text>
+        </View>
+      );
+    }
     return (
       <View style={S.karte}>
         <Text style={S.titel}>{t('umzug.karteTitel')}</Text>
-        <Text style={S.text}>{seit > 0 ? t('umzug.karteMit').replace('{datum}', datum(seit)) : t('umzug.karteOhne')}</Text>
-        <TouchableOpacity style={seit > 0 ? S.leiseKnopf : S.knopf} onPress={() => router.push('/wiederherstellungscode')} accessibilityRole="button">
-          <Text style={seit > 0 ? S.leiseText : S.knopfText}>{seit > 0 ? t('umzug.codeNeu') : t('umzug.karteLink')}</Text>
+        <Text style={S.text}>{t('umzug.karteOhne')}</Text>
+        <TouchableOpacity style={S.knopf} onPress={() => router.push('/wiederherstellungscode')} accessibilityRole="button">
+          <Text style={S.knopfText}>{t('umzug.karteLink')}</Text>
         </TouchableOpacity>
       </View>
     );

@@ -192,6 +192,12 @@ export function bescheinigungAusAntwort(j: any): UmzugBescheinigung | null {
   return { alt: j.alt, nullifier: j.nullifier, zeit: j.zeit, modus: j.modus, bescheinigung: e, pruefung: j.pruefung };
 }
 
+/** Lehnt die Kette einen weiteren Code ab (umzug_code_fest: ein Code je
+ *  Wallet, nicht aenderbar -- Regeln vom 08.11.2026)? */
+export function codeSchonDa(meldung: string | undefined): boolean {
+  return /\bumzug_code_fest\b/.test(meldung ?? '');
+}
+
 /** Den Umzug bei der Kette beantragen -- mit Code sofort, sonst 14 Tage. */
 export async function antragEinreichen(
   signer: AequitasSigner,

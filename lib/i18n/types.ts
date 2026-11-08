@@ -766,8 +766,7 @@ export interface Translations {
     codeFertig: string;
     codeFehler: string;
     codeSeit: string;
-    codeNeu: string;
-    codeNeuWarnung: string;
+    codeEinmal: string;
     codeNurMensch: string;
     karteTitel: string;
     karteOhne: string;
