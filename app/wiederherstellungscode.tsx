@@ -14,7 +14,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
 import { withTimeout } from '@/lib/signer';
-import { codeAnzeige, codeErzeugen, codeHinterlegen, codeNormal, umzugStand } from '@/lib/umzug';
+import { codeAnzeige, codeErzeugen, codeHinterlegen, codeNormal, codeSchonDa, umzugStand } from '@/lib/umzug';
 
 const TIMEOUT_MS = 120_000;
 
@@ -22,6 +22,7 @@ export default function Wiederherstellungscode() {
   const { t } = useLanguage();
   const { signer } = useWallet();
   const [codeSeit, setCodeSeit] = useState(0);
+  const [gueltigAb, setGueltigAb] = useState(0);
   const [aktivAb, setAktivAb] = useState(0);
   const [code, setCode] = useState<string | null>(null);
   const [eingabe, setEingabe] = useState('');
@@ -34,6 +35,7 @@ export default function Wiederherstellungscode() {
       if (!signer) return;
       umzugStand(signer.address).then((s) => {
         setCodeSeit(s?.codeSeit ?? 0);
+        setGueltigAb(s?.codeGueltigAb ?? 0);
         setAktivAb(s?.aktivAb ?? 0);
       });
     }, [signer]),
@@ -51,6 +53,10 @@ export default function Wiederherstellungscode() {
       if (r.ok) {
         setMeldung({ ok: true, text: t('umzug.codeFertig') });
         setFertig(true);
+        setCode(null);
+        setEingabe('');
+      } else if (codeSchonDa(r.meldung)) {
+        setMeldung({ ok: false, text: t('umzug.codeEinmal') });
         setCode(null);
         setEingabe('');
       } else {
@@ -75,13 +81,19 @@ export default function Wiederherstellungscode() {
           <Text style={S.warnText}>{t('umzug.codeNiemand')}</Text>
         </View>
 
-        {codeSeit > 0 && !code && !fertig ? (
+        {/* Ein Code je Wallet, nicht aenderbar (Kette, Regeln vom 08.11.2026). */}
+        <Text style={S.hinweis}>{t('umzug.codeEinmal')}</Text>
+
+        {codeSeit > 0 && !code ? (
           <Text style={S.hinweis}>
-            {t('umzug.codeSeit').replace('{datum}', new Date(codeSeit * 1000).toLocaleDateString())} {t('umzug.codeNeuWarnung')}
+            {t('umzug.codeSeit').replace('{datum}', new Date(codeSeit * 1000).toLocaleDateString())}
+            {gueltigAb > Math.floor(Date.now() / 1000)
+              ? ' ' + t('umzug.codeGueltigAb').replace('{datum}', new Date(gueltigAb * 1000).toLocaleDateString())
+              : ''}
           </Text>
         ) : null}
 
-        {inaktiv ? (
+        {codeSeit > 0 ? null : inaktiv ? (
           <Text style={S.hinweis}>{t('umzug.inaktiv').replace('{datum}', new Date(aktivAb * 1000).toLocaleDateString())}</Text>
         ) : !code && !fertig ? (
           <TouchableOpacity
@@ -94,7 +106,7 @@ export default function Wiederherstellungscode() {
             }}
             accessibilityRole="button"
           >
-            <Text style={S.knopfText}>{codeSeit > 0 ? t('umzug.codeNeu') : t('umzug.codeErzeugen')}</Text>
+            <Text style={S.knopfText}>{t('umzug.codeErzeugen')}</Text>
           </TouchableOpacity>
         ) : null}
 

@@ -766,8 +766,11 @@ export interface Translations {
     codeFertig: string;
     codeFehler: string;
     codeSeit: string;
-    codeNeu: string;
-    codeNeuWarnung: string;
+    codeGueltigAb: string;
+    codeEinmal: string;
+    reifTitel: string;
+    reifText: string;
+    codeUnreif: string;
     codeNurMensch: string;
     karteTitel: string;
     karteOhne: string;

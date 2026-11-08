@@ -12,6 +12,7 @@ import { withTimeout } from '@/lib/signer';
 import {
   antragEinreichen,
   codeNormal,
+  codeUnreifAb,
   umzugErgebnisNehmen,
   umzugStand,
   type UmzugBescheinigung,
@@ -79,6 +80,8 @@ export default function Umzug() {
       } else if (r.ok) {
         setMeldung({ ok: true, text: t('umzug.erfolgFrist').replace('{datum}', datum(r.freiAb ?? 0)) });
         setFertig(true);
+      } else if (codeUnreifAb(r.meldung) > 0) {
+        setMeldung({ ok: false, text: t('umzug.codeUnreif').replace('{datum}', datum(codeUnreifAb(r.meldung))) });
       } else {
         setMeldung({ ok: false, text: t('umzug.fehler').replace('{grund}', r.meldung ?? '') });
       }

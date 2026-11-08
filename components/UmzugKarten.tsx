@@ -3,7 +3,10 @@
 //     unuebersehbar, wenn jemand ihr Menschsein umziehen will, und kann es
 //     stoppen. Die NEUE Wallet sieht, wann es ankommt. Ein Mensch ohne
 //     hinterlegten Code sieht, dass er einen einrichten sollte (wer sich vor
-//     dem Stichtag registriert hat, konnte es noch nicht).
+//     dem Stichtag registriert hat, konnte es noch nicht). Ist ein Code
+//     hinterlegt, der noch nicht gilt (14 Tage, Regeln vom 08.11.2026), sieht
+//     er das Datum und die Frage "warst du das nicht?" -- einen fremden Code
+//     macht ein Umzug mit dem Gesicht ungueltig.
 //   - UmzugIdentitaet (Identitaets-Tab): Wiederherstellungscode einrichten
 //     (fuer Menschen) oder "Alte Wallet verloren?" (fuer neue Wallets).
 // Vor dem Stichtag (aktiv_ab der Kette) zeigen beide nichts.
@@ -53,7 +56,18 @@ export function UmzugHinweis() {
   const o = stand?.offen;
   if (!aktiv(stand)) return null;
   if (!o) {
-    if (balance?.is_human !== true || (stand?.codeSeit ?? 0) > 0) return null;
+    if (balance?.is_human !== true) return null;
+    const seit = stand?.codeSeit ?? 0;
+    const ab = stand?.codeGueltigAb ?? 0;
+    if (seit > 0) {
+      if (ab <= Math.floor(Date.now() / 1000)) return null;
+      return (
+        <View style={[S.karte, S.reifKarte]} testID="umzug-code-unreif">
+          <Text style={S.reifTitel}>{t('umzug.reifTitel')}</Text>
+          <Text style={S.text}>{t('umzug.reifText').replace('{seit}', datum(seit)).replace('{ab}', datum(ab))}</Text>
+        </View>
+      );
+    }
     return (
       <View style={S.karte} testID="umzug-code-fehlt">
         <Text style={S.titel}>{t('umzug.karteTitel')}</Text>
@@ -125,12 +139,25 @@ export function UmzugIdentitaet({ istMensch }: { istMensch: boolean }) {
   if (!aktiv(stand) || stand?.offen) return null;
   if (istMensch) {
     const seit = stand?.codeSeit ?? 0;
+    const ab = stand?.codeGueltigAb ?? 0;
+    // Ein Code je Wallet, nicht aenderbar: mit Code kein Knopf mehr.
+    if (seit > 0) {
+      return (
+        <View style={S.karte}>
+          <Text style={S.titel}>{t('umzug.karteTitel')}</Text>
+          <Text style={S.text}>
+            {t('umzug.karteMit').replace('{datum}', datum(seit))}
+            {ab > Math.floor(Date.now() / 1000) ? ' ' + t('umzug.codeGueltigAb').replace('{datum}', datum(ab)) : ''}
+          </Text>
+        </View>
+      );
+    }
     return (
       <View style={S.karte}>
         <Text style={S.titel}>{t('umzug.karteTitel')}</Text>
-        <Text style={S.text}>{seit > 0 ? t('umzug.karteMit').replace('{datum}', datum(seit)) : t('umzug.karteOhne')}</Text>
-        <TouchableOpacity style={seit > 0 ? S.leiseKnopf : S.knopf} onPress={() => router.push('/wiederherstellungscode')} accessibilityRole="button">
-          <Text style={seit > 0 ? S.leiseText : S.knopfText}>{seit > 0 ? t('umzug.codeNeu') : t('umzug.karteLink')}</Text>
+        <Text style={S.text}>{t('umzug.karteOhne')}</Text>
+        <TouchableOpacity style={S.knopf} onPress={() => router.push('/wiederherstellungscode')} accessibilityRole="button">
+          <Text style={S.knopfText}>{t('umzug.karteLink')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -149,6 +176,8 @@ export function UmzugIdentitaet({ istMensch }: { istMensch: boolean }) {
 const S = StyleSheet.create({
   karte: { marginHorizontal: 16, marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border },
   warnKarte: { borderColor: theme.red, borderWidth: 2 },
+  reifKarte: { borderColor: theme.gold, borderWidth: 2 },
+  reifTitel: { color: theme.gold, fontSize: 15, fontWeight: '800', marginBottom: 4 },
   titel: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 4 },
   warnTitel: { color: theme.red, fontSize: 16, fontWeight: '800', marginBottom: 6 },
   text: { color: theme.text, fontSize: 14, lineHeight: 20 },
