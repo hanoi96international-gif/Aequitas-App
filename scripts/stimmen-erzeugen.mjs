@@ -45,9 +45,17 @@ function xml(s) {
 
 // Was gesprochen wird: wie auf dem Bildschirm, nur der Trennpunkt " · " als
 // kurze Pause (sonst liest die Stimme ihn vor oder verschluckt ihn).
+// Zahlen ausdruecklich als Grundzahl: "nicht erst bei 0." las die Stimme
+// sonst als Ordnungszahl ("nullten" -- im Deutschen macht der Punkt nach
+// einer Zahl sie zur Ordnungszahl).
 function gesprochen(text) {
-  return xml(text).split(' · ').join(". <break time='250ms'/>");
+  return xml(text)
+    .replace(/(^|[^0-9A-Za-z])([0-9]+)(?![0-9])/g, "$1<say-as interpret-as='cardinal'>$2</say-as>")
+    .split(' · ').join(". <break time='250ms'/>");
 }
+
+// Aendert sich, WIE gesprochen wird (oben), bekommen alle Saetze neue Dateien.
+const SPRECHWEISE = 2;
 
 function erzeugen(sprache, text, datei) {
   const [locale, stimme] = STIMMEN[sprache];
@@ -71,7 +79,7 @@ for (const sprache of Object.keys(STIMMEN)) {
   for (const text of texte[sprache] ?? []) {
     // Dateiname aus Stimme und Text: eine andere Stimme oder ein anderer
     // Text ergibt eine neue Datei, eine unveraenderte wird nicht neu erzeugt.
-    const name = crypto.createHash('sha256').update(`${STIMMEN[sprache][1]}\n${text}`).digest('hex').slice(0, 16) + '.mp3';
+    const name = crypto.createHash('sha256').update(`${SPRECHWEISE}\n${STIMMEN[sprache][1]}\n${text}`).digest('hex').slice(0, 16) + '.mp3';
     const datei = path.join(ZIEL, sprache, name);
     if (!fs.existsSync(datei)) {
       erzeugen(sprache, text, datei);
