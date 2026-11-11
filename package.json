@@ -90,7 +90,9 @@
     "decode-uri-component": "$decode-uri-component",
     "node-forge": "1.4.3",
     "postcss": "8.5.32",
-    "brace-expansion@1": "1.1.22"
+    "brace-expansion@1": "1.1.22",
+    "glob@>=9 <14.0.2": "14.0.5",
+    "minimatch@>=7 <11.0.1": "11.0.8"
   },
   "private": true,
   "expo": {
