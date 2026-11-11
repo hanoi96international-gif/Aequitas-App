@@ -42,17 +42,34 @@ export default function Wiederherstellungscode() {
   const inaktiv = aktivAb > Math.floor(Date.now() / 1000);
   const passt = !!code && codeNormal(eingabe) === code;
 
+  // Kam eine Fehlermeldung oder lief die Zeit ab, kann der Code trotzdem
+  // angekommen sein (die Antwort ging verloren). Dann steht auf der Kette
+  // ein neuerer code_seit -- und es ist geschafft, statt dass der Mensch
+  // einen zweiten anlegt (so am 08.11.2026 geschehen).
+  async function dochAngekommen(vorher: number): Promise<boolean> {
+    if (!signer) return false;
+    const s = await umzugStand(signer.address);
+    return !!s && s.codeSeit > vorher;
+  }
+
+  function geschafft() {
+    setMeldung({ ok: true, text: t('umzug.codeFertig') });
+    setFertig(true);
+    setCode(null);
+    setEingabe('');
+  }
+
   async function hinterlegen() {
     if (!signer || !code || !passt) return;
     setLaeuft(true);
     setMeldung(null);
+    const vorher = codeSeit;
     try {
       const r = await withTimeout(codeHinterlegen(signer, code), TIMEOUT_MS, t('trade.signTimeout'));
       if (r.ok) {
-        setMeldung({ ok: true, text: t('umzug.codeFertig') });
-        setFertig(true);
-        setCode(null);
-        setEingabe('');
+        geschafft();
+      } else if (await dochAngekommen(vorher)) {
+        geschafft();
       } else if (codeSchonDa(r.meldung)) {
         setMeldung({ ok: false, text: t('umzug.codeEinmal') });
         setCode(null);
@@ -61,7 +78,8 @@ export default function Wiederherstellungscode() {
         setMeldung({ ok: false, text: t('umzug.codeFehler').replace('{grund}', r.meldung ?? '') });
       }
     } catch (e: any) {
-      setMeldung({ ok: false, text: t('umzug.codeFehler').replace('{grund}', e?.message ?? '') });
+      if (await dochAngekommen(vorher).catch(() => false)) geschafft();
+      else setMeldung({ ok: false, text: t('umzug.codeFehler').replace('{grund}', e?.message ?? '') });
     } finally {
       setLaeuft(false);
     }
@@ -100,6 +118,7 @@ export default function Wiederherstellungscode() {
               setCode(codeErzeugen());
             }}
             accessibilityRole="button"
+            testID="code-erzeugen"
           >
             <Text style={S.knopfText}>{t('umzug.codeErzeugen')}</Text>
           </TouchableOpacity>
@@ -113,6 +132,7 @@ export default function Wiederherstellungscode() {
             </View>
             <Text style={S.label}>{t('umzug.codeBestaetigen')}</Text>
             <TextInput
+              testID="code-eingabe"
               style={S.eingabe}
               value={eingabe}
               onChangeText={setEingabe}
@@ -129,6 +149,7 @@ export default function Wiederherstellungscode() {
               disabled={!passt || laeuft}
               onPress={hinterlegen}
               accessibilityRole="button"
+              testID="code-hinterlegen"
             >
               <Text style={S.knopfText}>{t('umzug.codeHinterlegen')}</Text>
             </TouchableOpacity>
