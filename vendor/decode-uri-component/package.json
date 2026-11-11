@@ -1,0 +1,7 @@
+{
+  "name": "decode-uri-component",
+  "version": "0.2.2-aequitas.1",
+  "description": "Ersatz fuer decode-uri-component 0.2.2 (GHSA-vcc3-ghjq-m6fr, GHSA-qr28-fpjm-wq7f): dieselbe Schnittstelle, lineare Laufzeit bei kaputter Eingabe.",
+  "main": "index.js",
+  "license": "MIT"
+}

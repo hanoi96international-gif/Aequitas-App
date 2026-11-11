@@ -68,7 +68,8 @@
     "react-native-vision-camera-face-detector": "^2.0.6",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
-    "valtio": "2.1.8"
+    "valtio": "2.1.8",
+    "decode-uri-component": "file:vendor/decode-uri-component"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -85,7 +86,11 @@
     "@walletconnect/universal-provider": "2.21.10",
     "@walletconnect/sign-client": "2.21.10",
     "@walletconnect/core": "2.21.10",
-    "expo-asset": "12.0.13"
+    "expo-asset": "12.0.13",
+    "decode-uri-component": "$decode-uri-component",
+    "node-forge": "1.4.3",
+    "postcss": "8.5.32",
+    "brace-expansion@1": "1.1.22"
   },
   "private": true,
   "expo": {
