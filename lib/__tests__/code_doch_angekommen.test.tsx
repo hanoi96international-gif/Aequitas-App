@@ -29,6 +29,10 @@ jest.mock('@/lib/umzug', () => ({
 
 import Wiederherstellungscode from '../../app/wiederherstellungscode';
 
+// Das erste Rendern des ganzen Bildschirms laedt react-native kalt; im CI
+// dauerte das ueber 5 s (lokal 0,7 s) -- mehr Zeit, dieselben Erwartungen.
+jest.setTimeout(30_000);
+
 async function durchlauf() {
   let r: any;
   await act(async () => { r = TestRenderer.create(<Wiederherstellungscode />); });
