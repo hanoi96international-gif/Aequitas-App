@@ -787,6 +787,12 @@ const id: Translations = {
     nurMitCode: 'Pemeriksaan tidak cukup ketat untuk pemindahan tanpa kode (dibutuhkan perangkat Android dengan verifikasi perangkat keras dan pemeriksaan keaktifan yang jelas). Dengan kode pemulihanmu bisa.',
     warnFestText: 'Pemindahan status manusiamu ke wallet {neu} sedang berjalan, berlaku pada {datum}. Kamu sudah menghentikan satu tahun ini, jadi tidak bisa dihentikan lagi. Jika bukan kamu: pindahkan akunmu sekarang ke wallet baru dengan wajah dan kode pemulihanmu. Itu langsung dan mengakhiri pemindahan ini.',
     inaktiv: 'Tersedia mulai {datum}.',
+    grundOffen: 'Sudah ada pemindahan yang berjalan untuk akun ini. Itu harus selesai dulu.',
+    grundJahr: 'Akun ini sudah dipindahkan dua kali dalam 12 bulan terakhir. Pemindahan berikutnya baru bisa nanti.',
+    grundAbgelaufen: 'Pemeriksaan wajah sudah kedaluwarsa. Tunjukkan wajahmu sekali lagi.',
+    grundFest: 'Pemindahan ini tidak bisa dihentikan lagi: tahun ini sudah pernah dihentikan sekali.',
+    grundBeendet: 'Pemindahan ini sudah selesai.',
+    grundZuViele: 'Terlalu banyak percobaan dalam waktu singkat. Tunggu sebentar.',
   },
 };
 

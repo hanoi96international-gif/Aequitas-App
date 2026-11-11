@@ -14,7 +14,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
 import { withTimeout } from '@/lib/signer';
-import { codeAnzeige, codeErzeugen, codeHinterlegen, codeNormal, codeSchonDa, umzugStand } from '@/lib/umzug';
+import { codeAnzeige, codeErzeugen, codeHinterlegen, codeNormal, codeSchonDa, umzugGrundSchluessel, umzugStand } from '@/lib/umzug';
 
 const TIMEOUT_MS = 120_000;
 
@@ -75,7 +75,8 @@ export default function Wiederherstellungscode() {
         setCode(null);
         setEingabe('');
       } else {
-        setMeldung({ ok: false, text: t('umzug.codeFehler').replace('{grund}', r.meldung ?? '') });
+        const k = umzugGrundSchluessel(r.meldung);
+        setMeldung({ ok: false, text: k ? t(k) : t('umzug.codeFehler').replace('{grund}', r.meldung ?? '') });
       }
     } catch (e: any) {
       if (await dochAngekommen(vorher).catch(() => false)) geschafft();

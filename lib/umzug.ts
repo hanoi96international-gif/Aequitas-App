@@ -192,6 +192,49 @@ export function bescheinigungAusAntwort(j: any): UmzugBescheinigung | null {
   return { alt: j.alt, nullifier: j.nullifier, zeit: j.zeit, modus: j.modus, bescheinigung: e, pruefung: j.pruefung };
 }
 
+/**
+ * Ablehnungen der Kette und des Knotens (umzug.go) in einen Text-Schluessel
+ * uebersetzen, damit der Mensch eine verstaendliche Meldung in seiner Sprache
+ * sieht statt "rejected: umzug_code: 0x…". Unbekanntes: null (dann bleibt
+ * die Meldung, wie sie kam).
+ */
+export type UmzugGrundSchluessel =
+  | 'umzug.codeFalsch'
+  | 'umzug.codeEinmal'
+  | 'umzug.nurMitCode'
+  | 'umzug.grundOffen'
+  | 'umzug.grundJahr'
+  | 'umzug.grundAbgelaufen'
+  | 'umzug.grundFest'
+  | 'umzug.grundBeendet'
+  | 'umzug.grundZuViele';
+
+export function umzugGrundSchluessel(meldung: string | undefined): UmzugGrundSchluessel | null {
+  const m = meldung ?? '';
+  const regel = /\b(umzug_[a-z_]+)\b/.exec(m)?.[1];
+  switch (regel) {
+    case 'umzug_code':
+      return 'umzug.codeFalsch';
+    case 'umzug_code_fest':
+      return 'umzug.codeEinmal';
+    case 'umzug_pruefung':
+      return 'umzug.nurMitCode';
+    case 'umzug_offen':
+      return 'umzug.grundOffen';
+    case 'umzug_jahresgrenze':
+      return 'umzug.grundJahr';
+    case 'umzug_zeit':
+    case 'umzug_bescheinigung':
+      return 'umzug.grundAbgelaufen';
+    case 'umzug_fest':
+      return 'umzug.grundFest';
+    case 'umzug_nicht_offen':
+      return 'umzug.grundBeendet';
+  }
+  if (/too many requests/i.test(m)) return 'umzug.grundZuViele';
+  return null;
+}
+
 /** Lehnt die Kette einen weiteren Code ab (umzug_code_fest: ein Code je
  *  Wallet, nicht aenderbar -- Regeln vom 08.11.2026)? */
 export function codeSchonDa(meldung: string | undefined): boolean {
