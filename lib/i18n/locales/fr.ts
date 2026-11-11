@@ -787,6 +787,12 @@ const fr: Translations = {
     nurMitCode: 'La vérification n\'était pas assez stricte pour un transfert sans code (il faut un appareil Android avec vérification matérielle et un contrôle de vivacité net). Avec ton code de récupération, ça fonctionne.',
     warnFestText: 'Un transfert de ton statut d\'humain vers le wallet {neu} est en cours, effectif le {datum}. Tu en as déjà arrêté un cette année, il ne peut donc plus être arrêté. Si ce n\'était pas toi : transfère maintenant ton compte vers un nouveau wallet avec ton visage et ton code de récupération. C\'est immédiat et met fin à ce transfert.',
     inaktiv: 'Disponible à partir du {datum}.',
+    grundOffen: 'Un transfert est déjà en cours pour ce compte. Il doit d’abord se terminer.',
+    grundJahr: 'Ce compte a déjà été transféré deux fois au cours des 12 derniers mois. Un autre transfert ne sera possible que plus tard.',
+    grundAbgelaufen: 'La vérification du visage a expiré. Montre ton visage à nouveau.',
+    grundFest: 'Ce transfert ne peut plus être arrêté : il a déjà été arrêté une fois cette année.',
+    grundBeendet: 'Ce transfert est déjà terminé.',
+    grundZuViele: 'Trop de tentatives en peu de temps. Patiente un instant.',
   },
 };
 

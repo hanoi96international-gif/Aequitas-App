@@ -15,7 +15,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
 import { withTimeout } from '@/lib/signer';
-import { umzugStand, widerrufen, type UmzugStand } from '@/lib/umzug';
+import { umzugGrundSchluessel, umzugStand, widerrufen, type UmzugStand } from '@/lib/umzug';
 
 function datum(s: number): string {
   return new Date(s * 1000).toLocaleDateString();
@@ -78,7 +78,8 @@ export function UmzugHinweis() {
             setLaeuft(true);
             try {
               const r = await withTimeout(widerrufen(signer, o), 120_000, t('trade.signTimeout'));
-              setMeldung(r.ok ? t('umzug.warnWiderrufenOk') : t('umzug.fehler').replace('{grund}', r.meldung ?? ''));
+              const k = umzugGrundSchluessel(r.meldung);
+              setMeldung(r.ok ? t('umzug.warnWiderrufenOk') : k ? t(k) : t('umzug.fehler').replace('{grund}', r.meldung ?? ''));
               laden();
             } catch (e: any) {
               setMeldung(t('umzug.fehler').replace('{grund}', e?.message ?? ''));

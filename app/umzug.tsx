@@ -13,6 +13,7 @@ import {
   antragEinreichen,
   codeNormal,
   umzugErgebnisNehmen,
+  umzugGrundSchluessel,
   umzugStand,
   type UmzugBescheinigung,
 } from '@/lib/umzug';
@@ -80,7 +81,8 @@ export default function Umzug() {
         setMeldung({ ok: true, text: t('umzug.erfolgFrist').replace('{datum}', datum(r.freiAb ?? 0)) });
         setFertig(true);
       } else {
-        setMeldung({ ok: false, text: t('umzug.fehler').replace('{grund}', r.meldung ?? '') });
+        const k = umzugGrundSchluessel(r.meldung);
+        setMeldung({ ok: false, text: k ? t(k) : t('umzug.fehler').replace('{grund}', r.meldung ?? '') });
       }
     } catch (e: any) {
       setMeldung({ ok: false, text: t('umzug.fehler').replace('{grund}', e?.message ?? '') });

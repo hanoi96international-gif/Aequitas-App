@@ -787,6 +787,12 @@ const de: Translations = {
     nurMitCode: 'Die Prüfung war nicht streng genug für einen Umzug ohne Code (dafür braucht es ein Android-Gerät mit Hardware-Prüfung und eine eindeutige Lebendigkeitsprüfung). Mit deinem Wiederherstellungscode geht es.',
     warnFestText: 'Für dein Menschsein läuft ein Umzug auf die Wallet {neu}, wirksam am {datum}. Du hast in diesem Jahr schon einmal gestoppt, darum geht Stoppen nicht mehr. Warst du das nicht: Hol dein Konto jetzt mit Gesicht und Wiederherstellungscode auf eine neue Wallet. Das geht sofort und beendet diesen Umzug.',
     inaktiv: 'Verfügbar ab {datum}.',
+    grundOffen: 'Für dieses Konto läuft schon ein Umzug. Er muss erst beendet sein.',
+    grundJahr: 'Dieses Konto ist in den letzten 12 Monaten schon zweimal umgezogen. Ein weiterer Umzug geht erst später.',
+    grundAbgelaufen: 'Die Gesichtsprüfung ist abgelaufen. Zeig dein Gesicht bitte noch einmal.',
+    grundFest: 'Dieser Umzug lässt sich nicht mehr stoppen: In diesem Jahr wurde schon einmal gestoppt.',
+    grundBeendet: 'Dieser Umzug ist schon beendet.',
+    grundZuViele: 'Zu viele Versuche in kurzer Zeit. Warte bitte einen Moment.',
   },
 };
 

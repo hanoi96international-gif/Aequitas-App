@@ -787,6 +787,12 @@ const en: Translations = {
     nurMitCode: 'The check was not strict enough for a move without a code (that needs an Android device with hardware verification and a clear liveness check). It works with your recovery code.',
     warnFestText: 'A move of your humanity to the wallet {neu} is under way, effective {datum}. You already stopped one this year, so it can no longer be stopped. If this was not you: move your account to a new wallet now with your face and recovery code. That is immediate and ends this move.',
     inaktiv: 'Available from {datum}.',
+    grundOffen: 'A move is already running for this account. It has to finish first.',
+    grundJahr: 'This account has already moved twice in the last 12 months. Another move is only possible later.',
+    grundAbgelaufen: 'The face check has expired. Please show your face again.',
+    grundFest: 'This move can no longer be stopped: it was already stopped once this year.',
+    grundBeendet: 'This move has already ended.',
+    grundZuViele: 'Too many attempts in a short time. Please wait a moment.',
   },
 };
 

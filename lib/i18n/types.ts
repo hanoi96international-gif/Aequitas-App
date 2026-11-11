@@ -801,5 +801,11 @@ export interface Translations {
     nurMitCode: string;
     warnFestText: string;
     inaktiv: string;
+    grundOffen: string;
+    grundJahr: string;
+    grundAbgelaufen: string;
+    grundFest: string;
+    grundBeendet: string;
+    grundZuViele: string;
   };
 }

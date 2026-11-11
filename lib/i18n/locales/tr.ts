@@ -787,6 +787,12 @@ const tr: Translations = {
     nurMitCode: 'Kontrol, kodsuz taşıma için yeterince sıkı değildi (bunun için donanım doğrulamalı bir Android cihaz ve net bir canlılık kontrolü gerekir). Kurtarma kodunla olur.',
     warnFestText: 'İnsan statünün {neu} cüzdanına taşınması sürüyor, {datum} tarihinde geçerli olacak. Bu yıl zaten bir kez durdurdun, bu yüzden artık durdurulamaz. Bu sen değilsen: Hesabını şimdi yüzün ve kurtarma kodunla yeni bir cüzdana taşı. Bu hemen olur ve bu taşımayı bitirir.',
     inaktiv: '{datum} tarihinden itibaren kullanılabilir.',
+    grundOffen: 'Bu hesap için zaten bir taşıma sürüyor. Önce bitmesi gerekiyor.',
+    grundJahr: 'Bu hesap son 12 ayda zaten iki kez taşındı. Yeni bir taşıma ancak daha sonra mümkün.',
+    grundAbgelaufen: 'Yüz doğrulamasının süresi doldu. Lütfen yüzünü tekrar göster.',
+    grundFest: 'Bu taşıma artık durdurulamaz: bu yıl zaten bir kez durduruldu.',
+    grundBeendet: 'Bu taşıma zaten sona erdi.',
+    grundZuViele: 'Kısa sürede çok fazla deneme. Lütfen biraz bekle.',
   },
 };
 

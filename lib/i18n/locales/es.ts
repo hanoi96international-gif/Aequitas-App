@@ -787,6 +787,12 @@ const es: Translations = {
     nurMitCode: 'La comprobación no fue lo bastante estricta para un traslado sin código (hace falta un dispositivo Android con verificación por hardware y una prueba de vida clara). Con tu código de recuperación sí funciona.',
     warnFestText: 'Hay un traslado de tu condición de persona a la wallet {neu}, efectivo el {datum}. Ya detuviste uno este año, así que ya no se puede detener. Si no fuiste tú: traslada ahora tu cuenta a una wallet nueva con tu cara y tu código de recuperación. Es inmediato y termina este traslado.',
     inaktiv: 'Disponible desde el {datum}.',
+    grundOffen: 'Ya hay un traslado en curso para esta cuenta. Primero tiene que terminar.',
+    grundJahr: 'Esta cuenta ya se ha trasladado dos veces en los últimos 12 meses. Otro traslado solo será posible más adelante.',
+    grundAbgelaufen: 'La verificación facial ha caducado. Muestra tu rostro otra vez.',
+    grundFest: 'Este traslado ya no se puede detener: este año ya se detuvo una vez.',
+    grundBeendet: 'Este traslado ya ha terminado.',
+    grundZuViele: 'Demasiados intentos en poco tiempo. Espera un momento.',
   },
 };
 
