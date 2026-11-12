@@ -22,7 +22,7 @@ on:
         description: "Run-ID des Builds, dessen APK veroeffentlicht werden soll"
         required: true
       tag:
-        description: "Tag fuer das Release, z. B. app-v1.4.0"
+        description: "Tag fuer das Release: v + Version aus app.json, z. B. v1.18.7 (nur diese Form liest die Kette)"
         required: true
       notes:
         description: "Was sich geaendert hat (eine Zeile reicht)"
@@ -50,7 +50,12 @@ jobs:
       - name: Eingaben pruefen
         run: |
           [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::run_id ist keine Zahl"; exit 1; }
-          [[ "$TAG" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { echo "::error::tag nur aus A-Z a-z 0-9 . _ -"; exit 1; }
+          # Genau die Form, die der Knoten liest (app_version.go, appVersionForm:
+          # ^v?[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$). Am 12.11.2026 hiess ein
+          # Release "app-v1.18.6": gueltig fuer GitHub, aber der Knoten las es
+          # nicht und meldete den Apps 12 Stunden lang weiter 1.18.5 -- keine
+          # Update-Meldung fuer eine neue Version.
+          [[ "$TAG" =~ ^v[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]] || { echo "::error title=Tag hat die falsche Form::\"$TAG\" -- erwartet v1.2.3 (v und die Version aus app.json). Andere Formen liest die Kette nicht, die App bekaeme keine Update-Meldung."; exit 1; }
 
       - name: Artefakt des Builds holen
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -165,6 +170,16 @@ jobs:
             exit 1
           fi
           echo "Tag wird auf $ziel gesetzt (Commit des Build-Laufs $RUN_ID)"
+
+          # Tag und gebaute Version muessen zusammenpassen: sonst meldet die
+          # Kette eine Version, die die APK gar nicht ist (die App vergleicht
+          # sie mit ihrer eigenen und zeigte dann dauernd "Update verfuegbar"
+          # oder nie).
+          gebaut="$(gh api "repos/${{ github.repository }}/contents/app.json?ref=$ziel" -H 'Accept: application/vnd.github.raw' | jq -r '.expo.version')"
+          if [ "v$gebaut" != "$TAG" ]; then
+            echo "::error title=Tag passt nicht zur Version::Tag $TAG, app.json im gebauten Commit sagt ${gebaut:-nichts}. Erwartet: v$gebaut."
+            exit 1
+          fi
 
           gh release create "$TAG" /tmp/app-release.apk \
             --repo "${{ github.repository }}" \
