@@ -368,6 +368,32 @@ jobs:
             exit 1
           fi
 
+      - name: Berechtigungen pruefen
+        run: |
+          # Die App nimmt nichts auf und zeigt nichts ueber anderen Apps an.
+          # Bibliotheken (expo-audio, expo-camera, expo-sensors, expo-file-system)
+          # und die Expo-Vorlage tragen solche Rechte aber von selbst ins
+          # Manifest ein; app.json entfernt sie (blockedPermissions). Bis
+          # 1.18.6 stand RECORD_AUDIO u. a. in jeder APK, ohne dass die App es
+          # brauchte -- Google fragt nach jedem sensiblen Recht, und ein
+          # unnoetiges ist ein Grund zur Ablehnung. Geprueft wird das
+          # zusammengefuehrte Manifest des Release-Baus (gilt fuer APK und AAB).
+          manifest=$(find android/app/build/intermediates -path '*merged_manifest*' -path '*elease*' -name AndroidManifest.xml -print -quit)
+          if [ -z "$manifest" ]; then
+            echo "::error title=Manifest fehlt::Kein zusammengefuehrtes Release-Manifest gefunden; die Pruefung der Berechtigungen kann nicht laufen."
+            exit 1
+          fi
+          echo "Manifest: $manifest"
+          verboten='RECORD_AUDIO|SYSTEM_ALERT_WINDOW|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|ACTIVITY_RECOGNITION|FOREGROUND_SERVICE_MEDIA_PLAYBACK|FOREGROUND_SERVICE_MICROPHONE|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_CONTACTS|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO'
+          # Zeilen zusammenziehen: das Manifest schreibt mehrere Attribute
+          # (etwa maxSdkVersion) auf eigene Zeilen.
+          treffer=$(tr '\n' ' ' < "$manifest" | grep -oE "<uses-permission(-sdk-23)?[^>]*android:name=\"android\.permission\.($verboten)\"" || true)
+          grep -oE 'android:name="android\.permission\.[A-Z_]+"' "$manifest" | sort -u
+          if [ -n "$treffer" ]; then
+            echo "::error title=Unnoetige Berechtigung::$treffer -- in app.json unter android.blockedPermissions eintragen oder begruenden, wofuer die App sie braucht."
+            exit 1
+          fi
+
       - name: Zusammenfassung
         env:
           APK: ${{ steps.apk.outputs.path }}

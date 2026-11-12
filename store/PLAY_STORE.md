@@ -71,7 +71,18 @@ auf einem echten Gerät im Testbetrieb.
   liegen nur auf dem Gerät), kein Mining, kein Handel mit Fiat, keine
   Anlageberatung.
 - **Werbung:** keine. **Berechtigungen:** Kamera (Gesichtsprüfung, QR-Codes),
-  Biometrie des Geräts (Wallet entsperren). Kein Mikrofon, kein Standort.
+  Biometrie des Geräts (Wallet entsperren). Kein Mikrofon, kein Standort,
+  kein Speicher, kein Überlagern anderer Apps.
+  - **Erst ab 1.18.7 richtig.** Bis 1.18.6 stand in jeder APK u. a. auch
+    `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, Speicher und `ACTIVITY_RECOGNITION`.
+    Die App nutzte keines davon; die Rechte kamen aus Bibliotheken und der
+    Expo-Vorlage. Seit 1.18.7 entfernt `app.json` sie (`blockedPermissions`),
+    und der Build bricht ab, wenn eines wieder im Manifest steht
+    (`build-apk.yml`, „Berechtigungen pruefen“). Für den Play Store also
+    1.18.7 oder neuer hochladen.
+  - Kein Vordergrunddienst mehr (`FOREGROUND_SERVICE_MEDIA_PLAYBACK` ist
+    gesperrt): Die Erklärung zu Vordergrunddiensten in der Play Console
+    entfällt.
 - **Kontolöschung:** in der App (Daten löschen) und auf der Website
   (Datenschutzerklärung, Abschnitt Löschung) beschrieben.
 
