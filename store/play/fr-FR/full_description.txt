@@ -2,6 +2,7 @@ Aequitas est un portefeuille pour une monnaie qui donne à chaque humain le mêm
 
 • Un humain, un compte : une courte vérification du visage avec rotation de la tête garantit que personne ne s’inscrit deux fois. Seul un extrait chiffré est conservé, jamais une photo. Tu peux supprimer tes données à tout moment et les réenregistrer plus tard.
 • Ton portefeuille t’appartient : les clés restent sur ton téléphone (non dépositaire).
+• Résistant au quantique : ton solde peut aller dans un coffre qui ne signe qu’avec la norme post-quantique ML-DSA-65 (FIPS 204), protégé même contre les futurs ordinateurs quantiques.
 • Revenu de base : chaque humain confirmé reçoit une part quotidienne. Une fois par an, tu confirmes par une preuve de vie que tu es toujours là.
 • Équitable : l’argent qui dort rend une petite part à tous. Les virements sont gratuits.
 • Décentralisé et ouvert : tout le code est public.
