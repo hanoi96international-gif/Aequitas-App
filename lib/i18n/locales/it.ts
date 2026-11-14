@@ -812,6 +812,26 @@ const it: Translations = {
     karteText: "Proteggi subito il tuo wallet dai futuri computer quantistici.",
     karteLink: "Configura protezione quantistica",
   },
+  tresor: {
+    titel: "Cassaforte quantistica",
+    warum: "Ciò che sta nella cassaforte può essere speso solo con una chiave resistente ai computer quantistici (ML-DSA). Anche chi un giorno violasse la chiave attuale del wallet con un computer quantistico non potrebbe raggiungerlo.",
+    einrichtenHinweis: "Configura una volta: inserisci la frase di recupero. Viene solo verificata; da essa si ricava la chiave della cassaforte, custodita in sicurezza su questo telefono. La frase non viene salvata.",
+    einrichtenKnopf: "Configura cassaforte",
+    phraseFalsch: "Questa frase di recupero non appartiene a questo wallet.",
+    adresse: "Indirizzo della cassaforte (tocca per copiare)",
+    guthaben: "Nella cassaforte",
+    inaktiv: "Invio dalla cassaforte dal {datum}. Il deposito funziona già.",
+    einzahlen: "Metti nella cassaforte",
+    einzahlenKnopf: "Deposita dal wallet",
+    senden: "Invia dalla cassaforte",
+    an: "Indirizzo del destinatario (0x…)",
+    betrag: "Importo in AEQ",
+    sendenKnopf: "Invia in sicurezza quantistica",
+    bestaetigen: "{betrag} AEQ a\n{an}\n\nUn trasferimento non può essere annullato.",
+    fertig: "Fatto.",
+    fehler: "Non riuscito: {grund}",
+    link: "Cassaforte quantistica",
+  },
 };
 
 export default it;

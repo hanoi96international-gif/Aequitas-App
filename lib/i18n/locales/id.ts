@@ -812,6 +812,26 @@ const id: Translations = {
     karteText: "Lindungi dompetmu sekarang dari komputer kuantum masa depan.",
     karteLink: "Siapkan perlindungan kuantum",
   },
+  tresor: {
+    titel: "Brankas kuantum",
+    warum: "Isi brankas hanya bisa dibelanjakan dengan kunci yang aman terhadap kuantum (ML-DSA). Bahkan orang yang suatu hari membobol kunci dompet saat ini dengan komputer kuantum tidak bisa menyentuhnya.",
+    einrichtenHinweis: "Siapkan sekali: masukkan frasa pemulihanmu. Frasa hanya diperiksa; kunci brankas diturunkan darinya dan disimpan aman di ponsel ini. Frasanya sendiri tidak disimpan.",
+    einrichtenKnopf: "Siapkan brankas",
+    phraseFalsch: "Frasa pemulihan ini bukan milik dompet ini.",
+    adresse: "Alamat brankas (ketuk untuk menyalin)",
+    guthaben: "Di brankas",
+    inaktiv: "Mengirim dari brankas mulai {datum}. Menyetor sudah bisa sekarang.",
+    einzahlen: "Masukkan ke brankas",
+    einzahlenKnopf: "Setor dari dompet",
+    senden: "Kirim dari brankas",
+    an: "Alamat penerima (0x…)",
+    betrag: "Jumlah dalam AEQ",
+    sendenKnopf: "Kirim aman-kuantum",
+    bestaetigen: "{betrag} AEQ ke\n{an}\n\nTransfer tidak bisa dibatalkan.",
+    fertig: "Selesai.",
+    fehler: "Gagal: {grund}",
+    link: "Brankas kuantum",
+  },
 };
 
 export default id;

@@ -812,6 +812,26 @@ const es: Translations = {
     karteText: "Protege ya tu billetera frente a los futuros ordenadores cuánticos.",
     karteLink: "Configurar protección cuántica",
   },
+  tresor: {
+    titel: "Caja fuerte cuántica",
+    warum: "Lo que está en la caja fuerte solo se puede gastar con una clave segura frente a ordenadores cuánticos (ML-DSA). Ni quien rompa algún día la clave actual de la billetera con un ordenador cuántico puede acceder.",
+    einrichtenHinweis: "Configúrala una vez: introduce tu frase de recuperación. Solo se comprueba; de ella se deriva la clave de la caja fuerte, que se guarda de forma segura en este teléfono. La frase no se guarda.",
+    einrichtenKnopf: "Configurar caja fuerte",
+    phraseFalsch: "Esta frase de recuperación no pertenece a esta billetera.",
+    adresse: "Dirección de la caja fuerte (toca para copiar)",
+    guthaben: "En la caja fuerte",
+    inaktiv: "Enviar desde la caja fuerte a partir del {datum}. Depositar ya es posible.",
+    einzahlen: "Guardar en la caja fuerte",
+    einzahlenKnopf: "Depositar desde la billetera",
+    senden: "Enviar desde la caja fuerte",
+    an: "Dirección del destinatario (0x…)",
+    betrag: "Importe en AEQ",
+    sendenKnopf: "Enviar con seguridad cuántica",
+    bestaetigen: "{betrag} AEQ a\n{an}\n\nUna transferencia no se puede revertir.",
+    fertig: "Hecho.",
+    fehler: "No ha funcionado: {grund}",
+    link: "Caja fuerte cuántica",
+  },
 };
 
 export default es;

@@ -812,6 +812,26 @@ const tr: Translations = {
     karteText: "Cüzdanını gelecekteki kuantum bilgisayarlara karşı şimdiden koru.",
     karteLink: "Kuantum korumasını kur",
   },
+  tresor: {
+    titel: "Kuantum kasası",
+    warum: "Kasadakiler yalnızca kuantuma dayanıklı bir anahtarla (ML-DSA) harcanabilir. Bir gün bugünkü cüzdan anahtarını kuantum bilgisayarla kıran biri bile ona ulaşamaz.",
+    einrichtenHinweis: "Bir kez kur: kurtarma ifadeni gir. Yalnızca kontrol edilir; kasa anahtarı ondan türetilir ve bu telefonda güvenle saklanır. İfadenin kendisi kaydedilmez.",
+    einrichtenKnopf: "Kasayı kur",
+    phraseFalsch: "Bu kurtarma ifadesi bu cüzdana ait değil.",
+    adresse: "Kasa adresi (kopyalamak için dokun)",
+    guthaben: "Kasada",
+    inaktiv: "Kasadan gönderim {datum} tarihinden itibaren. Para yatırmak şimdiden mümkün.",
+    einzahlen: "Kasaya koy",
+    einzahlenKnopf: "Cüzdandan yatır",
+    senden: "Kasadan gönder",
+    an: "Alıcı adresi (0x…)",
+    betrag: "AEQ cinsinden tutar",
+    sendenKnopf: "Kuantum güvenli gönder",
+    bestaetigen: "{betrag} AEQ →\n{an}\n\nBir transfer geri alınamaz.",
+    fertig: "Tamam.",
+    fehler: "Olmadı: {grund}",
+    link: "Kuantum kasası",
+  },
 };
 
 export default tr;
