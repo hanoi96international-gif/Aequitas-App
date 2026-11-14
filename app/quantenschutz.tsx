@@ -123,6 +123,11 @@ export default function Quantenschutz() {
           </View>
         )}
 
+        {/* Stufe 3: der Tresor -- Guthaben, das nur ML-DSA ausgeben kann. */}
+        <TouchableOpacity style={S.knopf} onPress={() => router.push('/tresor')} accessibilityRole="button" testID="zum-tresor">
+          <Text style={S.knopfText}>{t('tresor.link')}</Text>
+        </TouchableOpacity>
+
         {laeuft ? <ActivityIndicator color={theme.accent} style={S.abstand} /> : null}
         {meldung ? <Text style={meldung.ok ? S.gut : S.fehler}>{meldung.text}</Text> : null}
       </ScrollView>

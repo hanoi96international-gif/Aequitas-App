@@ -826,4 +826,24 @@ export interface Translations {
     karteText: string;
     karteLink: string;
   };
+  tresor: {
+    titel: string;
+    warum: string;
+    einrichtenHinweis: string;
+    einrichtenKnopf: string;
+    phraseFalsch: string;
+    adresse: string;
+    guthaben: string;
+    inaktiv: string;
+    einzahlen: string;
+    einzahlenKnopf: string;
+    senden: string;
+    an: string;
+    betrag: string;
+    sendenKnopf: string;
+    bestaetigen: string;
+    fertig: string;
+    fehler: string;
+    link: string;
+  };
 }

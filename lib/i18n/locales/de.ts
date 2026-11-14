@@ -812,6 +812,26 @@ const de: Translations = {
     karteText: "Schütze deine Wallet schon jetzt gegen künftige Quantencomputer.",
     karteLink: "Quantenschutz einrichten",
   },
+  tresor: {
+    titel: "Quantensicherer Tresor",
+    warum: "Was im Tresor liegt, kann nur mit einem quantensicheren Schlüssel (ML-DSA) ausgegeben werden. Selbst wer eines Tages den heutigen Wallet-Schlüssel mit einem Quantencomputer knackt, kommt nicht heran.",
+    einrichtenHinweis: "Einmal einrichten: Gib deine Seed-Phrase ein. Sie wird nur geprüft, daraus wird der Tresor-Schlüssel abgeleitet und sicher auf diesem Telefon abgelegt. Die Phrase selbst wird nicht gespeichert.",
+    einrichtenKnopf: "Tresor einrichten",
+    phraseFalsch: "Diese Seed-Phrase gehört nicht zu dieser Wallet.",
+    adresse: "Tresor-Adresse (antippen zum Kopieren)",
+    guthaben: "Im Tresor",
+    inaktiv: "Senden aus dem Tresor ab {datum}. Einzahlen geht schon jetzt.",
+    einzahlen: "In den Tresor legen",
+    einzahlenKnopf: "Von der Wallet einzahlen",
+    senden: "Aus dem Tresor senden",
+    an: "Empfänger-Adresse (0x…)",
+    betrag: "Betrag in AEQ",
+    sendenKnopf: "Quantensicher senden",
+    bestaetigen: "{betrag} AEQ an\n{an}\n\nEine Überweisung lässt sich nicht zurückholen.",
+    fertig: "Erledigt.",
+    fehler: "Nicht geklappt: {grund}",
+    link: "Quantensicherer Tresor",
+  },
 };
 
 export default de;
