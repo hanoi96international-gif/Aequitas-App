@@ -9,6 +9,7 @@ import { formatBalance, shortWallet } from '@/lib/format';
 import { BIOMETRIC_ENABLED, ALLOW_DEVICE_SECRET_REGISTER } from '@/lib/config';
 import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/lib/identity';
 import { UmzugIdentitaet } from '@/components/UmzugKarten';
+import { QuantenschutzKarte } from '@/components/QuantenschutzKarte';
 import { storedBioHash, deleteEnrollment, nachgezogenAt, geloeschtAt, zwillingWegAbgeschaltet } from '@/lib/biometricIdentity';
 import { staffelEingesprochen, staffelErneuerungAb, staffelFreiAb, staffelZweitpruefungFaellig } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
@@ -423,7 +424,11 @@ export default function Identity() {
         {/* Umzug (lib/umzug.ts): Wiederherstellungscode fuer Menschen, "Alte
             Wallet verloren?" fuer neue Wallets -- erst ab dem Stichtag. */}
         {BIOMETRIC_ENABLED && (status === 'already_registered' || status === 'idle') ? (
-          <UmzugIdentitaet istMensch={status === 'already_registered'} />
+          <>
+            <UmzugIdentitaet istMensch={status === 'already_registered'} />
+            {/* Quantenschutz (lib/pq.ts): erst ab dem Stichtag der Kette. */}
+            <QuantenschutzKarte istMensch={status === 'already_registered'} />
+          </>
         ) : null}
 
         {/* Jaehrlicher Lebensnachweis: nur, wenn die Kette ihn fuer dieses

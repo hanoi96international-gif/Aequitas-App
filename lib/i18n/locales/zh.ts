@@ -794,6 +794,24 @@ const zh: Translations = {
     grundBeendet: '此迁移已经结束。',
     grundZuViele: '短时间内尝试次数过多，请稍候。',
   },
+  pq: {
+    titel: "量子保护",
+    warum: "未来的量子计算机可能破解当今的钱包密钥。启用量子保护后，你只需登记一次抗量子密钥的指纹。即使旧密钥被破解，你以后也能凭此证明钱包属于你。",
+    nichtsNeues: "无需备份任何新内容：该密钥由你的助记词生成。",
+    inaktiv: "{datum} 起可用。",
+    seit: "量子保护自 {datum} 起生效。",
+    knopf: "启用量子保护",
+    phraseHinweis: "请输入一次你的助记词（12 或 24 个词）。它只留在这部手机上，不会被保存。",
+    phrasePlatzhalter: "词1 词2 词3 …",
+    phraseFalsch: "此助记词不属于该钱包。",
+    phraseKnopf: "检查并启用",
+    fertig: "量子保护已生效。请继续妥善保管你的助记词。",
+    schonDa: "该钱包已登记量子保护，无法更改。",
+    nurMensch: "仅限已注册的人。",
+    fehler: "未成功：{grund}",
+    karteText: "现在就保护你的钱包，抵御未来的量子计算机。",
+    karteLink: "设置量子保护",
+  },
 };
 
 export default zh;

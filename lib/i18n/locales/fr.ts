@@ -794,6 +794,24 @@ const fr: Translations = {
     grundBeendet: 'Ce transfert est déjà terminé.',
     grundZuViele: 'Trop de tentatives en peu de temps. Patiente un instant.',
   },
+  pq: {
+    titel: "Protection quantique",
+    warum: "De futurs ordinateurs quantiques pourraient casser les clés actuelles des portefeuilles. Avec la protection quantique, tu enregistres une seule fois l'empreinte d'une clé résistante aux ordinateurs quantiques. Elle te permettra plus tard de prouver que le portefeuille t'appartient, même si l'ancienne clé est cassée.",
+    nichtsNeues: "Rien de nouveau à sauvegarder : la clé provient de ta phrase de récupération.",
+    inaktiv: "Disponible à partir du {datum}.",
+    seit: "Protection quantique active depuis le {datum}.",
+    knopf: "Activer la protection quantique",
+    phraseHinweis: "Saisis une fois ta phrase de récupération (12 ou 24 mots). Elle reste sur ce téléphone et n'est pas enregistrée.",
+    phrasePlatzhalter: "mot1 mot2 mot3 …",
+    phraseFalsch: "Cette phrase de récupération n'appartient pas à ce portefeuille.",
+    phraseKnopf: "Vérifier et activer",
+    fertig: "La protection quantique est active. Continue à conserver ta phrase de récupération en lieu sûr.",
+    schonDa: "La protection quantique est déjà enregistrée pour ce portefeuille. Elle ne peut pas être modifiée.",
+    nurMensch: "Réservé aux humains enregistrés.",
+    fehler: "Échec : {grund}",
+    karteText: "Protège dès maintenant ton portefeuille contre les futurs ordinateurs quantiques.",
+    karteLink: "Configurer la protection quantique",
+  },
 };
 
 export default fr;

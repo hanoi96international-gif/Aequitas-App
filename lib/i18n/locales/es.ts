@@ -794,6 +794,24 @@ const es: Translations = {
     grundBeendet: 'Este traslado ya ha terminado.',
     grundZuViele: 'Demasiados intentos en poco tiempo. Espera un momento.',
   },
+  pq: {
+    titel: "Protección cuántica",
+    warum: "Los futuros ordenadores cuánticos podrían romper las claves actuales de las billeteras. Con la protección cuántica registras, una sola vez, una huella de una clave segura frente a ellos. Así podrás demostrar más adelante que la billetera es tuya, aunque la clave antigua se haya roto.",
+    nichtsNeues: "No tienes que guardar nada nuevo: la clave sale de tu frase de recuperación.",
+    inaktiv: "Disponible desde el {datum}.",
+    seit: "Protección cuántica activa desde el {datum}.",
+    knopf: "Activar protección cuántica",
+    phraseHinweis: "Introduce una vez tu frase de recuperación (12 o 24 palabras). Se queda en este teléfono y no se guarda.",
+    phrasePlatzhalter: "palabra1 palabra2 palabra3 …",
+    phraseFalsch: "Esta frase de recuperación no pertenece a esta billetera.",
+    phraseKnopf: "Comprobar y activar",
+    fertig: "La protección cuántica está activa. Sigue guardando tu frase de recuperación en un lugar seguro.",
+    schonDa: "La protección cuántica ya está registrada para esta billetera. No se puede cambiar.",
+    nurMensch: "Solo para humanos registrados.",
+    fehler: "No ha funcionado: {grund}",
+    karteText: "Protege ya tu billetera frente a los futuros ordenadores cuánticos.",
+    karteLink: "Configurar protección cuántica",
+  },
 };
 
 export default es;

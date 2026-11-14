@@ -794,6 +794,24 @@ const it: Translations = {
     grundBeendet: 'Questo trasferimento è già concluso.',
     grundZuViele: 'Troppi tentativi in poco tempo. Attendi un momento.',
   },
+  pq: {
+    titel: "Protezione quantistica",
+    warum: "I futuri computer quantistici potrebbero violare le chiavi attuali dei wallet. Con la protezione quantistica registri una sola volta l'impronta di una chiave resistente ai computer quantistici. Così potrai dimostrare in futuro che il wallet è tuo, anche se la vecchia chiave è stata violata.",
+    nichtsNeues: "Niente di nuovo da salvare: la chiave deriva dalla tua frase di recupero.",
+    inaktiv: "Disponibile dal {datum}.",
+    seit: "Protezione quantistica attiva dal {datum}.",
+    knopf: "Attiva protezione quantistica",
+    phraseHinweis: "Inserisci una volta la tua frase di recupero (12 o 24 parole). Resta su questo telefono e non viene salvata.",
+    phrasePlatzhalter: "parola1 parola2 parola3 …",
+    phraseFalsch: "Questa frase di recupero non appartiene a questo wallet.",
+    phraseKnopf: "Verifica e attiva",
+    fertig: "La protezione quantistica è attiva. Continua a custodire la frase di recupero in modo sicuro.",
+    schonDa: "La protezione quantistica è già registrata per questo wallet. Non può essere modificata.",
+    nurMensch: "Solo per umani registrati.",
+    fehler: "Non riuscito: {grund}",
+    karteText: "Proteggi subito il tuo wallet dai futuri computer quantistici.",
+    karteLink: "Configura protezione quantistica",
+  },
 };
 
 export default it;

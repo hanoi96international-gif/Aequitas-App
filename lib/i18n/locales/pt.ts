@@ -794,6 +794,24 @@ const pt: Translations = {
     grundBeendet: 'Esta mudança já terminou.',
     grundZuViele: 'Demasiadas tentativas em pouco tempo. Espera um momento.',
   },
+  pq: {
+    titel: "Proteção quântica",
+    warum: "Futuros computadores quânticos poderão quebrar as chaves atuais das carteiras. Com a proteção quântica, você registra uma única vez a impressão digital de uma chave resistente a eles. Assim poderá provar depois que a carteira é sua, mesmo que a chave antiga tenha sido quebrada.",
+    nichtsNeues: "Nada novo para guardar: a chave vem da sua frase de recuperação.",
+    inaktiv: "Disponível a partir de {datum}.",
+    seit: "Proteção quântica ativa desde {datum}.",
+    knopf: "Ativar proteção quântica",
+    phraseHinweis: "Digite uma vez a sua frase de recuperação (12 ou 24 palavras). Ela fica neste telefone e não é guardada.",
+    phrasePlatzhalter: "palavra1 palavra2 palavra3 …",
+    phraseFalsch: "Esta frase de recuperação não pertence a esta carteira.",
+    phraseKnopf: "Verificar e ativar",
+    fertig: "A proteção quântica está ativa. Continue guardando sua frase de recuperação em segurança.",
+    schonDa: "A proteção quântica já está registrada para esta carteira. Não pode ser alterada.",
+    nurMensch: "Somente para humanos registrados.",
+    fehler: "Não funcionou: {grund}",
+    karteText: "Proteja já a sua carteira contra futuros computadores quânticos.",
+    karteLink: "Configurar proteção quântica",
+  },
 };
 
 export default pt;

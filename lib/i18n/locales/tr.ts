@@ -794,6 +794,24 @@ const tr: Translations = {
     grundBeendet: 'Bu taşıma zaten sona erdi.',
     grundZuViele: 'Kısa sürede çok fazla deneme. Lütfen biraz bekle.',
   },
+  pq: {
+    titel: "Kuantum koruması",
+    warum: "Gelecekteki kuantum bilgisayarlar bugünkü cüzdan anahtarlarını kırabilir. Kuantum korumasıyla kuantuma dayanıklı bir anahtarın parmak izini bir kez kaydedersin. Böylece eski anahtar kırılsa bile cüzdanın sana ait olduğunu daha sonra kanıtlayabilirsin.",
+    nichtsNeues: "Yeni bir şey yedeklemen gerekmez: anahtar kurtarma ifadenden türetilir.",
+    inaktiv: "{datum} tarihinden itibaren kullanılabilir.",
+    seit: "Kuantum koruması {datum} tarihinden beri etkin.",
+    knopf: "Kuantum korumasını etkinleştir",
+    phraseHinweis: "Kurtarma ifadeni bir kez gir (12 veya 24 kelime). Bu telefonda kalır ve kaydedilmez.",
+    phrasePlatzhalter: "kelime1 kelime2 kelime3 …",
+    phraseFalsch: "Bu kurtarma ifadesi bu cüzdana ait değil.",
+    phraseKnopf: "Kontrol et ve etkinleştir",
+    fertig: "Kuantum koruması etkin. Kurtarma ifadeni eskisi gibi güvenle sakla.",
+    schonDa: "Bu cüzdan için kuantum koruması zaten kayıtlı. Değiştirilemez.",
+    nurMensch: "Yalnızca kayıtlı insanlar için.",
+    fehler: "Olmadı: {grund}",
+    karteText: "Cüzdanını gelecekteki kuantum bilgisayarlara karşı şimdiden koru.",
+    karteLink: "Kuantum korumasını kur",
+  },
 };
 
 export default tr;

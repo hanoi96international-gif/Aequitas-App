@@ -794,6 +794,24 @@ const en: Translations = {
     grundBeendet: 'This move has already ended.',
     grundZuViele: 'Too many attempts in a short time. Please wait a moment.',
   },
+  pq: {
+    titel: "Quantum protection",
+    warum: "Future quantum computers could break today's wallet keys. With quantum protection you register, once, a fingerprint of a quantum-safe key. It lets you prove later that the wallet is yours – even if the old key has been broken.",
+    nichtsNeues: "Nothing new to back up: the key comes from your recovery phrase.",
+    inaktiv: "Available from {datum}.",
+    seit: "Quantum protection active since {datum}.",
+    knopf: "Activate quantum protection",
+    phraseHinweis: "Enter your recovery phrase once (12 or 24 words). It stays on this phone and is not stored.",
+    phrasePlatzhalter: "word1 word2 word3 …",
+    phraseFalsch: "This recovery phrase does not belong to this wallet.",
+    phraseKnopf: "Check and activate",
+    fertig: "Quantum protection is active. Keep your recovery phrase safe as before.",
+    schonDa: "Quantum protection is already registered for this wallet. It cannot be changed.",
+    nurMensch: "Only for registered humans.",
+    fehler: "Did not work: {grund}",
+    karteText: "Protect your wallet against future quantum computers now.",
+    karteLink: "Set up quantum protection",
+  },
 };
 
 export default en;
