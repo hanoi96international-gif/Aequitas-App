@@ -1,6 +1,6 @@
 # Google Play: Launch-Vorbereitung
 
-Stand 07.11.2026. Alles, was sich im Repo vorbereiten lässt, liegt hier. Was nur
+Stand 14.11.2026. Alles, was sich im Repo vorbereiten lässt, liegt hier. Was nur
 der Betreiber tun kann, steht unter „Deine Schritte“.
 
 ## 1. Deine Schritte (nur du)
@@ -44,9 +44,17 @@ der Betreiber tun kann, steht unter „Deine Schritte“.
 `full_description.txt` (≤ 4000 Zeichen) in 12 Sprachen: de-DE, en-US, es-ES,
 fr-FR, it-IT, pt-PT, tr-TR, id, ru-RU, zh-CN, hi-IN, ar.
 
-Noch zu liefern: Symbol 512×512, Vorstellungsgrafik 1024×500, mindestens zwei
-Bildschirmfotos je Gerätetyp (Telefon). Die Bildschirmfotos entstehen am besten
-auf einem echten Gerät im Testbetrieb.
+Grafiken (`store/play/grafik/`, Stand 14.11.2026):
+- `icon-512.png` – Symbol 512×512, 32-Bit-PNG mit Alpha (aus `assets/images/icon.png`).
+- `vorstellung-1024x500.png` (Deutsch) und `vorstellung-1024x500-en.png`
+  (Englisch, für alle anderen Sprachen) – Vorstellungsgrafik 1024×500, 24-Bit-PNG.
+
+Noch zu liefern: mindestens zwei Bildschirmfotos je Gerätetyp (Telefon). Sie
+entstehen am besten auf einem echten Gerät im Testbetrieb (Wallet, Tresor,
+Identität, Explorer).
+
+Seit 14.11.2026 steht in allen 12 Beschreibungen auch der **quantensichere
+Tresor** (ML-DSA-65, FIPS 204; Senden ab 14.11.2026 22:00 UTC freigeschaltet).
 
 ## 3. Formular „Datensicherheit“ (Antworten)
 

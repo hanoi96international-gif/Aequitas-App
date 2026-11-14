@@ -2,6 +2,7 @@ Aequitas è un wallet per una moneta che dà a ogni persona lo stesso saldo iniz
 
 • Una persona, un conto: una breve verifica del volto con rotazione della testa garantisce che nessuno si registri due volte. Si conserva solo un estratto cifrato, mai una foto. Puoi cancellare i tuoi dati in qualsiasi momento e registrarli di nuovo in seguito.
 • Il tuo wallet è tuo: le chiavi restano sul telefono (non custodial).
+• A prova di quantistica: il saldo può andare in una cassaforte che firma solo con lo standard post-quantistico ML-DSA-65 (FIPS 204), protetta anche dai futuri computer quantistici.
 • Reddito di base: ogni persona confermata riceve una quota giornaliera. Una volta l’anno confermi con una prova di vita di esserci ancora.
 • Equo: il denaro fermo restituisce una piccola parte a tutti. I trasferimenti sono gratuiti.
 • Decentralizzato e aperto: tutto il codice è pubblico.

@@ -2,6 +2,7 @@ Aequitas, her insana aynı başlangıç bakiyesini ve günlük temel geliri vere
 
 • Bir insan, bir hesap: baş çevirmeli kısa bir yüz kontrolü kimsenin iki kez kaydolmamasını sağlar. Yalnızca şifreli bir özet saklanır, asla fotoğraf değil. Verilerini istediğin zaman silebilir ve sonra yeniden kaydedebilirsin.
 • Cüzdanın senindir: anahtarlar telefonunda kalır (emanetsiz).
+• Kuantuma dayanıklı: bakiyen, yalnızca kuantum sonrası ML-DSA-65 standardıyla (FIPS 204) imza atan bir kasaya taşınabilir; gelecekteki kuantum bilgisayarlara karşı bile korunur.
 • Temel gelir: onaylanan her insan günlük bir pay alır. Yılda bir kez yaşam kanıtıyla hâlâ burada olduğunu onaylarsın.
 • Herkes için adil: bekleyen para küçük bir kısmını herkese geri verir. Transferler ücretsizdir.
 • Merkeziyetsiz ve açık: tüm kod herkese açıktır.
