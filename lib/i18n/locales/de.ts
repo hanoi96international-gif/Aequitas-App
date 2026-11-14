@@ -794,6 +794,24 @@ const de: Translations = {
     grundBeendet: 'Dieser Umzug ist schon beendet.',
     grundZuViele: 'Zu viele Versuche in kurzer Zeit. Warte bitte einen Moment.',
   },
+  pq: {
+    titel: "Quantenschutz",
+    warum: "Künftige Quantencomputer könnten die heutigen Wallet-Schlüssel knacken. Mit dem Quantenschutz hinterlegst du einmal einen Fingerabdruck eines quantensicheren Schlüssels. Damit kannst du später beweisen, dass die Wallet dir gehört – auch wenn der alte Schlüssel gebrochen ist.",
+    nichtsNeues: "Du musst nichts Neues sichern: Der Schlüssel entsteht aus deiner Seed-Phrase.",
+    inaktiv: "Ab {datum} verfügbar.",
+    seit: "Quantenschutz aktiv seit {datum}.",
+    knopf: "Quantenschutz aktivieren",
+    phraseHinweis: "Gib einmal deine Seed-Phrase ein (12 oder 24 Wörter). Sie bleibt auf diesem Telefon und wird nicht gespeichert.",
+    phrasePlatzhalter: "Wort1 Wort2 Wort3 …",
+    phraseFalsch: "Diese Seed-Phrase gehört nicht zu dieser Wallet.",
+    phraseKnopf: "Prüfen und aktivieren",
+    fertig: "Quantenschutz ist aktiv. Bewahre deine Seed-Phrase weiter sicher auf.",
+    schonDa: "Für diese Wallet ist der Quantenschutz schon hinterlegt. Er lässt sich nicht ändern.",
+    nurMensch: "Nur für registrierte Menschen.",
+    fehler: "Nicht geklappt: {grund}",
+    karteText: "Schütze deine Wallet schon jetzt gegen künftige Quantencomputer.",
+    karteLink: "Quantenschutz einrichten",
+  },
 };
 
 export default de;

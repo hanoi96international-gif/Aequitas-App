@@ -808,4 +808,22 @@ export interface Translations {
     grundBeendet: string;
     grundZuViele: string;
   };
+  pq: {
+    titel: string;
+    warum: string;
+    nichtsNeues: string;
+    inaktiv: string;
+    seit: string;
+    knopf: string;
+    phraseHinweis: string;
+    phrasePlatzhalter: string;
+    phraseFalsch: string;
+    phraseKnopf: string;
+    fertig: string;
+    schonDa: string;
+    nurMensch: string;
+    fehler: string;
+    karteText: string;
+    karteLink: string;
+  };
 }

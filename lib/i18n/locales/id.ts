@@ -794,6 +794,24 @@ const id: Translations = {
     grundBeendet: 'Pemindahan ini sudah selesai.',
     grundZuViele: 'Terlalu banyak percobaan dalam waktu singkat. Tunggu sebentar.',
   },
+  pq: {
+    titel: "Perlindungan kuantum",
+    warum: "Komputer kuantum di masa depan bisa membobol kunci dompet saat ini. Dengan perlindungan kuantum, kamu mendaftarkan sekali sidik jari kunci yang aman terhadap kuantum. Dengan itu kamu nanti bisa membuktikan bahwa dompet ini milikmu – meskipun kunci lama sudah dibobol.",
+    nichtsNeues: "Tidak ada yang baru untuk dicadangkan: kunci berasal dari frasa pemulihanmu.",
+    inaktiv: "Tersedia mulai {datum}.",
+    seit: "Perlindungan kuantum aktif sejak {datum}.",
+    knopf: "Aktifkan perlindungan kuantum",
+    phraseHinweis: "Masukkan frasa pemulihanmu sekali (12 atau 24 kata). Frasa tetap di ponsel ini dan tidak disimpan.",
+    phrasePlatzhalter: "kata1 kata2 kata3 …",
+    phraseFalsch: "Frasa pemulihan ini bukan milik dompet ini.",
+    phraseKnopf: "Periksa dan aktifkan",
+    fertig: "Perlindungan kuantum aktif. Tetap simpan frasa pemulihanmu dengan aman.",
+    schonDa: "Perlindungan kuantum untuk dompet ini sudah terdaftar dan tidak dapat diubah.",
+    nurMensch: "Hanya untuk manusia terdaftar.",
+    fehler: "Gagal: {grund}",
+    karteText: "Lindungi dompetmu sekarang dari komputer kuantum masa depan.",
+    karteLink: "Siapkan perlindungan kuantum",
+  },
 };
 
 export default id;

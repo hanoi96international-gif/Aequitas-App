@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 import { CHAIN_ID_ALT, RPC_FALLBACKS, RPC_URL } from './config';
 import { istAequitasChainId } from './kette';
 import { signierChainId } from './ketteLive';
+import { pqHashMerken } from './pq';
 
 const WALLET_SECRET_KEY = 'aequitas_wallet_secret_v1';
 const WALLET_ADDRESS_KEY = 'aequitas_wallet_address_v1';
@@ -147,6 +148,7 @@ export async function persistMnemonic(mnemonic: string): Promise<WalletInfo> {
   const wallet = ethers.Wallet.fromPhrase(mnemonic.trim().toLowerCase());
   await persistWallet(wallet.privateKey, wallet.address);
   cachedSigner = wallet;
+  pqSpaeterMerken(mnemonic, wallet.address);
   return { address: wallet.address, mnemonic };
 }
 
@@ -162,7 +164,18 @@ export async function importWallet(secret: string): Promise<WalletInfo> {
     : new ethers.Wallet(trimmed.startsWith('0x') ? trimmed : '0x' + trimmed);
   await persistWallet(wallet.privateKey, wallet.address);
   cachedSigner = wallet;
+  if (looksLikeMnemonic) pqSpaeterMerken(trimmed, wallet.address);
   return { address: wallet.address };
+}
+
+// Quantenschutz (lib/pq.ts): solange die Seed-Phrase ohnehin da ist, den Hash
+// des ML-DSA-Schluessels merken -- danach ist die Phrase weg. Nicht im
+// Vordergrund (Ableitung dauert auf dem Telefon einen Moment); scheitert es,
+// fragt die App spaeter einmal nach der Phrase.
+function pqSpaeterMerken(phrase: string, address: string) {
+  setTimeout(() => {
+    void pqHashMerken(phrase, address);
+  }, 0);
 }
 
 /** Unlocks the stored wallet, prompting for biometrics/device credential if the device supports it. */
