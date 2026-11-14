@@ -333,6 +333,12 @@ export default function Wallet() {
           <TouchableOpacity style={S.einstieg} onPress={() => router.push('/unternehmen')} activeOpacity={0.85}>
             <Text style={S.einstiegText}>{t('firma.einstieg')}</Text>
           </TouchableOpacity>
+          {/* Quantensicherer Tresor (app/tresor.tsx): nur mit eigener Wallet in der App (Seed-Phrase). */}
+          {mode === 'local' ? (
+            <TouchableOpacity style={S.einstieg} onPress={() => router.push('/tresor')} activeOpacity={0.85} testID="einstieg-tresor">
+              <Text style={S.einstiegText}>{t('tresor.link')}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <TouchableOpacity style={S.btnDanger} onPress={confirmDisconnect} activeOpacity={0.8}>

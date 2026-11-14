@@ -812,6 +812,26 @@ const zh: Translations = {
     karteText: "现在就保护你的钱包，抵御未来的量子计算机。",
     karteLink: "设置量子保护",
   },
+  tresor: {
+    titel: "抗量子保险库",
+    warum: "保险库中的资产只能用抗量子密钥（ML-DSA）支出。即使有人将来用量子计算机破解了当前的钱包密钥，也无法动用它。",
+    einrichtenHinweis: "只需设置一次：输入你的助记词。它仅用于校验；保险库密钥由此派生并安全存放在这部手机上。助记词本身不会被保存。",
+    einrichtenKnopf: "设置保险库",
+    phraseFalsch: "此助记词不属于该钱包。",
+    adresse: "保险库地址（点按复制）",
+    guthaben: "保险库余额",
+    inaktiv: "{datum} 起可从保险库转出。现在已可存入。",
+    einzahlen: "存入保险库",
+    einzahlenKnopf: "从钱包存入",
+    senden: "从保险库转出",
+    an: "收款地址（0x…）",
+    betrag: "金额（AEQ）",
+    sendenKnopf: "抗量子转出",
+    bestaetigen: "{betrag} AEQ 转至\n{an}\n\n转账无法撤回。",
+    fertig: "已完成。",
+    fehler: "未成功：{grund}",
+    link: "抗量子保险库",
+  },
 };
 
 export default zh;

@@ -812,6 +812,26 @@ const pt: Translations = {
     karteText: "Proteja já a sua carteira contra futuros computadores quânticos.",
     karteLink: "Configurar proteção quântica",
   },
+  tresor: {
+    titel: "Cofre quântico",
+    warum: "O que está no cofre só pode ser gasto com uma chave resistente a computadores quânticos (ML-DSA). Mesmo quem um dia quebrar a chave atual da carteira com um computador quântico não consegue acessá-lo.",
+    einrichtenHinweis: "Configure uma vez: digite sua frase de recuperação. Ela só é verificada; dela se deriva a chave do cofre, guardada com segurança neste telefone. A frase não é guardada.",
+    einrichtenKnopf: "Configurar cofre",
+    phraseFalsch: "Esta frase de recuperação não pertence a esta carteira.",
+    adresse: "Endereço do cofre (toque para copiar)",
+    guthaben: "No cofre",
+    inaktiv: "Envio do cofre a partir de {datum}. Depositar já funciona.",
+    einzahlen: "Colocar no cofre",
+    einzahlenKnopf: "Depositar da carteira",
+    senden: "Enviar do cofre",
+    an: "Endereço do destinatário (0x…)",
+    betrag: "Valor em AEQ",
+    sendenKnopf: "Enviar com segurança quântica",
+    bestaetigen: "{betrag} AEQ para\n{an}\n\nUma transferência não pode ser desfeita.",
+    fertig: "Pronto.",
+    fehler: "Não funcionou: {grund}",
+    link: "Cofre quântico",
+  },
 };
 
 export default pt;

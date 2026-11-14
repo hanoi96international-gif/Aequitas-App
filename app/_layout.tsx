@@ -43,6 +43,7 @@ function Navigation() {
         <Stack.Screen name="umzug" options={{ headerShown: false }} />
         <Stack.Screen name="wiederherstellungscode" options={{ headerShown: false }} />
         <Stack.Screen name="quantenschutz" options={{ headerShown: false }} />
+        <Stack.Screen name="tresor" options={{ headerShown: false }} />
         <Stack.Screen name="unternehmen" options={{ headerShown: false }} />
         <Stack.Screen name="verzeichnis" options={{ headerShown: false }} />
         <Stack.Screen name="alter-buergen" options={{ presentation: 'modal', headerShown: false }} />

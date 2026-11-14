@@ -812,6 +812,26 @@ const en: Translations = {
     karteText: "Protect your wallet against future quantum computers now.",
     karteLink: "Set up quantum protection",
   },
+  tresor: {
+    titel: "Quantum-safe vault",
+    warum: "Whatever is in the vault can only be spent with a quantum-safe key (ML-DSA). Even someone who one day breaks today's wallet key with a quantum computer cannot reach it.",
+    einrichtenHinweis: "Set up once: enter your recovery phrase. It is only checked; the vault key is derived from it and stored securely on this phone. The phrase itself is not stored.",
+    einrichtenKnopf: "Set up vault",
+    phraseFalsch: "This recovery phrase does not belong to this wallet.",
+    adresse: "Vault address (tap to copy)",
+    guthaben: "In the vault",
+    inaktiv: "Sending from the vault from {datum}. Depositing works already.",
+    einzahlen: "Put into the vault",
+    einzahlenKnopf: "Deposit from wallet",
+    senden: "Send from the vault",
+    an: "Recipient address (0x…)",
+    betrag: "Amount in AEQ",
+    sendenKnopf: "Send quantum-safe",
+    bestaetigen: "{betrag} AEQ to\n{an}\n\nA transfer cannot be reversed.",
+    fertig: "Done.",
+    fehler: "Did not work: {grund}",
+    link: "Quantum-safe vault",
+  },
 };
 
 export default en;

@@ -812,6 +812,26 @@ const fr: Translations = {
     karteText: "Protège dès maintenant ton portefeuille contre les futurs ordinateurs quantiques.",
     karteLink: "Configurer la protection quantique",
   },
+  tresor: {
+    titel: "Coffre quantique",
+    warum: "Ce qui se trouve dans le coffre ne peut être dépensé qu'avec une clé résistante aux ordinateurs quantiques (ML-DSA). Même celui qui casserait un jour la clé actuelle du portefeuille avec un ordinateur quantique n'y aurait pas accès.",
+    einrichtenHinweis: "Configuration unique : saisis ta phrase de récupération. Elle est seulement vérifiée ; la clé du coffre en est dérivée et stockée en sécurité sur ce téléphone. La phrase elle-même n'est pas enregistrée.",
+    einrichtenKnopf: "Configurer le coffre",
+    phraseFalsch: "Cette phrase de récupération n'appartient pas à ce portefeuille.",
+    adresse: "Adresse du coffre (toucher pour copier)",
+    guthaben: "Dans le coffre",
+    inaktiv: "Envoi depuis le coffre à partir du {datum}. Le dépôt fonctionne déjà.",
+    einzahlen: "Mettre dans le coffre",
+    einzahlenKnopf: "Déposer depuis le portefeuille",
+    senden: "Envoyer depuis le coffre",
+    an: "Adresse du destinataire (0x…)",
+    betrag: "Montant en AEQ",
+    sendenKnopf: "Envoyer en sécurité quantique",
+    bestaetigen: "{betrag} AEQ à\n{an}\n\nUn virement ne peut pas être annulé.",
+    fertig: "Terminé.",
+    fehler: "Échec : {grund}",
+    link: "Coffre quantique",
+  },
 };
 
 export default fr;
