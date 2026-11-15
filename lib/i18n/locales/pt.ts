@@ -836,6 +836,14 @@ const pt: Translations = {
     fertig: "Pronto.",
     fehler: "Não funcionou: {grund}",
     link: "Cofre quântico",
+    keinTresor: "O cofre não está configurado neste telefone.",
+    menschTitel: "O teu estatuto de pessoa no cofre",
+    menschText: "O teu estatuto de pessoa e o teu rendimento básico podem passar para o cofre. Mostras o teu rosto uma vez. Com o teu código de recuperação acontece logo; caso contrário, após 14 dias. O teu saldo fica na wallet – passa-o tu depois para o cofre.",
+    menschKnopf: "Passar o estatuto de pessoa para o cofre",
+    menschDa: "O teu estatuto de pessoa está no cofre. É aqui que chega o teu rendimento básico.",
+    menschFertig: "Feito: o teu estatuto de pessoa está agora no cofre. Cria já um novo código de recuperação para o cofre.",
+    lnKnopf: "Prova de vida com o cofre",
+    codeKnopf: "Criar um código de recuperação para o cofre",
   },
 };
 

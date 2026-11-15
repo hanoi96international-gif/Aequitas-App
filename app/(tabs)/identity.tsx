@@ -11,9 +11,10 @@ import { getDeviceIdentity, checkAlreadyRegistered, proveAndRegister } from '@/l
 import { UmzugIdentitaet } from '@/components/UmzugKarten';
 import { QuantenschutzKarte } from '@/components/QuantenschutzKarte';
 import { storedBioHash, deleteEnrollment, nachgezogenAt, geloeschtAt, zwillingWegAbgeschaltet } from '@/lib/biometricIdentity';
-import { staffelEingesprochen, staffelErneuerungAb, staffelFreiAb, staffelZweitpruefungFaellig } from '@/lib/api';
+import { getBalance, staffelEingesprochen, staffelErneuerungAb, staffelFreiAb, staffelZweitpruefungFaellig } from '@/lib/api';
 import { AlterNachholen } from '@/components/AlterNachholen';
 import { LebensnachweisKarte } from '@/components/Lebensnachweis';
+import { tresorAdresse } from '@/lib/tresor';
 import { theme, purpleTint, purpleTintBorder, neonTint, neonTintBorder, redTintBorder } from '@/constants/aequitas-theme';
 
 type Status = 'checking' | 'idle' | 'proving' | 'registered' | 'already_registered' | 'error';
@@ -94,6 +95,29 @@ export default function Identity() {
     setStatus(balance.is_human ? 'already_registered' : 'idle');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balance?.is_human]);
+
+  // Stufe 3.6: ist die Wallet kein Mensch (mehr), liegt das Menschsein
+  // vielleicht im Tresor (app/tresor.tsx). Dann kein "Menschsein beweisen" --
+  // das Gesicht ist schon eingeschrieben, eine neue Registrierung ginge nicht.
+  const [imTresor, setImTresor] = useState(false);
+  useEffect(() => {
+    let aus = false;
+    if (!address || balance == null || balance.is_human) {
+      setImTresor(false);
+      return;
+    }
+    tresorAdresse(address)
+      .then((a) => (a ? getBalance(a) : null))
+      .then((b) => {
+        if (!aus) setImTresor(b?.is_human === true);
+      })
+      .catch(() => undefined);
+    return () => {
+      aus = true;
+    };
+    // Nur bei Wechsel von Wallet oder Menschsein fragen, nicht bei jedem Abruf des Kontostands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, balance == null, balance?.is_human]);
 
   // FIX (2026-07-12, "feels frozen" pass): status started at 'checking' and
   // only ever left it once WalletContext's balance poll succeeded at least
@@ -327,7 +351,18 @@ export default function Identity() {
             </View>
           )}
 
-          {status === 'idle' && (
+          {status === 'idle' && imTresor && (
+            <View testID="identitaet-im-tresor">
+              <Text style={S.stepDesc}>{t('tresor.menschDa')}</Text>
+              <TouchableOpacity onPress={() => router.push('/tresor')} activeOpacity={0.85}>
+                <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
+                  <Text style={S.btnPrimaryText}>{t('tresor.link')}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {status === 'idle' && !imTresor && (
             <TouchableOpacity onPress={proveHumanity} activeOpacity={0.85}>
               <LinearGradient colors={theme.buttonGradient} start={theme.gradientAngle.start} end={theme.gradientAngle.end} style={S.btnPrimary}>
                 <Text style={S.btnPrimaryText}>{t('identity.proveHumanityBtn')}</Text>

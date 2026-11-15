@@ -836,6 +836,14 @@ const zh: Translations = {
     fertig: "已完成。",
     fehler: "未成功：{grund}",
     link: "抗量子保险库",
+    keinTresor: "此手机上尚未设置保险库。",
+    menschTitel: "保险库中的人类身份",
+    menschText: "你的人类身份和基本收入可以迁入保险库。你只需出示一次面部。使用恢复码会立即完成，否则在 14 天后完成。你的余额留在钱包中——之后请自行转入保险库。",
+    menschKnopf: "将人类身份迁入保险库",
+    menschDa: "你的人类身份在保险库中。你的基本收入会到账这里。",
+    menschFertig: "完成：你的人类身份现在在保险库中。请立即为保险库创建新的恢复码。",
+    lnKnopf: "用保险库进行生存证明",
+    codeKnopf: "为保险库创建恢复码",
   },
 };
 

@@ -24,6 +24,7 @@ import {
 } from './attestation';
 import { COORDINATOR_BASE, COORDINATOR_FALLBACKS } from './config';
 import type { AequitasSigner } from './signer';
+import { istTresorUnterzeichner, type TresorUnterzeichner } from './tresor';
 import { submitLivenessRenewal, submitProofOfLife, type LivenessRenewal, type ProofOfLife } from './api';
 import { LEBENSNACHWEIS_FAELLIG_NACH_TAGE, type LebensnachweisKette } from './lebensnachweis';
 import { bescheinigungAusAntwort, startNachricht as umzugStartNachricht, type UmzugBescheinigung } from './umzug';
@@ -41,6 +42,27 @@ import {
   istGesichterZahl,
   type ZwillingSchritt,
 } from './zwilling';
+
+/**
+ * Stufe 3.6 (Coordinator: pq_konto.py): die Wallet beweist, dass sie dem
+ * Aufrufer gehoert -- mit EIP-191 (wallet_signature) oder, wenn das
+ * Menschsein im Tresor liegt bzw. dorthin umzieht, mit ML-DSA-65
+ * (pq_public_key + pq_signatur) ueber DIESELBE Nachricht. Genau eins.
+ */
+async function walletUnterschriftAnhaengen(
+  form: FormData,
+  signer: AequitasSigner | TresorUnterzeichner,
+  text: string,
+): Promise<void> {
+  if (istTresorUnterzeichner(signer)) {
+    const s = signer.unterschreibe(text);
+    if (!s) throw new Error('Tresor-Unterschrift gescheitert');
+    form.append('pq_public_key', s.pub);
+    form.append('pq_signatur', s.sig);
+    return;
+  }
+  form.append('wallet_signature', await signer.signMessage(text));
+}
 
 // ---------------------------------------------------------------------------
 // Which coordinator. COORDINATOR_BASE first, then COORDINATOR_FALLBACKS in
@@ -1055,7 +1077,7 @@ export async function erneuernBiometric(
   opts: {
     deviceId: string;
     walletAddress: string;
-    signer: AequitasSigner;
+    signer: AequitasSigner | TresorUnterzeichner;
     // Sent like /nachziehen: the face is compared (not stored), and the
     // coordinator accepts no capture without the consent in real mode.
     consent?: ConsentDecision;
@@ -1067,12 +1089,9 @@ export async function erneuernBiometric(
       throw new NachziehenNeedsChallenge();
     }
     const base = await basisFuerNonce(capture.challengeNonce);
-    const signature = await opts.signer.signMessage(
-      erneuernMessage(opts.walletAddress, capture.challengeNonce)
-    );
     const form = new FormData();
     form.append('wallet_address', opts.walletAddress.toLowerCase());
-    form.append('wallet_signature', signature);
+    await walletUnterschriftAnhaengen(form, opts.signer, erneuernMessage(opts.walletAddress, capture.challengeNonce));
     form.append('challenge_nonce', capture.challengeNonce);
     form.append('device_id', opts.deviceId);
     if (opts.consent?.biometricConsent) {
@@ -1199,7 +1218,7 @@ export async function lebensnachweisBiometric(
   opts: {
     deviceId: string;
     walletAddress: string;
-    signer: AequitasSigner;
+    signer: AequitasSigner | TresorUnterzeichner;
     consent?: ConsentDecision;
   }
 ): Promise<LebensnachweisResult> {
@@ -1209,12 +1228,9 @@ export async function lebensnachweisBiometric(
       throw new NachziehenNeedsChallenge();
     }
     const base = await basisFuerNonce(capture.challengeNonce);
-    const signature = await opts.signer.signMessage(
-      lebensnachweisMessage(opts.walletAddress, capture.challengeNonce)
-    );
     const form = new FormData();
     form.append('wallet_address', opts.walletAddress.toLowerCase());
-    form.append('wallet_signature', signature);
+    await walletUnterschriftAnhaengen(form, opts.signer, lebensnachweisMessage(opts.walletAddress, capture.challengeNonce));
     form.append('challenge_nonce', capture.challengeNonce);
     form.append('device_id', opts.deviceId);
     if (opts.consent?.biometricConsent) {
@@ -1276,17 +1292,16 @@ export interface UmzugAntwort {
 
 export async function umzugBiometric(
   capture: BiometricCapture,
-  opts: { deviceId: string; walletAddress: string; signer: AequitasSigner; consent?: ConsentDecision }
+  opts: { deviceId: string; walletAddress: string; signer: AequitasSigner | TresorUnterzeichner; consent?: ConsentDecision }
 ): Promise<UmzugAntwort> {
   try {
     if (!capture.challengeNonce) {
       throw new NachziehenNeedsChallenge();
     }
     const base = await basisFuerNonce(capture.challengeNonce);
-    const signature = await opts.signer.signMessage(umzugStartNachricht(opts.walletAddress, capture.challengeNonce));
     const form = new FormData();
     form.append('wallet_address', opts.walletAddress.toLowerCase());
-    form.append('wallet_signature', signature);
+    await walletUnterschriftAnhaengen(form, opts.signer, umzugStartNachricht(opts.walletAddress, capture.challengeNonce));
     form.append('challenge_nonce', capture.challengeNonce);
     form.append('device_id', opts.deviceId);
     // Audit B1: diese App nimmt "pq:"-Eintraege an (lib/umzug.ts) -- der

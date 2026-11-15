@@ -11,6 +11,10 @@
 //   - Ohne Code: Gesicht allein, 14 Tage Frist; in der Zeit kann die alte
 //     Wallet widerrufen.
 //   - Das Guthaben bleibt bei der alten Wallet. Es gibt kein neues Startgeld.
+//   - Stufe 3.6 (Kette: umzug_pq.go): die neue Wallet kann der Tresor sein
+//     (lib/tresor.ts). Er unterschreibt Antrag, Code und Widerruf mit
+//     ML-DSA-65 statt EIP-191 -- erst, wenn die Kette es annimmt
+//     (pq_unterschrift_ab). Das Gesicht bleibt Pflicht.
 //
 // Saetze werden hier gebaut, Byte fuer Byte wie in der Kette; Antworten des
 // Netzes werden nur in Form gebracht.
@@ -18,6 +22,10 @@ import * as Crypto from 'expo-crypto';
 import { ethers } from 'ethers';
 import { API_BASE } from './config';
 import type { AequitasSigner } from './signer';
+import { istTresorUnterzeichner, type TresorUnterzeichner } from './tresor';
+
+/** Wer unterschreibt: eine gewoehnliche Wallet (EIP-191) oder der Tresor (ML-DSA-65). */
+export type Unterzeichner = AequitasSigner | TresorUnterzeichner;
 
 export const CODE_ZEICHEN = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const CODE_LAENGE = 24;
@@ -85,6 +93,20 @@ async function unterschreibe(signer: AequitasSigner, text: string): Promise<stri
   }
 }
 
+/** Die Unterschrift fuer den Koerper: {sig} (EIP-191) oder {pq_pub, pq_sig}
+ *  (Tresor, ML-DSA-65) -- genau eins, wie die Kette es verlangt. */
+export async function kontoUnterschrift(
+  u: Unterzeichner,
+  text: string,
+): Promise<{ sig: string } | { pq_pub: string; pq_sig: string } | null> {
+  if (istTresorUnterzeichner(u)) {
+    const s = u.unterschreibe(text);
+    return s ? { pq_pub: s.pub, pq_sig: s.sig } : null;
+  }
+  const sig = await unterschreibe(u, text);
+  return sig ? { sig } : null;
+}
+
 export interface UmzugOffen {
   nullifier: string;
   alt: string;
@@ -97,6 +119,8 @@ export interface UmzugOffen {
 
 export interface UmzugStand {
   aktivAb: number;
+  /** Ab wann die Kette Tresor-Unterschriften am Umzug annimmt (0 = noch nicht / unbekannt). */
+  pqAb: number;
   /** Seit wann ein Code hinterlegt ist (0 = keiner). */
   codeSeit: number;
   offen: UmzugOffen | null;
@@ -115,7 +139,8 @@ export async function umzugStand(wallet: string, fetchFn: typeof fetch = fetch):
       o && ADRESSE.test(o.alt) && ADRESSE.test(o.neu) && NULLIFIER.test(o.nullifier)
         ? { nullifier: o.nullifier, alt: o.alt, neu: o.neu, angekuendigt: zahl(o.angekuendigt), freiAb: zahl(o.frei_ab), fest: o.fest === true }
         : null;
-    return { aktivAb: zahl(j?.aktiv_ab), codeSeit: zahl(j?.code_seit), offen };
+    // MaxInt64 (schlafend) ist keine sichere Zahl: dann 0 wie "unbekannt".
+    return { aktivAb: zahl(j?.aktiv_ab), pqAb: zahl(j?.pq_unterschrift_ab), codeSeit: zahl(j?.code_seit), offen };
   } catch {
     return null;
   }
@@ -153,7 +178,7 @@ async function senden(pfad: string, body: unknown, fetchFn: typeof fetch): Promi
 
 /** Den Hash des Codes fuer die eigene Wallet auf der Kette hinterlegen. */
 export async function codeHinterlegen(
-  signer: AequitasSigner,
+  signer: Unterzeichner,
   code: string,
   fetchFn: typeof fetch = fetch,
   jetztS: () => number = () => Math.floor(Date.now() / 1000)
@@ -163,9 +188,9 @@ export async function codeHinterlegen(
   const wallet = signer.address.toLowerCase();
   const hash = codeHash(wallet, normal);
   const zeit = jetztS();
-  const sig = await unterschreibe(signer, codeSetzenNachricht(wallet, hash, zeit));
-  if (!sig) return { ok: false, meldung: 'unterschrift' };
-  const r = await senden('/umzug/code', { wallet, code_hash: hash, zeit, sig }, fetchFn);
+  const u = await kontoUnterschrift(signer, codeSetzenNachricht(wallet, hash, zeit));
+  if (!u) return { ok: false, meldung: 'unterschrift' };
+  const r = await senden('/umzug/code', { wallet, code_hash: hash, zeit, ...u }, fetchFn);
   return { ok: r.ok, meldung: r.meldung };
 }
 
@@ -251,7 +276,7 @@ export function codeSchonDa(meldung: string | undefined): boolean {
 
 /** Den Umzug bei der Kette beantragen -- mit Code sofort, sonst 14 Tage. */
 export async function antragEinreichen(
-  signer: AequitasSigner,
+  signer: Unterzeichner,
   b: UmzugBescheinigung,
   code: string | null,
   fetchFn: typeof fetch = fetch
@@ -264,11 +289,11 @@ export async function antragEinreichen(
   }
   // Ohne Code nimmt die Kette nur eine streng gepruefte Bescheinigung.
   if (!normal && b.pruefung !== 'streng') return { ok: false, meldung: 'nur_mit_code' };
-  const sig = await unterschreibe(signer, antragNachricht(b.nullifier, b.alt, neu, b.zeit));
-  if (!sig) return { ok: false, meldung: 'unterschrift' };
+  const u = await kontoUnterschrift(signer, antragNachricht(b.nullifier, b.alt, neu, b.zeit));
+  if (!u) return { ok: false, meldung: 'unterschrift' };
   const r = await senden(
     '/umzug/antrag',
-    { neu, alt: b.alt, nullifier: b.nullifier, zeit: b.zeit, modus: b.modus, bescheinigung: b.bescheinigung, pruefung: b.pruefung, code: normal ?? '', sig },
+    { neu, alt: b.alt, nullifier: b.nullifier, zeit: b.zeit, modus: b.modus, bescheinigung: b.bescheinigung, pruefung: b.pruefung, code: normal ?? '', ...u },
     fetchFn
   );
   if (!r.ok) return { ok: false, meldung: r.meldung };
@@ -276,14 +301,14 @@ export async function antragEinreichen(
 }
 
 /** Die alte Wallet widerruft einen offenen Umzug. */
-export async function widerrufen(signer: AequitasSigner, o: UmzugOffen, fetchFn: typeof fetch = fetch): Promise<Ergebnis> {
+export async function widerrufen(signer: Unterzeichner, o: UmzugOffen, fetchFn: typeof fetch = fetch): Promise<Ergebnis> {
   const alt = signer.address.toLowerCase();
   if (alt !== o.alt) return { ok: false, meldung: 'fremd' };
-  const sig = await unterschreibe(signer, widerrufNachricht(o.nullifier, o.neu, o.angekuendigt));
-  if (!sig) return { ok: false, meldung: 'unterschrift' };
+  const u = await kontoUnterschrift(signer, widerrufNachricht(o.nullifier, o.neu, o.angekuendigt));
+  if (!u) return { ok: false, meldung: 'unterschrift' };
   const r = await senden(
     '/umzug/widerruf',
-    { alt, neu: o.neu, nullifier: o.nullifier, angekuendigt: o.angekuendigt, sig },
+    { alt, neu: o.neu, nullifier: o.nullifier, angekuendigt: o.angekuendigt, ...u },
     fetchFn
   );
   return { ok: r.ok, meldung: r.meldung };

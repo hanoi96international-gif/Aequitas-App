@@ -6,21 +6,30 @@
 // Erzeugen, und hinterlegt wird erst, wenn der Mensch den Code noch einmal
 // richtig eingegeben hat (also abgeschrieben hat). Verlaesst er den
 // Bildschirm vorher, ist der Code weg und nichts hinterlegt.
+//
+// ?ziel=tresor (Stufe 3.6): der Code fuer das Menschsein im Tresor -- der
+// Tresor unterschreibt mit ML-DSA-65 (lib/tresor.ts), der Hash ist an die
+// Tresor-Adresse gebunden.
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
 import { withTimeout } from '@/lib/signer';
-import { codeAnzeige, codeErzeugen, codeHinterlegen, codeNormal, codeSchonDa, umzugGrundSchluessel, umzugStand } from '@/lib/umzug';
+import { codeAnzeige, codeErzeugen, codeHinterlegen, codeNormal, codeSchonDa, umzugGrundSchluessel, umzugStand, type Unterzeichner } from '@/lib/umzug';
+import { tresorAdresse, tresorUnterzeichner } from '@/lib/tresor';
 
 const TIMEOUT_MS = 120_000;
 
 export default function Wiederherstellungscode() {
   const { t } = useLanguage();
   const { signer } = useWallet();
+  const { ziel } = useLocalSearchParams<{ ziel?: string }>();
+  const imTresor = ziel === 'tresor';
+  // Fuer wen der Code gilt: die Wallet oder ihr Tresor (oeffentlich, ohne Biometrie).
+  const [konto, setKonto] = useState<string | null>(null);
   const [codeSeit, setCodeSeit] = useState(0);
   const [aktivAb, setAktivAb] = useState(0);
   const [code, setCode] = useState<string | null>(null);
@@ -32,11 +41,15 @@ export default function Wiederherstellungscode() {
   useFocusEffect(
     useCallback(() => {
       if (!signer) return;
-      umzugStand(signer.address).then((s) => {
-        setCodeSeit(s?.codeSeit ?? 0);
-        setAktivAb(s?.aktivAb ?? 0);
+      (imTresor ? tresorAdresse(signer.address) : Promise.resolve(signer.address)).then((k) => {
+        setKonto(k);
+        if (!k) return;
+        umzugStand(k).then((s) => {
+          setCodeSeit(s?.codeSeit ?? 0);
+          setAktivAb(s?.aktivAb ?? 0);
+        });
       });
-    }, [signer]),
+    }, [signer, imTresor]),
   );
 
   const inaktiv = aktivAb > Math.floor(Date.now() / 1000);
@@ -47,8 +60,8 @@ export default function Wiederherstellungscode() {
   // ein neuerer code_seit -- und es ist geschafft, statt dass der Mensch
   // einen zweiten anlegt (so am 08.11.2026 geschehen).
   async function dochAngekommen(vorher: number): Promise<boolean> {
-    if (!signer) return false;
-    const s = await umzugStand(signer.address);
+    if (!konto) return false;
+    const s = await umzugStand(konto);
     return !!s && s.codeSeit > vorher;
   }
 
@@ -65,7 +78,12 @@ export default function Wiederherstellungscode() {
     setMeldung(null);
     const vorher = codeSeit;
     try {
-      const r = await withTimeout(codeHinterlegen(signer, code), TIMEOUT_MS, t('trade.signTimeout'));
+      const wer: Unterzeichner | null = imTresor ? await tresorUnterzeichner() : signer;
+      if (!wer || wer.address.toLowerCase() !== konto) {
+        setMeldung({ ok: false, text: t('tresor.keinTresor') });
+        return;
+      }
+      const r = await withTimeout(codeHinterlegen(wer, code), TIMEOUT_MS, t('trade.signTimeout'));
       if (r.ok) {
         geschafft();
       } else if (await dochAngekommen(vorher)) {

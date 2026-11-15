@@ -836,6 +836,14 @@ const de: Translations = {
     fertig: "Erledigt.",
     fehler: "Nicht geklappt: {grund}",
     link: "Quantensicherer Tresor",
+    keinTresor: "Der Tresor ist auf diesem Telefon nicht eingerichtet.",
+    menschTitel: "Menschsein im Tresor",
+    menschText: "Dein Menschsein und dein Grundeinkommen können in den Tresor umziehen. Dafür zeigst du einmal dein Gesicht. Mit deinem Wiederherstellungscode geht es sofort, sonst nach 14 Tagen. Dein Guthaben bleibt in der Wallet – leg es danach selbst in den Tresor.",
+    menschKnopf: "Menschsein in den Tresor umziehen",
+    menschDa: "Dein Menschsein liegt im Tresor. Hier kommt dein Grundeinkommen an.",
+    menschFertig: "Erledigt: Dein Menschsein liegt jetzt im Tresor. Lege gleich einen neuen Wiederherstellungscode für den Tresor an.",
+    lnKnopf: "Lebensnachweis mit dem Tresor",
+    codeKnopf: "Wiederherstellungscode für den Tresor anlegen",
   },
 };
 

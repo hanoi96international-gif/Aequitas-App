@@ -64,6 +64,7 @@ import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registri
 import { withTimeout } from '@/lib/signer';
 import { lebensnachweisMeldung } from '@/lib/lebensnachweis';
 import { umzugErgebnisMerken } from '@/lib/umzug';
+import { tresorUnterzeichner } from '@/lib/tresor';
 import { AufnahmeDateien } from '@/lib/aufnahmeDateien';
 import {
   zwillingAblauf,
@@ -752,7 +753,7 @@ export default function BiometricCapture() {
   // ?zweck=nachziehen: the same capture, but for an account that is ALREADY a
   // registered human and only adds its face to the gallery (see
   // lib/biometricIdentity.ts, nachziehenBiometric). No grant, no proof.
-  const { zweck, anfrage: anfrageParam } = useLocalSearchParams<{ zweck?: string; anfrage?: string }>();
+  const { zweck, anfrage: anfrageParam, ziel } = useLocalSearchParams<{ zweck?: string; anfrage?: string; ziel?: string }>();
   const nachziehen = zweck === 'nachziehen';
   // ?zweck=zwilling&anfrage=...: Registrierung als eineiiger Zwilling
   // (app/zwilling.tsx -> hier). Der Parameter kann aus einem Link kommen;
@@ -776,6 +777,10 @@ export default function BiometricCapture() {
   // ?zweck=umzug: eine NEUE Wallet holt das Menschsein (lib/umzug.ts). Das
   // Gesicht wird nur wiedererkannt; das Ergebnis geht an app/umzug.tsx.
   const umzug = zweck === 'umzug';
+  // &ziel=tresor (Stufe 3.6, lib/tresor.ts): das Menschsein zieht in den
+  // Tresor (umzug) oder liegt schon dort (lebensnachweis, erneuern). Dann
+  // unterschreibt der Tresor mit ML-DSA-65, und die Adresse ist seine.
+  const imTresor = ziel === 'tresor' && (umzug || lebensnachweis || erneuern);
   // Kein Altersschritt: das wurde bei der Registrierung geprueft.
   const ohneAlter = erneuern || lebensnachweis || umzug;
   // None of these paths mints anything at capture time, so none asks for the
@@ -1754,6 +1759,14 @@ export default function BiometricCapture() {
     setSubmitError('');
     try {
       const deviceId = await getOrCreateDeviceId();
+      // Wer unterschreibt: die Wallet -- oder der Tresor (Biometrie/Geraetesperre).
+      const tresor = imTresor ? await tresorUnterzeichner() : null;
+      if (imTresor && !tresor) {
+        setSubmitError(t('tresor.keinTresor'));
+        setStep('result');
+        return;
+      }
+      const konto = tresor ? { walletAddress: tresor.address, signer: tresor } : { walletAddress: address, signer };
       if (umzug) {
         const uz = await umzugBiometric(
           {
@@ -1763,10 +1776,10 @@ export default function BiometricCapture() {
             imuSamples: finalImu,
             challengeNonce: challenge?.nonce,
           },
-          { deviceId, walletAddress: address, signer, consent }
+          { deviceId, ...konto, consent }
         );
         umzugErgebnisMerken(uz.status, uz.bescheinigung);
-        router.replace('/umzug');
+        router.replace(imTresor ? '/umzug?ziel=tresor' : '/umzug');
         return;
       }
       if (lebensnachweis) {
@@ -1778,7 +1791,7 @@ export default function BiometricCapture() {
             imuSamples: finalImu,
             challengeNonce: challenge?.nonce,
           },
-          { deviceId, walletAddress: address, signer, consent }
+          { deviceId, ...konto, consent }
         );
         setLnResult(ln);
         if (ln.kette === 'angenommen' || ln.kette === 'schon_nachgewiesen') refreshBalance().catch(() => undefined);
@@ -1794,7 +1807,7 @@ export default function BiometricCapture() {
             imuSamples: finalImu,
             challengeNonce: challenge?.nonce,
           },
-          { deviceId, walletAddress: address, signer, consent }
+          { deviceId, ...konto, consent }
         );
         setErneuerResult(er);
         if (er.kette === 'angenommen') refreshBalance().catch(() => undefined);

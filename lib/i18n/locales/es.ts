@@ -836,6 +836,14 @@ const es: Translations = {
     fertig: "Hecho.",
     fehler: "No ha funcionado: {grund}",
     link: "Caja fuerte cuántica",
+    keinTresor: "La caja fuerte no está configurada en este teléfono.",
+    menschTitel: "Tu condición de persona en la caja fuerte",
+    menschText: "Tu condición de persona y tu renta básica pueden pasar a la caja fuerte. Muestras tu cara una vez. Con tu código de recuperación ocurre al instante; si no, a los 14 días. Tu saldo se queda en la wallet: pásalo tú a la caja fuerte después.",
+    menschKnopf: "Pasar mi condición de persona a la caja fuerte",
+    menschDa: "Tu condición de persona está en la caja fuerte. Aquí llega tu renta básica.",
+    menschFertig: "Listo: tu condición de persona está ahora en la caja fuerte. Crea enseguida un nuevo código de recuperación para la caja fuerte.",
+    lnKnopf: "Prueba de vida con la caja fuerte",
+    codeKnopf: "Crear un código de recuperación para la caja fuerte",
   },
 };
 

@@ -850,5 +850,13 @@ export interface Translations {
     fertig: string;
     fehler: string;
     link: string;
+    keinTresor: string;
+    menschTitel: string;
+    menschText: string;
+    menschKnopf: string;
+    menschDa: string;
+    menschFertig: string;
+    lnKnopf: string;
+    codeKnopf: string;
   };
 }

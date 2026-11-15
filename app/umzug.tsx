@@ -1,10 +1,14 @@
 // Konto zurueckholen: das Menschsein auf DIESE (neue) Wallet holen
 // (lib/umzug.ts). Erst das Gesicht (biometric-capture, zweck=umzug), dann mit
 // oder ohne Wiederherstellungscode bei der Kette beantragen.
+//
+// ?ziel=tresor (Stufe 3.6, Kette: umzug_pq.go): die neue Wallet ist der
+// Tresor dieser Wallet. Er unterschreibt Start und Antrag mit ML-DSA-65; das
+// Gesicht bleibt Pflicht. Erst, wenn die Kette es annimmt (pq_unterschrift_ab).
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { theme } from '@/constants/aequitas-theme';
@@ -17,6 +21,7 @@ import {
   umzugStand,
   type UmzugBescheinigung,
 } from '@/lib/umzug';
+import { tresorUnterzeichner } from '@/lib/tresor';
 
 const TIMEOUT_MS = 120_000;
 
@@ -27,12 +32,16 @@ function datum(s: number): string {
 export default function Umzug() {
   const { t } = useLanguage();
   const { signer } = useWallet();
+  const { ziel } = useLocalSearchParams<{ ziel?: string }>();
+  const inDenTresor = ziel === 'tresor';
   const [aktivAb, setAktivAb] = useState(0);
+  const [pqAb, setPqAb] = useState(0);
   const [bescheinigung, setBescheinigung] = useState<UmzugBescheinigung | null>(null);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
   const [code, setCode] = useState('');
   const [laeuft, setLaeuft] = useState(false);
   const [fertig, setFertig] = useState(false);
+  const [sofort, setSofort] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -47,7 +56,10 @@ export default function Umzug() {
         }
       }
       if (signer) {
-        umzugStand(signer.address).then((s) => setAktivAb(s?.aktivAb ?? 0));
+        umzugStand(signer.address).then((s) => {
+          setAktivAb(s?.aktivAb ?? 0);
+          setPqAb(s?.pqAb ?? 0);
+        });
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [signer]),
@@ -65,7 +77,9 @@ export default function Umzug() {
     }
   }
 
-  const inaktiv = aktivAb > Math.floor(Date.now() / 1000);
+  const jetztS = Math.floor(Date.now() / 1000);
+  // In den Tresor erst, wenn die Kette Tresor-Unterschriften annimmt.
+  const inaktiv = aktivAb > jetztS || (inDenTresor && !(pqAb > 0 && pqAb <= jetztS));
   const codeGueltig = !!codeNormal(code);
 
   async function einreichen(mitCode: boolean) {
@@ -73,10 +87,16 @@ export default function Umzug() {
     setLaeuft(true);
     setMeldung(null);
     try {
-      const r = await withTimeout(antragEinreichen(signer, bescheinigung, mitCode ? code : null), TIMEOUT_MS, t('trade.signTimeout'));
+      const wer = inDenTresor ? await tresorUnterzeichner() : signer;
+      if (!wer) {
+        setMeldung({ ok: false, text: t('tresor.keinTresor') });
+        return;
+      }
+      const r = await withTimeout(antragEinreichen(wer, bescheinigung, mitCode ? code : null), TIMEOUT_MS, t('trade.signTimeout'));
       if (r.ok && r.sofort) {
-        setMeldung({ ok: true, text: t('umzug.erfolgSofort') });
+        setMeldung({ ok: true, text: inDenTresor ? t('tresor.menschFertig') : t('umzug.erfolgSofort') });
         setFertig(true);
+        setSofort(true);
       } else if (r.ok) {
         setMeldung({ ok: true, text: t('umzug.erfolgFrist').replace('{datum}', datum(r.freiAb ?? 0)) });
         setFertig(true);
@@ -97,18 +117,18 @@ export default function Umzug() {
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button">
           <Text style={S.zurueck}>‹ {t('common.cancel')}</Text>
         </TouchableOpacity>
-        <Text style={S.titel}>{t('umzug.titel')}</Text>
+        <Text style={S.titel}>{inDenTresor ? t('tresor.menschTitel') : t('umzug.titel')}</Text>
 
         {!bescheinigung && !fertig ? (
           <>
-            <Text style={S.text}>{t('umzug.text')}</Text>
+            <Text style={S.text}>{inDenTresor ? t('tresor.menschText') : t('umzug.text')}</Text>
             {inaktiv ? (
-              <Text style={S.hinweis}>{t('umzug.inaktiv').replace('{datum}', datum(aktivAb))}</Text>
+              <Text style={S.hinweis}>{t('umzug.inaktiv').replace('{datum}', inDenTresor && !(pqAb > 0) ? '—' : datum(Math.max(aktivAb, pqAb)))}</Text>
             ) : (
               <TouchableOpacity
                 style={[S.knopf, !signer && S.aus]}
                 disabled={!signer}
-                onPress={() => router.push('/biometric-capture?zweck=umzug')}
+                onPress={() => router.push(inDenTresor ? '/biometric-capture?zweck=umzug&ziel=tresor' : '/biometric-capture?zweck=umzug')}
                 accessibilityRole="button"
               >
                 <Text style={S.knopfText}>{t('umzug.start')}</Text>
@@ -156,6 +176,13 @@ export default function Umzug() {
         ) : null}
 
         {meldung ? <Text style={[S.meldung, { color: meldung.ok ? theme.neon : theme.red }]}>{meldung.text}</Text> : null}
+
+        {/* Im Tresor gibt es noch keinen Wiederherstellungscode -- der alte gehoert zur Wallet. */}
+        {fertig && sofort && inDenTresor ? (
+          <TouchableOpacity style={[S.knopf, S.abstand]} onPress={() => router.replace('/wiederherstellungscode?ziel=tresor')} accessibilityRole="button">
+            <Text style={S.knopfText}>{t('tresor.codeKnopf')}</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

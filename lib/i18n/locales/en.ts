@@ -836,6 +836,14 @@ const en: Translations = {
     fertig: "Done.",
     fehler: "Did not work: {grund}",
     link: "Quantum-safe vault",
+    keinTresor: "The vault is not set up on this phone.",
+    menschTitel: "Your humanity in the vault",
+    menschText: "Your humanity and your basic income can move into the vault. You show your face once. With your recovery code it happens right away, otherwise after 14 days. Your balance stays in the wallet – move it into the vault yourself afterwards.",
+    menschKnopf: "Move humanity into the vault",
+    menschDa: "Your humanity is in the vault. Your basic income arrives here.",
+    menschFertig: "Done: your humanity is now in the vault. Create a new recovery code for the vault right away.",
+    lnKnopf: "Proof of life with the vault",
+    codeKnopf: "Create a recovery code for the vault",
   },
 };
 

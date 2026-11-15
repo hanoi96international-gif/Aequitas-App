@@ -14,7 +14,7 @@ let mockHinterlegen: () => Promise<any> = async () => ({ ok: false, meldung: 'HT
 
 jest.mock('expo-router', () => {
   const R = require('react');
-  return { router: { back: jest.fn() }, useFocusEffect: (f: any) => R.useEffect(f, [f]) };
+  return { router: { back: jest.fn() }, useFocusEffect: (f: any) => R.useEffect(f, [f]), useLocalSearchParams: () => ({}) };
 });
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: ({ children }: any) => children }));
 jest.mock('@/contexts/LanguageContext', () => ({ useLanguage: () => ({ t: (k: string) => k }) }));

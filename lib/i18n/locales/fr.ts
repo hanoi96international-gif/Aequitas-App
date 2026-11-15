@@ -836,6 +836,14 @@ const fr: Translations = {
     fertig: "Terminé.",
     fehler: "Échec : {grund}",
     link: "Coffre quantique",
+    keinTresor: "Le coffre n'est pas configuré sur ce téléphone.",
+    menschTitel: "Ton statut d'humain dans le coffre",
+    menschText: "Ton statut d'humain et ton revenu de base peuvent passer dans le coffre. Tu montres ton visage une fois. Avec ton code de récupération, c'est immédiat ; sinon après 14 jours. Ton solde reste dans le wallet – mets-le ensuite toi-même dans le coffre.",
+    menschKnopf: "Mettre mon statut d'humain dans le coffre",
+    menschDa: "Ton statut d'humain est dans le coffre. Ton revenu de base arrive ici.",
+    menschFertig: "C'est fait : ton statut d'humain est maintenant dans le coffre. Crée tout de suite un nouveau code de récupération pour le coffre.",
+    lnKnopf: "Preuve de vie avec le coffre",
+    codeKnopf: "Créer un code de récupération pour le coffre",
   },
 };
 
