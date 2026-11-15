@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Alert, Linking, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { QrScanner } from '@/components/QrScanner';
+import { ValidatorKarte } from '@/components/ValidatorKarte';
 import { bindungsanfrageAblehnen, kontrollzahl, leseKnotenbindung, type Bindungsanfrage } from '@/lib/knotenBindung';
 import { useBindungsanfragen } from '@/contexts/BindungsanfragenContext';
 import { useWallet } from '@/contexts/WalletContext';
@@ -133,6 +134,9 @@ export default function RunNode() {
             {t('node.subtitle')} <Text style={{ color: theme.gold, fontWeight: '700' }}>{t('node.subtitleHighlight')}</Text>
           </Text>
         </View>
+
+        {/* Validator-Bereich: eingetragen? Bloecke heute und insgesamt. */}
+        {address ? <ValidatorKarte wallet={address} /> : null}
 
         {/* Wartet ein Server, steht seine Anfrage ganz oben -- nicht unter der
             Einrichtungsanleitung, die er schon hinter sich hat. */}
