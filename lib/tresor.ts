@@ -228,3 +228,59 @@ export async function prueferPQTeil(
     return null;
   }
 }
+
+// ------------------------------------------------------------ Konto-Unterschrift
+//
+// Stufe 3.6 (Kette: umzug_pq.go, Coordinator: pq_konto.py): das Menschsein --
+// und mit ihm das Grundeinkommen -- kann in den Tresor umziehen. Der Tresor
+// hat keinen secp256k1-Schluessel; wo eine Wallet mit EIP-191 unterschreibt
+// (Umzugsantrag, Widerruf, Wiederherstellungscode, Lebensnachweis,
+// Erneuerung), unterschreibt er mit ML-DSA-65 ueber GENAU DIESELBE Nachricht.
+// Die Kette nimmt das nur, wenn der Schluessel genau die Tresor-Adresse ergibt.
+
+export interface TresorUnterschrift {
+  /** Oeffentlicher ML-DSA-65-Schluessel, Hex klein ohne 0x (1.952 Byte). */
+  pub: string;
+  /** Unterschrift, Hex klein ohne 0x (3.309 Byte). */
+  sig: string;
+}
+
+export interface TresorUnterzeichner {
+  readonly art: 'tresor';
+  /** Die Tresor-Adresse (0x + 40 Hex, klein). */
+  readonly address: string;
+  unterschreibe(text: string): TresorUnterschrift | null;
+}
+
+export function istTresorUnterzeichner(x: unknown): x is TresorUnterzeichner {
+  return !!x && typeof x === 'object' && (x as { art?: unknown }).art === 'tresor';
+}
+
+/** Ein Unterzeichner aus dem Seed -- deterministisch (FIPS 204), jede
+ *  Unterschrift vor der Rueckgabe selbst geprueft. */
+export function tresorUnterzeichnerAusSeed(seed: Uint8Array): TresorUnterzeichner {
+  const { publicKey, secretKey } = tresorSchluessel(seed);
+  const address = tresorAdresseAusSchluessel(publicKey);
+  const pub = ethers.hexlify(publicKey).slice(2);
+  return {
+    art: 'tresor',
+    address,
+    unterschreibe(text: string): TresorUnterschrift | null {
+      try {
+        const roh = ethers.toUtf8Bytes(text);
+        const sig = ml_dsa65.sign(roh, secretKey, { extraEntropy: false });
+        if (!ml_dsa65.verify(sig, roh, publicKey)) return null;
+        return { pub, sig: ethers.hexlify(sig).slice(2) };
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+/** Der Unterzeichner des eingerichteten Tresors (Biometrie/Geraetesperre) --
+ *  null, wenn keiner eingerichtet ist. */
+export async function tresorUnterzeichner(): Promise<TresorUnterzeichner | null> {
+  const seed = await seedLaden();
+  return seed ? tresorUnterzeichnerAusSeed(seed) : null;
+}

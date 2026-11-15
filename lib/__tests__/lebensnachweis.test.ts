@@ -385,3 +385,46 @@ describe('Einwilligung', () => {
     for (const l of LOCALES) expect(RESOURCES[l].identity.biometricConsentLebensnachweis.length).toBeGreaterThan(80);
   });
 });
+
+// Stufe 3.6 (Coordinator: pq_konto.py): liegt das Menschsein im Tresor,
+// unterschreibt der Tresor mit ML-DSA-65 ueber DIESELBE Nachricht -- es geht
+// pq_public_key + pq_signatur, nie zugleich eine wallet_signature.
+describe('Lebensnachweis mit dem Tresor', () => {
+  it('ML-DSA statt EIP-191, an die Tresor-Adresse gebunden', async () => {
+    const { ml_dsa65 } = require('@noble/post-quantum/ml-dsa.js');
+    const { tresorUnterzeichnerAusSeed } = require('../tresor');
+    const api = require('../api');
+    api.submitProofOfLife.mockReset();
+    const tresor = tresorUnterzeichnerAusSeed(new Uint8Array(32).fill(0x11));
+    api.submitProofOfLife.mockResolvedValue({ ok: true, wallet: tresor.address });
+    const bio = require('../biometricIdentity');
+    bio._setCoordinatorCandidatesForTest(['http://coord.test']);
+    let gesendet: Record<string, unknown> = {};
+    const altFetch = global.fetch;
+    global.fetch = jest.fn(async (u: string, init: any) => {
+      if (u.endsWith('/challenge')) {
+        return { ok: true, json: async () => ({ nonce: 'nonce-1', challenge_type: 'kopf_drehen', flash_sequence: '' }) };
+      }
+      gesendet = felder(init.body);
+      return { ok: true, status: 200, json: async () => ({ status: 'bescheinigt', lebensnachweis: { ...BESCHEINIGUNG, wallet: tresor.address } }) };
+    }) as any;
+    try {
+      await bio.requestChallenge();
+      await bio.lebensnachweisBiometric(
+        { faceUri: 'file:///f.jpg', faceBurstUris: [], burstIntervalMs: 100, challengeNonce: 'nonce-1' },
+        { deviceId: 'd', walletAddress: tresor.address, signer: tresor, consent: { biometricConsent: true, bonusConsent: false, consentedAt: 7 } },
+      );
+    } finally {
+      global.fetch = altFetch;
+      bio._setCoordinatorCandidatesForTest(null);
+    }
+    expect(gesendet.wallet_address).toBe(tresor.address);
+    expect(gesendet.wallet_signature).toBeUndefined();
+    const text = bio.lebensnachweisMessage(tresor.address, 'nonce-1');
+    const pub = ethers.getBytes('0x' + String(gesendet.pq_public_key));
+    const sig = ethers.getBytes('0x' + String(gesendet.pq_signatur));
+    expect(ml_dsa65.verify(sig, ethers.toUtf8Bytes(text), pub)).toBe(true);
+    // Fuer die Wallet-Adresse gilt dieselbe Unterschrift nicht.
+    expect(ml_dsa65.verify(sig, ethers.toUtf8Bytes(bio.lebensnachweisMessage(WALLET_KLEIN, 'nonce-1')), pub)).toBe(false);
+  });
+});

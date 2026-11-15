@@ -836,6 +836,14 @@ const it: Translations = {
     fertig: "Fatto.",
     fehler: "Non riuscito: {grund}",
     link: "Cassaforte quantistica",
+    keinTresor: "La cassaforte non è configurata su questo telefono.",
+    menschTitel: "Il tuo status di persona nella cassaforte",
+    menschText: "Il tuo status di persona e il tuo reddito di base possono passare nella cassaforte. Mostri il tuo volto una volta. Con il codice di recupero avviene subito, altrimenti dopo 14 giorni. Il saldo resta nel wallet: spostalo poi tu nella cassaforte.",
+    menschKnopf: "Spostare lo status di persona nella cassaforte",
+    menschDa: "Il tuo status di persona è nella cassaforte. Qui arriva il tuo reddito di base.",
+    menschFertig: "Fatto: il tuo status di persona è ora nella cassaforte. Crea subito un nuovo codice di recupero per la cassaforte.",
+    lnKnopf: "Prova di vita con la cassaforte",
+    codeKnopf: "Creare un codice di recupero per la cassaforte",
   },
 };
 

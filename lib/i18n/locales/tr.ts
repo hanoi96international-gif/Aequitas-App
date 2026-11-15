@@ -836,6 +836,14 @@ const tr: Translations = {
     fertig: "Tamam.",
     fehler: "Olmadı: {grund}",
     link: "Kuantum kasası",
+    keinTresor: "Kasa bu telefonda kurulu değil.",
+    menschTitel: "Kasadaki insan statün",
+    menschText: "İnsan statün ve temel gelirin kasaya taşınabilir. Bunun için yüzünü bir kez gösterirsin. Kurtarma kodunla hemen olur, yoksa 14 gün sonra. Bakiyen cüzdanda kalır – sonra kendin kasaya aktar.",
+    menschKnopf: "İnsan statünü kasaya taşı",
+    menschDa: "İnsan statün kasada. Temel gelirin buraya gelir.",
+    menschFertig: "Tamam: İnsan statün artık kasada. Hemen kasa için yeni bir kurtarma kodu oluştur.",
+    lnKnopf: "Kasa ile yaşam kanıtı",
+    codeKnopf: "Kasa için kurtarma kodu oluştur",
   },
 };
 

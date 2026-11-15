@@ -5,6 +5,10 @@
 // mit der Seed-Phrase: sie wird nur geprueft (gehoert sie zu dieser Wallet?),
 // daraus der Tresor-Schluessel abgeleitet und sicher abgelegt, die Eingabe
 // sofort geleert.
+//
+// Stufe 3.6 (Kette: umzug_pq.go): das Menschsein -- und mit ihm das
+// Grundeinkommen -- kann in den Tresor umziehen (Gesicht, mit Code sofort).
+// Liegt es dort, macht der Tresor auch Lebensnachweis und Code.
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +20,18 @@ import { theme } from '@/constants/aequitas-theme';
 import { isValidAddress, parseAEQToWei } from '@/lib/format';
 import { withTimeout } from '@/lib/signer';
 import { ausTresorSenden, tresorAdresse, tresorEinrichten, tresorStand, type TresorStand } from '@/lib/tresor';
+import { getBalance } from '@/lib/api';
+import { umzugStand } from '@/lib/umzug';
+
+/** Wo das Menschsein steht und ob der Umzug in den Tresor moeglich ist. */
+interface MenschStand {
+  walletMensch: boolean;
+  tresorMensch: boolean;
+  /** Ab wann die Kette Tresor-Unterschriften am Umzug annimmt (0 = noch nicht). */
+  pqAb: number;
+  /** Hat der Tresor schon einen Wiederherstellungscode? */
+  tresorCode: boolean;
+}
 
 const TIMEOUT_MS = 120_000;
 
@@ -30,12 +46,27 @@ export default function Tresor() {
   const [betrag, setBetrag] = useState('');
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
+  const [mensch, setMensch] = useState<MenschStand | null>(null);
 
   const laden = useCallback(() => {
     if (!signer) return;
     tresorAdresse(signer.address).then((a) => {
       setAdresse(a);
-      if (a) tresorStand(a).then(setStand);
+      if (!a) return;
+      tresorStand(a).then(setStand);
+      Promise.all([
+        getBalance(signer.address).catch(() => null),
+        getBalance(a).catch(() => null),
+        umzugStand(signer.address),
+        umzugStand(a),
+      ]).then(([bw, bt, uw, ut]) => {
+        setMensch({
+          walletMensch: bw?.is_human === true,
+          tresorMensch: bt?.is_human === true,
+          pqAb: uw?.pqAb ?? 0,
+          tresorCode: (ut?.codeSeit ?? 0) > 0,
+        });
+      });
     });
   }, [signer]);
   useFocusEffect(laden);
@@ -184,6 +215,39 @@ export default function Tresor() {
               <Text style={S.hinweis}>
                 {ab ? t('tresor.inaktiv').replace('{datum}', new Date(ab * 1000).toLocaleString()) : t('tresor.inaktiv').replace('{datum}', '—')}
               </Text>
+            ) : null}
+
+            {/* Stufe 3.6: Menschsein und Grundeinkommen im Tresor. */}
+            {mensch?.tresorMensch ? (
+              <View testID="tresor-mensch-da">
+                <Text style={S.abschnitt}>{t('tresor.menschTitel')}</Text>
+                <Text style={S.text}>{t('tresor.menschDa')}</Text>
+                <TouchableOpacity
+                  style={S.knopf}
+                  onPress={() => router.push('/biometric-capture?zweck=lebensnachweis&ziel=tresor')}
+                  accessibilityRole="button"
+                >
+                  <Text style={S.knopfText}>{t('tresor.lnKnopf')}</Text>
+                </TouchableOpacity>
+                {!mensch.tresorCode ? (
+                  <TouchableOpacity
+                    style={S.knopf}
+                    onPress={() => router.push('/wiederherstellungscode?ziel=tresor')}
+                    accessibilityRole="button"
+                    testID="tresor-code"
+                  >
+                    <Text style={S.knopfText}>{t('tresor.codeKnopf')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : mensch?.walletMensch && mensch.pqAb > 0 && mensch.pqAb <= jetzt ? (
+              <View testID="tresor-mensch-umziehen">
+                <Text style={S.abschnitt}>{t('tresor.menschTitel')}</Text>
+                <Text style={S.text}>{t('tresor.menschText')}</Text>
+                <TouchableOpacity style={S.knopf} onPress={() => router.push('/umzug?ziel=tresor')} accessibilityRole="button">
+                  <Text style={S.knopfText}>{t('tresor.menschKnopf')}</Text>
+                </TouchableOpacity>
+              </View>
             ) : null}
 
             <Text style={S.abschnitt}>{t('tresor.einzahlen')}</Text>

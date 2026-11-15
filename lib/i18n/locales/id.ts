@@ -836,6 +836,14 @@ const id: Translations = {
     fertig: "Selesai.",
     fehler: "Gagal: {grund}",
     link: "Brankas kuantum",
+    keinTresor: "Brankas belum disiapkan di ponsel ini.",
+    menschTitel: "Status manusiamu di brankas",
+    menschText: "Status manusiamu dan pendapatan dasarmu bisa pindah ke brankas. Kamu menunjukkan wajahmu sekali. Dengan kode pemulihan langsung terjadi, jika tidak setelah 14 hari. Saldomu tetap di wallet – pindahkan sendiri ke brankas sesudahnya.",
+    menschKnopf: "Pindahkan status manusia ke brankas",
+    menschDa: "Status manusiamu ada di brankas. Pendapatan dasarmu masuk ke sini.",
+    menschFertig: "Selesai: status manusiamu sekarang ada di brankas. Segera buat kode pemulihan baru untuk brankas.",
+    lnKnopf: "Bukti hidup dengan brankas",
+    codeKnopf: "Buat kode pemulihan untuk brankas",
   },
 };
 
