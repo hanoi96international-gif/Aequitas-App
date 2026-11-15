@@ -1,7 +1,7 @@
 // Phase 0 biometric proof-of-personhood capture screen (palm+face+consent,
 // see aequitas-biometric-beta). Pushed from the Identity tab ONLY when
 // BIOMETRIC_ENABLED is set (see lib/config.ts) -- unreachable otherwise.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,7 +57,9 @@ import {
   type VouchResult,
 } from '@/lib/biometricIdentity';
 import { WEBAPP } from '@/lib/config';
-import { landAusGeraet, pruefen as alterPruefen } from '@/lib/altersregel';
+import { bestaetigungPruefen, landAusGeraet } from '@/lib/altersregel';
+import { hatRegionen, laenderFuer, landName, regelFuer, REGIONEN_LISTE } from '@/lib/laender';
+import { Auswahl } from '@/components/Auswahl';
 import { anfrageFuer, BUERGEN_NOETIG, qrInhalt, stand as buergenStand } from '@/lib/altersbuergschaft';
 import QRCode from 'react-native-qrcode-svg';
 import { checkAlreadyRegistered, identityFromBioHash, proveAndRegister, registrierungsVorpruefung } from '@/lib/identity';
@@ -790,10 +792,17 @@ export default function BiometricCapture() {
   const [biometricChecked, setBiometricChecked] = useState(false);
   const [bonusChecked, setBonusChecked] = useState(false);
   // Altersangabe (lib/altersregel.ts): vor der Kamera, nie gespeichert.
-  const [altJahr, setAltJahr] = useState('');
-  const [altMonat, setAltMonat] = useState('');
-  const [altLand, setAltLand] = useState(() => landAusGeraet());
+  // Seit 1.21.1 nur das Land (aus einer Liste) und die Bestaetigung des
+  // Mindestalters, das der Text dazu nennt -- kein Geburtsdatum mehr.
+  const [altLand, setAltLand] = useState(() => {
+    const g = landAusGeraet();
+    return /^[A-Z]{2}$/.test(g) ? g : '';
+  });
   const [altRegion, setAltRegion] = useState('');
+  const [altBestaetigt, setAltBestaetigt] = useState(false);
+  const laenderListe = useMemo(() => laenderFuer(lang), [lang]);
+  const alterRegel = regelFuer(altLand, altRegion || undefined);
+  const alterLandName = landName(altLand, lang);
   const [consentError, setConsentError] = useState('');
   const [consent, setConsent] = useState<ConsentDecision | null>(null);
   // Fetched the moment the user commits to a real attempt (confirmConsent
@@ -1262,13 +1271,9 @@ export default function BiometricCapture() {
     }
     // Wer zu jung ist, kommt nicht zur Kamera: sein Gesicht wird nie
     // aufgenommen. Der Coordinator prueft dieselbe Angabe noch einmal.
-    const alter = alterPruefen({ jahr: altJahr, monat: altMonat, land: altLand, region: altRegion });
+    const alter = bestaetigungPruefen(altLand, altRegion, altBestaetigt);
     if (!alter.ok) {
-      setConsentError(
-        alter.grund === 'zu_jung'
-          ? t('identity.alterZuJung').replace('{n}', String(alter.mindestalter))
-          : alter.grund === 'fehlt' ? t('identity.alterFehlt') : t('identity.alterUngueltig'),
-      );
+      setConsentError(alter.grund === 'fehlt' ? t('identity.alterFehlt') : t('identity.alterUngueltig'));
       return;
     }
     setConsent({
@@ -1277,10 +1282,9 @@ export default function BiometricCapture() {
       consentedAt: Date.now() / 1000,
       alterAnfrage: address ? await anfrageFuer(address) : undefined,
       alter: {
-        geburtsjahr: Number(altJahr.trim()),
-        geburtsmonat: Number(altMonat.trim()),
         land: altLand.trim().toUpperCase(),
         region: altRegion.trim().toUpperCase() || undefined,
+        alterBestaetigt: alter.mindestalter,
       },
     });
     setConsentError('');
@@ -2000,47 +2004,43 @@ export default function BiometricCapture() {
             <Text style={S.body}>{t('identity.biometricConsentAlter')}</Text>
 
             <Text style={S.checkLabel}>{t('identity.alterTitel')}</Text>
-            <View style={S.alterReihe}>
-              <TextInput
-                style={[S.vouchInput, S.alterFeld]}
-                value={altMonat}
-                onChangeText={(v) => setAltMonat(v.replace(/[^0-9]/g, '').slice(0, 2))}
-                placeholder={t('identity.alterMonat')}
-                placeholderTextColor={theme.muted}
-                keyboardType="number-pad"
-                maxLength={2}
+            <Auswahl
+              wert={altLand}
+              eintraege={laenderListe}
+              onWahl={(c) => { setAltLand(c); setAltRegion(''); setAltBestaetigt(false); }}
+              platzhalter={t('identity.alterLand')}
+              titel={t('identity.alterLand')}
+              suchePlatzhalter={t('identity.alterSuche')}
+              mitFlagge
+              testID="alter-land"
+            />
+            {hatRegionen(altLand) ? (
+              <Auswahl
+                wert={altRegion}
+                eintraege={[...(REGIONEN_LISTE[altLand.toUpperCase()] ?? [])]}
+                onWahl={(c) => { setAltRegion(c); setAltBestaetigt(false); }}
+                platzhalter={t('identity.alterRegion')}
+                titel={t('identity.alterRegion')}
+                feldStil={S.alterRegionFeld}
+                testID="alter-region"
               />
-              <TextInput
-                style={[S.vouchInput, S.alterFeld]}
-                value={altJahr}
-                onChangeText={(v) => setAltJahr(v.replace(/[^0-9]/g, '').slice(0, 4))}
-                placeholder={t('identity.alterJahr')}
-                placeholderTextColor={theme.muted}
-                keyboardType="number-pad"
-                maxLength={4}
-              />
-              <TextInput
-                style={[S.vouchInput, S.alterFeld]}
-                value={altLand}
-                onChangeText={(v) => setAltLand(v.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())}
-                placeholder={t('identity.alterLand')}
-                placeholderTextColor={theme.muted}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={2}
-              />
-            </View>
-            {altLand.toUpperCase() === 'US' || altLand.toUpperCase() === 'CA' ? (
-              <TextInput
-                style={S.vouchInput}
-                value={altRegion}
-                onChangeText={(v) => setAltRegion(v.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase())}
-                placeholder={t('identity.alterRegion')}
-                placeholderTextColor={theme.muted}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={3}
-              />
+            ) : null}
+            {alterRegel.art === 'fest' ? (
+              <>
+                <Text style={S.alterRegel}>
+                  {t('identity.alterGilt').replace('{land}', alterLandName).replace('{n}', String(alterRegel.n))}
+                </Text>
+                <TouchableOpacity style={S.checkRow} onPress={() => setAltBestaetigt((v) => !v)} activeOpacity={0.8} testID="alter-bestaetigen">
+                  <View style={[S.checkbox, altBestaetigt && S.checkboxChecked]}>
+                    {altBestaetigt && <Text style={S.checkboxMark}>✓</Text>}
+                  </View>
+                  <Text style={S.checkLabel}>{t('identity.alterBestaetigen').replace('{n}', String(alterRegel.n))}</Text>
+                </TouchableOpacity>
+              </>
+            ) : alterRegel.art === 'region' ? (
+              <Text style={S.alterRegel}>
+                {t('identity.alterGiltRegion').replace('{land}', alterLandName).replace('{min}', String(alterRegel.min)).replace('{max}', String(alterRegel.max))}
+              </Text>
             ) : null}
             <Text style={S.alterHinweis}>{t('identity.alterHinweis')}</Text>
             </>
@@ -2514,6 +2514,8 @@ const S = StyleSheet.create({
   content: { flex: 1, padding: 24, justifyContent: 'center' },
   scroll: { flex: 1 },
   contentScroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  alterRegel: { color: theme.text, fontSize: 14, lineHeight: 20, marginTop: 10, marginBottom: 2 },
+  alterRegionFeld: { marginTop: 8 },
   alterHinweis: { color: theme.muted, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: -4, marginBottom: 14 },
   card: {
     backgroundColor: theme.card,

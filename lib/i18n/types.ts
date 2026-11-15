@@ -337,6 +337,7 @@ export interface Translations {
     alterNachholenBtn: string;
     alterNachholenZuJung: string;
     alterNachholenLoeschen: string;
+    alterNachholenJuenger: string;
     alterBuergschaftTitel: string;
     alterBuergschaftText: string;
     alterBuergschaftStand: string;
@@ -350,6 +351,10 @@ export interface Translations {
     alterFehlt: string;
     alterUngueltig: string;
     alterZuJung: string;
+    alterSuche: string;
+    alterGilt: string;
+    alterGiltRegion: string;
+    alterBestaetigen: string;
     biometricResultAgeBelow: string;
     biometricResultAgeDeclaration: string;
     biometricResultAgeProof: string;

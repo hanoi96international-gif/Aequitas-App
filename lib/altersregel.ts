@@ -21,12 +21,27 @@ export const REGIONEN: Record<string, Record<string, number>> = {
   CA: { BC: 19, NB: 19, NL: 19, NS: 19, NT: 19, NU: 19, YT: 19 },
 };
 
-export interface Altersangabe {
+/** Bis App 1.21.0: Geburtsmonat, -jahr und Land. */
+export interface Geburtsangabe {
   geburtsjahr: number;
   geburtsmonat: number;
   land: string;
   region?: string;
 }
+
+/**
+ * Ab App 1.21.1 (Entscheidung des Betreibers vom 15.11.2026): nur das Land;
+ * der Mensch bestaetigt das Mindestalter, das die App dafuer nennt. Der
+ * Coordinator prueft die Zahl gegen seine eigene Tabelle
+ * (altersregel.bestaetigung_pruefen).
+ */
+export interface Bestaetigung {
+  land: string;
+  region?: string;
+  alterBestaetigt: number;
+}
+
+export type Altersangabe = Geburtsangabe | Bestaetigung;
 
 export type Pruefung =
   | { ok: true; mindestalter: number }
@@ -90,11 +105,37 @@ export function landAusGeraet(): string {
 
 /** Die Felder, die /register und /nachziehen erwarten. */
 export function formularFelder(a: Altersangabe): [string, string][] {
-  const felder: [string, string][] = [
-    ['geburtsjahr', String(a.geburtsjahr)],
-    ['geburtsmonat', String(a.geburtsmonat)],
-    ['land', a.land.toUpperCase()],
-  ];
+  const felder: [string, string][] =
+    'alterBestaetigt' in a
+      ? [
+          ['land', a.land.toUpperCase()],
+          ['alter_bestaetigt', String(a.alterBestaetigt)],
+        ]
+      : [
+          ['geburtsjahr', String(a.geburtsjahr)],
+          ['geburtsmonat', String(a.geburtsmonat)],
+          ['land', a.land.toUpperCase()],
+        ];
   if (a.region) felder.push(['region', a.region.toUpperCase()]);
   return felder;
+}
+
+/**
+ * Die Bestaetigung pruefen, bevor die Kamera angeht: Land gewaehlt, in den USA
+ * und Kanada auch der Landesteil, und das genannte Mindestalter bestaetigt.
+ * Liefert die Zahl, die bestaetigt wurde -- genau die, die der Text nannte.
+ */
+export function bestaetigungPruefen(
+  land: string,
+  region: string | undefined,
+  bestaetigt: boolean,
+): { ok: true; mindestalter: number } | { ok: false; grund: 'fehlt' | 'ungueltig' } {
+  const l = land.trim().toUpperCase();
+  if (!l) return { ok: false, grund: 'fehlt' };
+  if (!/^[A-Z]{2}$/.test(l)) return { ok: false, grund: 'ungueltig' };
+  const r = region?.trim().toUpperCase() || undefined;
+  if (REGIONEN[l] && !r) return { ok: false, grund: 'ungueltig' };
+  if (r !== undefined && !/^[A-Z0-9]{1,3}$/.test(r)) return { ok: false, grund: 'ungueltig' };
+  if (!bestaetigt) return { ok: false, grund: 'fehlt' };
+  return { ok: true, mindestalter: mindestalter(l, r) };
 }
