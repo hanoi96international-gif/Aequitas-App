@@ -18,7 +18,7 @@ import * as SecureStore from 'expo-secure-store';
 import { ml_dsa65 } from '@noble/post-quantum/ml-dsa.js';
 import { ethers } from 'ethers';
 import { API_BASE } from './config';
-import { pqSeed } from './pq';
+import { pqSeed, pqStand } from './pq';
 
 const CHAIN = 1926;
 const DOMAENE_ADRESSE = 'aequitas-pq-adresse-v1';
@@ -172,5 +172,59 @@ export async function ausTresorSenden(
     return { ok: true, txHash: tresorTxHash(text) };
   } catch (e: any) {
     return { ok: false, meldung: String(e?.message ?? e).slice(0, 200) };
+  }
+}
+
+// ------------------------------------------------------------ Pruefer-Stimme
+//
+// Audit B2 (Kette: pruefer_pq.go): eine Pruefer-Stimme traegt zusaetzlich die
+// ML-DSA-65-Unterschrift des MENSCHEN ueber den Satz der Ed25519-Stimme. Der
+// Schluessel ist der Tresor-Schluessel (aus der Seed-Phrase) und muss genau
+// der sein, dessen Hash die Wallet als PQ-Zusage hinterlegt hat -- sonst
+// weist die Kette die Stimme ab. Darum haengt die App den Teil nur an, wenn
+// der Hash stimmt; vor dem Stichtag der Kette geht die Stimme auch ohne.
+
+const PRUEFER_PQ_DOMAENE = 'aequitas-pruefer-pq-v1';
+const VERIFIER_DOMAENE = 'aequitas-verifier-zulassung-v1';
+
+/** Satz, den die Ed25519-Stimme unterschreibt (verifierNachricht der Kette). */
+export function verifierSatz(art: string, betroffener: string, zeit: number): string {
+  return `${VERIFIER_DOMAENE}|chain:${CHAIN}|${art}|${betroffener.trim().toLowerCase()}|${zeit}`;
+}
+
+/** Was der Mensch mit ML-DSA-65 unterschreibt (prueferPQNachricht der Kette). */
+export function prueferPQNachricht(mensch: string, satz: string): string {
+  return `${PRUEFER_PQ_DOMAENE}|chain:${CHAIN}|${mensch.trim().toLowerCase()}|${satz}`;
+}
+
+export interface PrueferPQTeil {
+  pub: string;
+  sig: string;
+}
+
+/**
+ * PQ-Teil einer Pruefer-Stimme -- oder null, wenn kein Tresor eingerichtet
+ * ist, die Wallet keine Zusage hat, die Zusage nicht zu diesem Schluessel
+ * passt oder etwas scheitert. seed/zusageHash nur fuer Tests von aussen.
+ */
+export async function prueferPQTeil(
+  wallet: string,
+  satz: string,
+  fetchFn: typeof fetch = fetch,
+  opts: { seed?: Uint8Array; zusageHash?: string } = {},
+): Promise<PrueferPQTeil | null> {
+  try {
+    const hash = opts.zusageHash ?? (await pqStand(wallet, fetchFn))?.hash ?? '';
+    if (!/^[0-9a-f]{64}$/.test(hash)) return null;
+    const seed = opts.seed ?? (await seedLaden());
+    if (!seed) return null;
+    const { publicKey, secretKey } = tresorSchluessel(seed);
+    if (ethers.sha256(publicKey).slice(2) !== hash) return null;
+    const text = ethers.toUtf8Bytes(prueferPQNachricht(wallet, satz));
+    const sig = ml_dsa65.sign(text, secretKey, { extraEntropy: false });
+    if (!ml_dsa65.verify(sig, text, publicKey)) return null;
+    return { pub: ethers.hexlify(publicKey).slice(2), sig: ethers.hexlify(sig).slice(2) };
+  } catch {
+    return null;
   }
 }

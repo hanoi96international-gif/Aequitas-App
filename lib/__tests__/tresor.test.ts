@@ -16,6 +16,8 @@ import { ml_dsa65 } from '@noble/post-quantum/ml-dsa.js';
 import { ethers } from 'ethers';
 import {
   ausTresorSenden,
+  prueferPQNachricht,
+  prueferPQTeil,
   tresorAdresse,
   tresorAdresseAusSchluessel,
   tresorEinrichten,
@@ -23,6 +25,7 @@ import {
   tresorSchluessel,
   tresorStand,
   tresorTxHash,
+  verifierSatz,
 } from '../tresor';
 
 const SEED = new Uint8Array(32).fill(0x11);
@@ -99,5 +102,43 @@ describe('Einrichten', () => {
     const a = await tresorEinrichten(PHRASE, WALLET);
     expect(a).toMatch(/^0x[0-9a-f]{40}$/);
     expect(await tresorAdresse(WALLET)).toBe(a);
+  });
+});
+
+// Audit B2: PQ-Teil einer Pruefer-Stimme. Saetze byte-gleich mit der Kette
+// (x/humanity/keeper/pruefer_pq_test.go, TestPrueferPQ_FesterSatz).
+describe('Pruefer-Stimme: PQ-Teil', () => {
+  const M = '0xAbCdEf0123456789aBcDeF0123456789AbCdEf01';
+  const B = '0x' + 'cd'.repeat(20);
+  const SATZ = 'aequitas-verifier-zulassung-v1|chain:1926|aufnahme|' + B + '|1800000000';
+
+  it('Saetze wie die Kette', () => {
+    expect(verifierSatz('aufnahme', B.toUpperCase().replace('0X', '0x'), 1800000000)).toBe(SATZ);
+    expect(prueferPQNachricht(M, SATZ)).toBe(
+      'aequitas-pruefer-pq-v1|chain:1926|0xabcdef0123456789abcdef0123456789abcdef01|' + SATZ,
+    );
+  });
+
+  it('unterschreibt nur, wenn der Tresor-Schluessel die Zusage ist', async () => {
+    const { publicKey } = tresorSchluessel(SEED);
+    const hash = ethers.sha256(publicKey).slice(2);
+    const t = await prueferPQTeil(M, SATZ, undefined as any, { seed: SEED, zusageHash: hash });
+    expect(t).not.toBeNull();
+    expect(t!.pub).toBe(ethers.hexlify(publicKey).slice(2));
+    expect(t!.pub).toHaveLength(2 * 1952);
+    expect(t!.sig).toHaveLength(2 * 3309);
+    const msg = ethers.toUtf8Bytes(prueferPQNachricht(M, SATZ));
+    expect(ml_dsa65.verify(ethers.getBytes('0x' + t!.sig), msg, publicKey)).toBe(true);
+    // Ueber einen anderen Satz gilt sie nicht.
+    expect(ml_dsa65.verify(ethers.getBytes('0x' + t!.sig), ethers.toUtf8Bytes(prueferPQNachricht(M, SATZ + '1')), publicKey)).toBe(false);
+  });
+
+  it('kein PQ-Teil ohne Zusage, mit fremder Zusage oder ohne Tresor', async () => {
+    expect(await prueferPQTeil(M, SATZ, undefined as any, { seed: SEED, zusageHash: '' })).toBeNull();
+    expect(await prueferPQTeil(M, SATZ, undefined as any, { seed: SEED, zusageHash: 'ab'.repeat(32) })).toBeNull();
+    expect(await prueferPQTeil(M, SATZ, undefined as any, { seed: new Uint8Array(32).fill(0x22), zusageHash: ethers.sha256(tresorSchluessel(SEED).publicKey).slice(2) })).toBeNull();
+    // Zusage vom Knoten: Netzfehler -> kein Teil.
+    const kaputt = jest.fn(async () => { throw new Error('offline'); });
+    expect(await prueferPQTeil(M, SATZ, kaputt as any, { seed: SEED })).toBeNull();
   });
 });

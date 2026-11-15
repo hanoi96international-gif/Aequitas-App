@@ -23,6 +23,7 @@ import { ethers } from 'ethers';
 import { API_BASE } from './config';
 import { coordinatorAdresse, coordinatorFreigabeNachricht, holeBesitznachweis, COORDINATOR_BINDUNG_CHAIN_ID } from './coordinatorBindung';
 import type { AequitasSigner } from './signer';
+import { prueferPQTeil, verifierSatz, type PrueferPQTeil } from './tresor';
 
 export type PrueferArt = 'aufnahme' | 'austritt' | 'entzug';
 const ARTEN: readonly PrueferArt[] = ['aufnahme', 'austritt', 'entzug'];
@@ -138,6 +139,7 @@ export async function abstimmen(
   betroffenerRoh: string,
   fetchFn: typeof fetch = fetch,
   jetztS: () => number = () => Math.floor(Date.now() / 1000),
+  pqTeil: (wallet: string, satz: string, fetchFn: typeof fetch) => Promise<PrueferPQTeil | null> = prueferPQTeil,
 ): Promise<StimmErgebnis> {
   const wallet = signer.address.toLowerCase();
   const betroffener = String(betroffenerRoh ?? '').trim().toLowerCase();
@@ -182,7 +184,7 @@ export async function abstimmen(
   ) {
     return { ok: false, fehler: 'stimme_ungueltig' };
   }
-  const sauber = {
+  const sauber: Record<string, unknown> = {
     zeit,
     bescheinigung: {
       public_key: pub,
@@ -192,6 +194,11 @@ export async function abstimmen(
       schluessel_sig: b.schluessel_sig,
     },
   };
+  // Audit B2: der quantensichere Teil (lib/tresor.ts). Nur wenn der
+  // Tresor-Schluessel genau die Zusage dieser Wallet ist; sonst ohne (vor dem
+  // Stichtag der Kette gilt die Stimme auch so).
+  const pq = await pqTeil(wallet, verifierSatz(art, betroffener, zeit), fetchFn).catch(() => null);
+  if (pq) sauber.pq = { pub: pq.pub, sig: pq.sig };
   try {
     const r = await fetchFn(`${API_BASE}/verifier/stimme`, {
       method: 'POST',
@@ -216,6 +223,7 @@ export async function bewerben(
   signer: AequitasSigner,
   fetchFn: typeof fetch = fetch,
   jetztS: () => number = () => Math.floor(Date.now() / 1000),
+  pqTeil: (wallet: string, satz: string, fetchFn: typeof fetch) => Promise<PrueferPQTeil | null> = prueferPQTeil,
 ): Promise<StimmErgebnis> {
   const wallet = signer.address.toLowerCase();
   const zeit = jetztS();
