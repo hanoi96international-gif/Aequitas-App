@@ -63,7 +63,11 @@ jobs:
           xc=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' | sort -V | tail -1)
           [ -n "$xc" ] || { echo "::error::kein Xcode auf dem Runner"; exit 1; }
           sudo xcode-select -s "$xc/Contents/Developer"
-          v=$(xcodebuild -version | head -1 | awk '{print $2}')
+          # Erst ganz lesen, dann auswerten: "xcodebuild -version | head -1"
+          # schliesst die Leitung zu frueh, xcodebuild stirbt an SIGPIPE
+          # (Broken pipe), und pipefail bricht den Schritt ab.
+          ausgabe=$(xcodebuild -version)
+          v=$(printf '%s\n' "$ausgabe" | awk 'NR==1{print $2}')
           echo "Xcode $v ($xc)"
           haupt=${v%%.*}; rest=${v#*.}; neben=${rest%%.*}
           if [ "$haupt" -lt 16 ] || { [ "$haupt" -eq 16 ] && [ "${neben:-0}" -lt 1 ]; }; then
