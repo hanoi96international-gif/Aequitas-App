@@ -89,8 +89,16 @@ describe('holeBesitznachweis', () => {
     }
   });
 
-  it('reads at most 4 KiB of the answer', async () => {
-    const f = jest.fn().mockResolvedValue(antwort(200, JSON.stringify({ public_key: KEY, key_signature: SIG, human_wallet: W, x: 'y'.repeat(5000) })));
+  it('accepts the answer of a coordinator with ML-DSA-65 key (Audit B2, ~10.7 KiB)', async () => {
+    // Echte Groessen: ML-DSA-65 oeffentlicher Schluessel 1952 Byte, Unterschrift 3309 Byte, als Hex.
+    const body = { public_key: KEY, key_signature: SIG, human_wallet: W, pq_public_key: 'ef'.repeat(1952), pq_besitz_sig: '12'.repeat(3309) };
+    expect(JSON.stringify(body).length).toBeGreaterThan(10000);
+    const f = jest.fn().mockResolvedValue(antwort(200, body));
+    expect(await holeBesitznachweis(URL, mensch.address, f as any)).toEqual({ ok: true, nachweis: { url: URL, schluessel: KEY, unterschrift: SIG, wallet: W } });
+  });
+
+  it('reads at most 16 KiB of the answer (oversized answer is refused, not parsed)', async () => {
+    const f = jest.fn().mockResolvedValue(antwort(200, JSON.stringify({ public_key: KEY, key_signature: SIG, human_wallet: W, x: 'y'.repeat(17000) })));
     expect(await holeBesitznachweis(URL, mensch.address, f as any)).toEqual({ ok: false, fehler: 'antwort_ungueltig' });
   });
 

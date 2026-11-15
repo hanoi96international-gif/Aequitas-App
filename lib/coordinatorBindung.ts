@@ -50,8 +50,14 @@ const ED25519_SIG = /^[0-9a-f]{128}$/;
 const ADRESSE = /^0x[0-9a-f]{40}$/;
 /** Laenger ist keine Coordinator-Adresse, sondern Muell. */
 const URL_MAX = 200;
-/** Die Antwort ist ein kleines JSON; mehr wird nicht gelesen. */
-const ANTWORT_MAX = 4096;
+/**
+ * Mehr wird von der Antwort nicht gelesen. Seit Audit B2 (Coordinator #121)
+ * traegt /besitznachweis auch den ML-DSA-65-Schluessel (1952 Byte) und dessen
+ * Besitznachweis (3309 Byte) als Hex -- zusammen rund 10,7 KiB. Die alte
+ * Grenze von 4 KiB wies damit JEDEN Nachweis als ungueltig ab. 16 KiB wie in
+ * dienstPQ.ts, das dieselbe Antwort liest.
+ */
+const ANTWORT_MAX = 16384;
 
 export function coordinatorFreigabeNachricht(schluessel: string): string {
   return `Aequitas: authorize coordinator ${schluessel.toLowerCase()} chain:${COORDINATOR_BINDUNG_CHAIN_ID}`;
