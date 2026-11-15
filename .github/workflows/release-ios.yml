@@ -1,0 +1,212 @@
+name: iOS IPA veroeffentlichen (SideStore-Quelle)
+
+# Haengt die IPA eines build-ios.yml-Laufs an das Release derselben Version
+# (das release-apk.yml angelegt hat) und schreibt die SideStore-Quelle neu
+# (Vorab-Release "sidestore", feste Adresse fuer SideStore/AltStore).
+#
+# Veroeffentlicht wird nur, was aus GENAU dem Commit des Release-Tags gebaut
+# ist: dieselbe Quelle wie die APK. Freigabe in der Umgebung app-signatur
+# (Pflicht-Freigabe); dieser Job liest keines ihrer Secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run-ID des build-ios.yml-Laufs"
+        required: true
+      tag:
+        description: "Tag des schon veroeffentlichten Releases, z. B. v1.23.1 (APK zuerst ueber release-apk.yml)"
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  TAG: ${{ inputs.tag }}
+  RUN_ID: ${{ inputs.run_id }}
+  QUELLE_TAG: sidestore
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: app-signatur
+    steps:
+      - name: Eingaben pruefen
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::run_id ist keine Zahl"; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]] || { echo "::error::Tag \"$TAG\" hat nicht die Form v1.2.3"; exit 1; }
+
+      # Der Lauf muss build-ios.yml sein, erfolgreich, und aus dem Commit des
+      # Tags -- sonst koennte ein Artefakt gleichen Namens aus einem anderen
+      # Workflow oder Zweig veroeffentlicht werden.
+      - name: Lauf und Tag abgleichen
+        id: lauf
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          lauf=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID")
+          pfad=$(jq -r .path <<<"$lauf"); ergebnis=$(jq -r .conclusion <<<"$lauf"); sha=$(jq -r .head_sha <<<"$lauf")
+          [ "$pfad" = ".github/workflows/build-ios.yml" ] || { echo "::error::Run $RUN_ID ist $pfad, nicht build-ios.yml"; exit 1; }
+          [ "$ergebnis" = "success" ] || { echo "::error::Run $RUN_ID endete mit $ergebnis"; exit 1; }
+          gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null || { echo "::error::Release $TAG gibt es nicht -- zuerst die APK ueber release-apk.yml veroeffentlichen"; exit 1; }
+          tagsha=$(gh api "repos/${{ github.repository }}/commits/$TAG" --jq .sha)
+          [ "$sha" = "$tagsha" ] || { echo "::error title=Andere Quelle::IPA aus $sha, Tag $TAG zeigt auf $tagsha. Die IPA muss aus demselben Commit gebaut sein wie die APK."; exit 1; }
+          echo "IPA aus $sha = Tag $TAG"
+
+      - name: Artefakt des Builds holen
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: aequitas-ios-ipa
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/ipa
+
+      # Gelesen, nicht entpackt: Zip und Info.plist mit der Standardbibliothek.
+      - name: Pruefen, was da eigentlich liegt
+        id: check
+        run: |
+          set -euo pipefail
+          cat > /tmp/pruefe.py <<'PY'
+          import hashlib, json, os, plistlib, re, sys, zipfile
+          ipa, tag = sys.argv[1], sys.argv[2]
+          size = os.path.getsize(ipa)
+          if size < 10_000_000:
+              sys.exit(f"IPA nur {size} Bytes")
+          with zipfile.ZipFile(ipa) as z:
+              namen = z.namelist()
+              if any(n.startswith("/") or ".." in n.split("/") for n in namen):
+                  sys.exit("Pfad ausserhalb von Payload/")
+              apps = {n.split("/")[1] for n in namen if n.startswith("Payload/") and n.split("/")[1].endswith(".app")}
+              if len(apps) != 1 or any(not n.startswith("Payload/") for n in namen):
+                  sys.exit(f"erwartet genau eine App unter Payload/, gefunden {sorted(apps)}")
+              app = apps.pop()
+              p = plistlib.loads(z.read(f"Payload/{app}/Info.plist"))
+              if f"Payload/{app}/embedded.mobileprovision" in namen:
+                  sys.exit("Profil eingebettet -- erwartet unsigniert")
+          if p.get("CFBundleIdentifier") != "digital.aequitas.app":
+              sys.exit(f"Bundle-ID {p.get('CFBundleIdentifier')}")
+          if "v" + str(p.get("CFBundleShortVersionString")) != tag:
+              sys.exit(f"Version {p.get('CFBundleShortVersionString')} passt nicht zu {tag}")
+          build = str(p.get("CFBundleVersion"))
+          if not re.fullmatch(r"[0-9]{1,6}", build):
+              sys.exit(f"Build {build}")
+          if "NSMicrophoneUsageDescription" in p:
+              sys.exit("Mikrofon-Berechtigung in der Info.plist")
+          h = hashlib.sha256()
+          with open(ipa, "rb") as f:
+              for b in iter(lambda: f.read(1 << 20), b""):
+                  h.update(b)
+          privat = {k: v for k, v in p.items() if k.startswith("NS") and k.endswith("UsageDescription")}
+          json.dump({"size": size, "sha256": h.hexdigest(), "build": build,
+                     "min": str(p.get("MinimumOSVersion", "15.5")), "privacy": privat}, sys.stdout)
+          PY
+          ipa=$(find /tmp/ipa -name 'aequitas-ios.ipa' -type f | head -1)
+          [ -n "$ipa" ] || { echo "::error::keine aequitas-ios.ipa im Artefakt"; exit 1; }
+          python3 -I /tmp/pruefe.py "$ipa" "$TAG" > /tmp/info.json
+          soll=$(cut -d' ' -f1 "$(dirname "$ipa")/aequitas-ios.ipa.sha256")
+          ist=$(jq -r .sha256 /tmp/info.json)
+          [ "$soll" = "$ist" ] || { echo "::error::SHA-256 weicht vom Bau ab ($soll / $ist)"; exit 1; }
+          cp "$ipa" /tmp/aequitas-ios.ipa
+          cat /tmp/info.json
+
+      - name: An das Release haengen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Ohne --clobber: eine schon veroeffentlichte IPA wird nie ersetzt.
+          gh release upload "$TAG" /tmp/aequitas-ios.ipa --repo "${{ github.repository }}"
+          sha=$(jq -r .sha256 /tmp/info.json); size=$(jq -r .size /tmp/info.json)
+          gh release view "$TAG" --repo "${{ github.repository }}" --json body --jq .body > /tmp/notes.md
+          {
+            echo ""
+            echo "### iPhone (SideStore / AltStore)"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Datei | \`aequitas-ios.ipa\` (unsigniert -- SideStore signiert mit deiner Apple-ID) |"
+            echo "| Groesse | $(numfmt --to=iec "$size") |"
+            echo "| SHA-256 | \`$sha\` |"
+            echo "| Gebaut aus | Run [$RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID) |"
+            echo ""
+            echo "Installation und Grenzen: https://github.com/${{ github.repository }}/releases/tag/$QUELLE_TAG"
+          } >> /tmp/notes.md
+          gh release edit "$TAG" --repo "${{ github.repository }}" --notes-file /tmp/notes.md
+
+      # Die Quelle im Format von AltStore/SideStore (Quelle v2). SideStore
+      # prueft die IPA gegen sha256. Feste Adresse:
+      #   https://github.com/<repo>/releases/download/sidestore/quelle.json
+      # Vorab-Release: /releases/latest (das liest der Knoten fuer den
+      # Update-Hinweis) bleibt die letzte echte Version.
+      - name: SideStore-Quelle schreiben
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/quelle.py <<'PY'
+          import datetime, json, os, sys
+          info = json.load(open("/tmp/info.json"))
+          repo, tag = os.environ["REPO"], os.environ["TAG"]
+          beschreibung = ("Aequitas: ein Mensch, ein Konto, Grundeinkommen. Wallet, Senden, Empfangen, "
+                          "Registrierung mit Gesichtspruefung. Auf dem iPhone ohne App-Attest: die "
+                          "Registrierung startet gestaffelt (spaetestens nach 30 Tagen frei). "
+                          "Vor allem anderen: Seed-Phrase sichern.")
+          quelle = {
+              "name": "Aequitas",
+              "identifier": "digital.aequitas.sidestore",
+              "subtitle": "Aequitas fuer das iPhone",
+              "description": beschreibung,
+              "website": "https://aequitas.digital",
+              "iconURL": f"https://raw.githubusercontent.com/{repo}/{tag}/assets/images/icon.png",
+              "apps": [{
+                  "name": "Aequitas",
+                  "bundleIdentifier": "digital.aequitas.app",
+                  "developerName": "Aequitas",
+                  "subtitle": "Ein Mensch, ein Konto",
+                  "localizedDescription": beschreibung,
+                  "iconURL": f"https://raw.githubusercontent.com/{repo}/{tag}/assets/images/icon.png",
+                  "tintColor": "6B98F3",
+                  "category": "utilities",
+                  "versions": [{
+                      "version": tag[1:],
+                      "buildVersion": info["build"],
+                      "date": datetime.date.today().isoformat(),
+                      "localizedDescription": f"Version {tag[1:]}",
+                      "downloadURL": f"https://github.com/{repo}/releases/download/{tag}/aequitas-ios.ipa",
+                      "size": info["size"],
+                      "sha256": info["sha256"],
+                      "minOSVersion": info["min"],
+                  }],
+                  "appPermissions": {"entitlements": [], "privacy": info["privacy"]},
+              }],
+              "news": [],
+          }
+          json.dump(quelle, open("/tmp/quelle.json", "w"), indent=2, ensure_ascii=False)
+          PY
+          python3 -I /tmp/quelle.py
+          jq -e '.apps[0].versions[0].sha256 | test("^[0-9a-f]{64}$")' /tmp/quelle.json >/dev/null
+
+          # Die Anleitung aus dem getaggten Stand (kein Checkout: dieser Job
+          # fuehrt keinen Code aus dem Repo aus).
+          sha=$(jq -r .sha256 /tmp/info.json)
+          gh api "repos/$REPO/contents/docs/IOS_SIDESTORE_RELEASE.md?ref=$TAG" -H 'Accept: application/vnd.github.raw' \
+            | sed -e "s|@REPO@|$REPO|g" -e "s|@TAG@|$TAG|g" -e "s|@SHA@|$sha|g" > /tmp/quelle-notes.md
+          [ -s /tmp/quelle-notes.md ] || { echo "::error::docs/IOS_SIDESTORE_RELEASE.md im Stand $TAG nicht lesbar"; exit 1; }
+
+          if ! gh release view "$QUELLE_TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release create "$QUELLE_TAG" --repo "$REPO" --target "$(gh api "repos/$REPO/commits/$TAG" --jq .sha)" \
+              --prerelease --latest=false --title "Aequitas fuer iPhone (SideStore)" --notes-file /tmp/quelle-notes.md
+          else
+            gh release edit "$QUELLE_TAG" --repo "$REPO" --prerelease --latest=false --notes-file /tmp/quelle-notes.md
+          fi
+          gh release upload "$QUELLE_TAG" /tmp/quelle.json --repo "$REPO" --clobber
+
+          {
+            echo "### iPhone-Fassung veroeffentlicht"
+            echo ""
+            echo "- IPA: https://github.com/$REPO/releases/download/$TAG/aequitas-ios.ipa"
+            echo "- SideStore-Quelle: https://github.com/$REPO/releases/download/$QUELLE_TAG/quelle.json"
+          } >> "$GITHUB_STEP_SUMMARY"

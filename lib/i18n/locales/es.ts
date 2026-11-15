@@ -18,6 +18,7 @@ const es: Translations = {
     bindHinweisTitel: 'Tu servidor quiere conectarse',
     updateTitel: "Nueva versión {version} disponible",
     updateText: "Usas la versión {eigene}. La nueva versión trae mejoras y correcciones de seguridad. Descárgala desde la página oficial e instálala sobre la anterior: tu cartera se conserva.",
+    updateTextIos: "Usas la versión {eigene}. La nueva versión trae mejoras y correcciones de seguridad. Actualízala en SideStore (fuente «Aequitas»): tu cartera se conserva.",
     updateJetzt: "Actualizar ahora",
     updateSpaeter: "Más tarde",
     bindHinweisText: 'El servidor {ip} espera tu confirmación.',

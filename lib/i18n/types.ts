@@ -16,6 +16,8 @@ export interface Translations {
     bindHinweisTitel: string;
     updateTitel: string;
     updateText: string;
+    /** iOS (SideStore): aktualisiert wird in SideStore, nicht ueber eine APK. */
+    updateTextIos: string;
     updateJetzt: string;
     updateSpaeter: string;
     bindHinweisText: string;

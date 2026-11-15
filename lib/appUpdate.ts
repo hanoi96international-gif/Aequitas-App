@@ -12,6 +12,16 @@ const VERSION = /^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$/;
 
 export const DOWNLOAD_URL = `${WEBAPP}/download/app.apk`;
 
+// iOS (ohne App Store, ueber SideStore/AltStore): die Seite mit der
+// SideStore-Quelle und der jeweils neuesten IPA (release-ios.yml). Ein
+// iPhone kann keine APK installieren; aktualisiert wird in SideStore.
+export const IOS_DOWNLOAD_URL = 'https://github.com/hanoi96international-gif/Aequitas-App/releases/tag/sidestore';
+
+/** Wohin "Jetzt aktualisieren" fuehrt, je nach Plattform. */
+export function downloadUrlFuer(os: string): string {
+  return os === 'ios' ? IOS_DOWNLOAD_URL : DOWNLOAD_URL;
+}
+
 export function eigeneVersion(): string {
   const v = String(Constants.expoConfig?.version ?? '');
   return VERSION.test(v) ? v : '';

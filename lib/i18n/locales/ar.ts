@@ -18,6 +18,7 @@ const ar: Translations = {
     bindHinweisTitel: 'خادمك يريد الاتصال',
     updateTitel: "الإصدار الجديد {version} متاح",
     updateText: "تستخدم الإصدار {eigene}. يجلب الإصدار الجديد تحسينات وإصلاحات أمنية. نزّله من الصفحة الرسمية وثبّته فوق القديم – تبقى محفظتك محفوظة.",
+    updateTextIos: "تستخدم الإصدار {eigene}. يجلب الإصدار الجديد تحسينات وإصلاحات أمنية. حدّثه في SideStore (المصدر «Aequitas») – تبقى محفظتك محفوظة.",
     updateJetzt: "تحديث الآن",
     updateSpaeter: "لاحقًا",
     bindHinweisText: 'الخادم {ip} ينتظر تأكيدك.',
