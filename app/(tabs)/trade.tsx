@@ -19,6 +19,7 @@ import {
   type PricePoint,
 } from '@/lib/api';
 import { withTimeout } from '@/lib/signer';
+import { AUFTRAG_FORM, achtStellen, liquiditaetAbNachricht, liquiditaetNachricht, mindestAchtStellen, tauschNachricht } from '@/lib/auftrag';
 import { theme, purpleTint, purpleTintBorder, tealTint, tealTintBorder, neonTint, neonTintBorder, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 import PriceChart from '@/components/PriceChart';
 import OfflineHinweis from '@/components/OfflineHinweis';
@@ -143,19 +144,23 @@ export default function Trade() {
     try {
       const nonce = await getNonce(address);
       const ts = Math.floor(Date.now() / 1000);
-      const msg = 'Aequitas Swap: ' + direction + ' ' + amt.toFixed(8) + ' nonce:' + nonce + ' ts:' + ts;
+      // Form 2 (lib/auftrag.ts): Grenze VOR dem Unterschreiben festlegen --
+      // sie ist Teil der Nachricht; Betrag und Grenze auf 8 Stellen.
+      const betrag = achtStellen(amt);
+      const minOut = mindestAchtStellen(preview * 0.99);
+      const msg = tauschNachricht(address, direction, betrag, minOut, nonce, ts);
       setStatus(t('trade.requestingSignature'));
       const sig = await withTimeout(signer.signMessage(msg), SIGN_TIMEOUT_MS, t('trade.signTimeout'));
       setStatus(t('trade.submittingSwap'));
-      const minOut = preview * 0.99;
       const d = await postSwap({
         wallet: address,
         direction,
-        amount: amt,
+        amount: betrag,
         nonce,
         timestamp: ts,
         signature: sig,
         min_amount_out: minOut,
+        form: AUFTRAG_FORM,
       });
       if (!d.success) throw new Error(d.message || t('trade.swapFailed'));
       setStatus(t('trade.swapSuccess'));
@@ -228,11 +233,13 @@ export default function Trade() {
     try {
       const nonce = await getNonce(address);
       const ts = Math.floor(Date.now() / 1000);
-      const msg = 'Aequitas Add Liquidity: ' + amountAEQ.toFixed(8) + ' AEQ + ' + amountTUSD.toFixed(8) + ' tUSD nonce:' + nonce + ' ts:' + ts;
+      const aeq8 = achtStellen(amountAEQ);
+      const tusd8 = achtStellen(amountTUSD);
+      const msg = liquiditaetNachricht(address, aeq8, tusd8, nonce, ts);
       setAddStatus(t('trade.requestingSignature'));
       const sig = await withTimeout(signer.signMessage(msg), SIGN_TIMEOUT_MS, t('trade.signTimeout'));
       setAddStatus(t('trade.submitting'));
-      const d = await postAddLiquidity({ wallet: address, amount_aeq: amountAEQ, amount_tusd: amountTUSD, nonce, timestamp: ts, signature: sig });
+      const d = await postAddLiquidity({ wallet: address, amount_aeq: aeq8, amount_tusd: tusd8, nonce, timestamp: ts, signature: sig, form: AUFTRAG_FORM });
       if (!d.success) throw new Error(d.message || t('trade.addFailed'));
       setAddStatus(t('trade.addSuccess'));
       setAddAeq('');
@@ -257,11 +264,13 @@ export default function Trade() {
     try {
       const nonce = await getNonce(address);
       const ts = Math.floor(Date.now() / 1000);
-      const msg = 'Aequitas Remove Liquidity: ' + sharesToBurn.toFixed(8) + ' shares nonce:' + nonce + ' ts:' + ts;
+      // Abgerundet: nie mehr Anteile als vorhanden.
+      const anteile = mindestAchtStellen(sharesToBurn);
+      const msg = liquiditaetAbNachricht(address, anteile, nonce, ts);
       setRemoveStatus(t('trade.requestingSignature'));
       const sig = await withTimeout(signer.signMessage(msg), SIGN_TIMEOUT_MS, t('trade.signTimeout'));
       setRemoveStatus(t('trade.submitting'));
-      const d = await postRemoveLiquidity({ wallet: address, shares: sharesToBurn, nonce, timestamp: ts, signature: sig });
+      const d = await postRemoveLiquidity({ wallet: address, shares: anteile, nonce, timestamp: ts, signature: sig, form: AUFTRAG_FORM });
       if (!d.success) throw new Error(d.message || t('trade.removeFailed'));
       setRemoveStatus(t('trade.receivedPrefix') + `${(d.amount_aeq ?? 0).toFixed(4)} AEQ + ${(d.amount_tusd ?? 0).toFixed(4)} tUSD`);
       setTimeout(() => {
