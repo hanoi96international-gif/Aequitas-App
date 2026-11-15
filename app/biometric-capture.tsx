@@ -2,7 +2,7 @@
 // see aequitas-biometric-beta). Pushed from the Identity tab ONLY when
 // BIOMETRIC_ENABLED is set (see lib/config.ts) -- unreachable otherwise.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1964,7 +1964,17 @@ export default function BiometricCapture() {
         </View>
       )}
       {step === 'consent' && !zwUngueltig && (
-        <View style={S.content}>
+        // Scrollbar: der Einwilligungstext ist mit Lebensnachweis und
+        // Altersschaetzung laenger als ein Handy-Bildschirm. Als feste View
+        // lief die mittig gesetzte Karte oben unter die Statusleiste und
+        // unten ueber den Bildschirm hinaus -- "Weiter" war nicht erreichbar
+        // (Geraetebericht 15.11.2026).
+        <ScrollView
+          style={S.scroll}
+          contentContainerStyle={S.contentScroll}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
           {offen && !ohneZuschuss ? (
             <View style={S.card}>
               <Text style={S.title}>{t('identity.kettenschrittOffenTitel')}</Text>
@@ -2032,7 +2042,7 @@ export default function BiometricCapture() {
                 maxLength={3}
               />
             ) : null}
-            <Text style={S.resultDebugText}>{t('identity.alterHinweis')}</Text>
+            <Text style={S.alterHinweis}>{t('identity.alterHinweis')}</Text>
             </>
             )}
 
@@ -2060,7 +2070,7 @@ export default function BiometricCapture() {
               <Text style={S.btnGhostText}>{t('identity.biometricCancelBtn')}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       )}
 
       {(step === 'face_intro' || step === 'face_burst' || step === 'zwilling_intro' || step === 'zwilling_burst') && (
@@ -2502,6 +2512,9 @@ export default function BiometricCapture() {
 const S = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.bg },
   content: { flex: 1, padding: 24, justifyContent: 'center' },
+  scroll: { flex: 1 },
+  contentScroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  alterHinweis: { color: theme.muted, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: -4, marginBottom: 14 },
   card: {
     backgroundColor: theme.card,
     borderRadius: theme.radius,
