@@ -80,6 +80,29 @@ describe('Bescheinigung des Coordinators', () => {
   ])('Missbrauch wird nicht weitergereicht (%#)', (j) => {
     expect(bescheinigungAusAntwort(j)).toBeNull();
   });
+
+  // Audit B1: der Coordinator haengt "pq:<ed25519>:<ml-dsa-65>" an. Bis 1.20.0
+  // verwarf die App die ganze Antwort -- kein Umzug mehr.
+  const PQ = 'pq:' + 'ab'.repeat(32) + ':' + 'cd'.repeat(3309);
+  it('nimmt pq:-Eintraege in genau der Form der Kette an und reicht sie weiter', () => {
+    const mitPQ = { ...gut, bescheinigung: ['v3:' + 'a'.repeat(128), 'v3:' + 'b'.repeat(128), PQ, PQ.replace('pq:ab', 'pq:ac')] };
+    expect(bescheinigungAusAntwort(mitPQ)?.bescheinigung).toEqual(mitPQ.bescheinigung);
+  });
+  it.each([
+    ['Grossschrift', PQ.toUpperCase().replace('PQ:', 'pq:')],
+    ['Unterschrift zu kurz', PQ.slice(0, -2)],
+    ['Unterschrift zu lang', PQ + 'aa'],
+    ['Schluessel zu kurz', 'pq:' + 'ab'.repeat(31) + ':' + 'cd'.repeat(3309)],
+    ['ohne Doppelpunkt', PQ.replace(/:(?=[0-9a-f]{6618}$)/, '')],
+    ['fremdes Zeichen', PQ.slice(0, -1) + 'g'],
+  ])('verwirft pq: in falscher Form: %s', (_, eintrag) => {
+    expect(bescheinigungAusAntwort({ ...gut, bescheinigung: ['v3:' + 'a'.repeat(128), eintrag] })).toBeNull();
+  });
+  it('hoechstens 17 pq:-Eintraege und nie nur pq:', () => {
+    expect(bescheinigungAusAntwort({ ...gut, bescheinigung: ['v3:' + 'a'.repeat(128), ...Array(18).fill(PQ)] })).toBeNull();
+    expect(bescheinigungAusAntwort({ ...gut, bescheinigung: ['v3:' + 'a'.repeat(128), ...Array(17).fill(PQ)] })).not.toBeNull();
+    expect(bescheinigungAusAntwort({ ...gut, bescheinigung: [PQ] })).toBeNull();
+  });
 });
 
 function signerVon(w: ethers.Wallet) {

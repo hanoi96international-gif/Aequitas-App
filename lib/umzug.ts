@@ -186,9 +186,17 @@ export function bescheinigungAusAntwort(j: any): UmzugBescheinigung | null {
   if (!ADRESSE.test(j.alt) || !NULLIFIER.test(j.nullifier) || !Number.isSafeInteger(j.zeit) || j.zeit <= 0) return null;
   if (j.modus !== 'test' && j.modus !== 'real') return null;
   if (j.pruefung !== 'streng' && j.pruefung !== 'einfach') return null;
-  if (e.length === 0 || e.length > 34 || !e.every((x: unknown) => typeof x === 'string' && /^v3k?:[0-9a-zA-Z.:_x]{1,600}$/.test(x))) {
+  // Audit B1 (14.11.2026): seit Biometrie #118 haengt der Coordinator auch
+  // "pq:<ed25519>:<ml-dsa-65>" an (fest 6.686 Zeichen). Bis 1.20.0 verwarf die
+  // App deshalb die ganze Antwort -- kein Umzug mehr. Jetzt in genau dieser
+  // Form, hoechstens 17 (wie die Kette), unveraendert an die Kette.
+  const v3 = /^v3k?:[0-9a-zA-Z.:_x]{1,600}$/;
+  const pq = /^pq:[0-9a-f]{64}:[0-9a-f]{6618}$/;
+  if (e.length === 0 || e.length > 51 || !e.every((x: unknown) => typeof x === 'string' && (v3.test(x) || pq.test(x)))) {
     return null;
   }
+  const anzahlPQ = e.filter((x: string) => x.startsWith('pq:')).length;
+  if (anzahlPQ > 17 || e.length - anzahlPQ > 34 || anzahlPQ === e.length) return null;
   return { alt: j.alt, nullifier: j.nullifier, zeit: j.zeit, modus: j.modus, bescheinigung: e, pruefung: j.pruefung };
 }
 
