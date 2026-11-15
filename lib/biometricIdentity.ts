@@ -1289,6 +1289,9 @@ export async function umzugBiometric(
     form.append('wallet_signature', signature);
     form.append('challenge_nonce', capture.challengeNonce);
     form.append('device_id', opts.deviceId);
+    // Audit B1: diese App nimmt "pq:"-Eintraege an (lib/umzug.ts) -- der
+    // Coordinator haengt sie nur dann an (aeltere Apps verwarfen die Antwort).
+    form.append('pq', '1');
     if (opts.consent?.biometricConsent) {
       form.append('consent_version', CONSENT_VERSION);
       form.append('consented_at', String(opts.consent.consentedAt));

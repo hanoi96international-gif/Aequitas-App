@@ -156,3 +156,29 @@ describe('holeRegisterStand', () => {
     expect(await holeRegisterStand(jest.fn().mockRejectedValue(new Error('x')) as any)).toBeNull();
   });
 });
+
+describe('PQ-Teil der Stimme (Audit B2)', () => {
+  it('haengt den PQ-Teil an, wenn der Tresor ihn liefert, und unterschreibt den Satz der Stimme', async () => {
+    const f = netz();
+    const gesehen: string[] = [];
+    const teil = async (w: string, satz: string) => {
+      gesehen.push(w + '|' + satz);
+      return { pub: '12'.repeat(1952), sig: '34'.repeat(3309) };
+    };
+    const r = await abstimmen(signerAus(mensch), URL, 'aufnahme', KANDIDAT, f as any, () => JETZT, teil);
+    expect(r.ok).toBe(true);
+    expect(gesehen).toEqual([`${W}|aequitas-verifier-zulassung-v1|chain:1926|aufnahme|${KANDIDAT}|${JETZT}`]);
+    const anKnoten = JSON.parse((f.mock.calls.find((c) => c[0] === `${API_BASE}/verifier/stimme`) as any)[1].body);
+    expect(anKnoten.stimme.pq).toEqual({ pub: '12'.repeat(1952), sig: '34'.repeat(3309) });
+  });
+
+  it('stimmt ohne PQ-Teil, wenn der Tresor keinen liefert oder scheitert', async () => {
+    for (const teil of [async () => null, async () => { throw new Error('abgebrochen'); }]) {
+      const f = netz();
+      const r = await abstimmen(signerAus(mensch), URL, 'aufnahme', KANDIDAT, f as any, () => JETZT, teil as any);
+      expect(r.ok).toBe(true);
+      const anKnoten = JSON.parse((f.mock.calls.find((c) => c[0] === `${API_BASE}/verifier/stimme`) as any)[1].body);
+      expect(anKnoten.stimme.pq).toBeUndefined();
+    }
+  });
+});

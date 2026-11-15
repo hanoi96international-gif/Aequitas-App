@@ -622,6 +622,11 @@ export interface Translations {
     regAustretenFrage: string;
     regEntzug: string;
     regEntzugFrage: string;
+    dienstPQTitel: string;
+    dienstPQDesc: string;
+    dienstPQKnopf: string;
+    dienstPQOk: string;
+    dienstPQFehler: string;
     regBewerbenTitel: string;
     regBewerbenDesc: string;
     regBewerben: string;

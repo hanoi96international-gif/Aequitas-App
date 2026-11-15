@@ -405,6 +405,7 @@ export function postSwap(params: {
   timestamp: number;
   signature: string;
   min_amount_out: number;
+  form: 2; // lib/auftrag.ts
 }) {
   return apiPost<SwapResult>('/swap', params);
 }
@@ -439,6 +440,7 @@ export function postAddLiquidity(params: {
   nonce: number;
   timestamp: number;
   signature: string;
+  form: 2; // lib/auftrag.ts
 }) {
   return apiPost<LiquidityResult>('/add-liquidity', params);
 }
@@ -449,6 +451,7 @@ export function postRemoveLiquidity(params: {
   nonce: number;
   timestamp: number;
   signature: string;
+  form: 2; // lib/auftrag.ts
 }) {
   return apiPost<LiquidityResult>('/remove-liquidity', params);
 }
