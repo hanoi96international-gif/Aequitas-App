@@ -18,6 +18,7 @@ const zh: Translations = {
     bindHinweisTitel: '你的服务器想要连接',
     updateTitel: "新版本 {version} 已发布",
     updateText: "你正在使用 {eigene} 版本。新版本带来改进和安全修复。请从官方页面下载并覆盖安装旧版本——你的钱包会保留。",
+    updateTextIos: "你正在使用 {eigene} 版本。新版本带来改进和安全修复。请在 SideStore 中更新（来源“Aequitas”）——你的钱包会保留。",
     updateJetzt: "立即更新",
     updateSpaeter: "稍后",
     bindHinweisText: '服务器 {ip} 正在等待你的确认。',

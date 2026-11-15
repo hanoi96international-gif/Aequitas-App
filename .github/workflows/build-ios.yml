@@ -1,0 +1,204 @@
+name: iOS IPA bauen (unsigniert, fuer SideStore/AltStore)
+
+# iOS ohne App Store (docs/IOS_SIDESTORE.md). Gebaut wird eine UNSIGNIERTE
+# IPA: SideStore (oder AltStore, Sideloadly) signiert sie auf dem iPhone mit
+# der Apple-ID des Menschen. Darum braucht dieser Bau kein Apple-Konto, kein
+# Zertifikat und kein Secret ausser der WalletConnect-Projekt-ID, die
+# ohnehin im JS-Bundle steht.
+#
+# Nur von Hand, wie der Android-Bau (Audit 2026-10-21, H2): ein
+# Push-Ausloeser liefe in der Fassung des gepushten Commits.
+on:
+  workflow_dispatch:
+    inputs:
+      allow_unconfigured:
+        description: "Auch ohne WalletConnect-Projekt-ID bauen (die App hat dann keinen Wallet-verbinden-Knopf)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Das Repo ist oeffentlich: macOS-Minuten kosten nichts. Der Bau (Pods,
+    # Hermes, Xcode) dauert 30-50 Minuten.
+    runs-on: macos-15
+    timeout-minutes: 100
+
+    env:
+      # Dieselben oeffentlichen Werte wie im Android-Bau (build-apk.yml) --
+      # sie landen im JS-Bundle. Niemals ein Token oder Schluessel.
+      EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID }}
+      EXPO_PUBLIC_COORDINATOR_BASE: ${{ vars.EXPO_PUBLIC_COORDINATOR_BASE }}
+      EXPO_PUBLIC_COORDINATOR_FALLBACKS: ${{ vars.EXPO_PUBLIC_COORDINATOR_FALLBACKS }}
+      EXPO_PUBLIC_API_FALLBACKS: ${{ vars.EXPO_PUBLIC_API_FALLBACKS }}
+      EXPO_PUBLIC_RPC_FALLBACKS: ${{ vars.EXPO_PUBLIC_RPC_FALLBACKS }}
+      EXPO_PUBLIC_BIOMETRIC_ENABLED: ${{ vars.EXPO_PUBLIC_BIOMETRIC_ENABLED }}
+      EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER: ${{ vars.EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER }}
+      EXPO_PUBLIC_API_BASE: ${{ vars.EXPO_PUBLIC_API_BASE }}
+      EXPO_PUBLIC_WEBAPP: ${{ vars.EXPO_PUBLIC_WEBAPP }}
+      EXPO_PUBLIC_RPC_URL: ${{ vars.EXPO_PUBLIC_RPC_URL }}
+      ALLOW_UNCONFIGURED: ${{ inputs.allow_unconfigured }}
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # Expo SDK 54 / React Native 0.81 brauchen Xcode 16.1 oder neuer. Das
+      # Runner-Image hat mehrere; genommen wird das neueste stabile (keine
+      # Beta, kein Release Candidate), sonst haengt der Bau an einem
+      # wandernden Standard.
+      - name: Xcode waehlen
+        run: |
+          set -euo pipefail
+          xc=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' | sort -V | tail -1)
+          [ -n "$xc" ] || { echo "::error::kein Xcode auf dem Runner"; exit 1; }
+          sudo xcode-select -s "$xc/Contents/Developer"
+          v=$(xcodebuild -version | head -1 | awk '{print $2}')
+          echo "Xcode $v ($xc)"
+          haupt=${v%%.*}; rest=${v#*.}; neben=${rest%%.*}
+          if [ "$haupt" -lt 16 ] || { [ "$haupt" -eq 16 ] && [ "${neben:-0}" -lt 1 ]; }; then
+            echo "::error::Xcode $v ist zu alt (SDK 54 braucht 16.1+)"; exit 1
+          fi
+          pod --version
+
+      - name: Build-Konfiguration pruefen
+        run: |
+          set -euo pipefail
+          if [ -z "$EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID" ]; then
+            if [ "$ALLOW_UNCONFIGURED" = "true" ]; then
+              echo "::warning title=IPA ohne WalletConnect::EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID fehlt; bewusst zugelassen."
+            else
+              echo "::error title=Kein WalletConnect-Projekt-ID::Secret EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID fehlt (wie im Android-Bau). Hinterlegen oder allow_unconfigured=true."
+              exit 1
+            fi
+          fi
+          # Wie im Android-Bau: jede URL wird fest ins Bundle gebacken -- ein
+          # toter Host faellt sonst erst in der Hand des Nutzers auf.
+          fail=0
+          for var in EXPO_PUBLIC_API_BASE EXPO_PUBLIC_WEBAPP EXPO_PUBLIC_RPC_URL EXPO_PUBLIC_COORDINATOR_BASE; do
+            value="${!var:-}"
+            [ -n "$value" ] || continue
+            case "$value" in
+              https://*) ;;
+              *) echo "::error title=Keine https-URL in $var::'$value'"; fail=1; continue ;;
+            esac
+            code=$(curl -s -L -o /dev/null --max-time 25 -w '%{http_code}' "$value/health" || true)
+            if [ "$code" != "200" ]; then
+              echo "::error title=Toter Host in $var::$value/health antwortet mit HTTP $code."
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
+      - name: Abhaengigkeiten installieren
+        run: |
+          npm install -g npm@11
+          npm ci
+
+      - name: Typen und Tests pruefen
+        env:
+          EXPO_PUBLIC_ALLOW_DEVICE_SECRET_REGISTER: ''
+        run: |
+          npx tsc --noEmit
+          npx jest --ci
+
+      - name: Natives iOS-Projekt erzeugen
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Pods installieren
+        working-directory: ios
+        run: pod install
+
+      # Ohne Signatur: SideStore signiert auf dem Geraet. Keine Entitlements
+      # (das erzeugte .entitlements ist leer) -- so laesst sich die App auch
+      # mit einer kostenlosen Apple-ID signieren.
+      - name: Bauen (Release, ohne Signatur)
+        run: |
+          set -euo pipefail
+          ws=$(ls -d ios/*.xcworkspace | head -1)
+          schema=$(basename "$ws" .xcworkspace)
+          echo "Workspace $ws, Schema $schema"
+          xcodebuild \
+            -workspace "$ws" \
+            -scheme "$schema" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/aequitas.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            archive | tail -n 200
+          test -d "$RUNNER_TEMP/aequitas.xcarchive/Products/Applications"
+
+      - name: IPA packen und pruefen
+        id: ipa
+        run: |
+          set -euo pipefail
+          app=$(ls -d "$RUNNER_TEMP"/aequitas.xcarchive/Products/Applications/*.app | head -1)
+          [ -n "$app" ] || { echo "::error::keine .app im Archiv"; exit 1; }
+          plist="$app/Info.plist"
+          lies() { /usr/libexec/PlistBuddy -c "Print :$1" "$plist" 2>/dev/null || true; }
+
+          version=$(node -p "require('./app.json').expo.version")
+          build=$(node -p "require('./app.json').expo.ios.buildNumber")
+          bid=$(lies CFBundleIdentifier)
+          [ "$bid" = "digital.aequitas.app" ] || { echo "::error::Bundle-ID $bid"; exit 1; }
+          [ "$(lies CFBundleShortVersionString)" = "$version" ] || { echo "::error::Version $(lies CFBundleShortVersionString) statt $version"; exit 1; }
+          [ "$(lies CFBundleVersion)" = "$build" ] || { echo "::error::Build $(lies CFBundleVersion) statt $build"; exit 1; }
+          [ -n "$(lies NSCameraUsageDescription)" ] || { echo "::error::NSCameraUsageDescription fehlt"; exit 1; }
+          [ -n "$(lies NSFaceIDUsageDescription)" ] || { echo "::error::NSFaceIDUsageDescription fehlt"; exit 1; }
+          # Wie die verbotenen Berechtigungen im Android-Bau: was die App
+          # nicht braucht, fragt sie nicht ab.
+          for k in NSMicrophoneUsageDescription NSLocationWhenInUseUsageDescription NSLocationAlwaysAndWhenInUseUsageDescription \
+                   NSLocationAlwaysUsageDescription NSContactsUsageDescription NSPhotoLibraryUsageDescription \
+                   NSPhotoLibraryAddUsageDescription NSBluetoothAlwaysUsageDescription NSCalendarsUsageDescription \
+                   NSSpeechRecognitionUsageDescription NSUserTrackingUsageDescription; do
+            if [ -n "$(lies $k)" ]; then echo "::error title=Unnoetige Berechtigung::$k steht in der Info.plist"; exit 1; fi
+          done
+          [ ! -e "$app/embedded.mobileprovision" ] || { echo "::error::Profil eingebettet -- der Bau sollte unsigniert sein"; exit 1; }
+          js="$app/main.jsbundle"
+          [ -f "$js" ] && [ "$(stat -f %z "$js")" -gt 1000000 ] || { echo "::error::main.jsbundle fehlt oder ist zu klein"; exit 1; }
+          bin="$app/$(lies CFBundleExecutable)"
+          archs=$(lipo -archs "$bin")
+          case " $archs " in *" arm64 "*) ;; *) echo "::error::Binaerdatei ohne arm64: $archs"; exit 1 ;; esac
+
+          out="$RUNNER_TEMP/ipa"
+          mkdir -p "$out/Payload"
+          cp -R "$app" "$out/Payload/"
+          (cd "$out" && zip -qry aequitas-ios.ipa Payload)
+          ipa="$out/aequitas-ios.ipa"
+          size=$(stat -f %z "$ipa")
+          [ "$size" -gt 10000000 ] || { echo "::error::IPA nur $size Bytes"; exit 1; }
+          sha=$(shasum -a 256 "$ipa" | cut -d' ' -f1)
+          echo "$sha  aequitas-ios.ipa" > "$out/aequitas-ios.ipa.sha256"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+          {
+            echo "### IPA gebaut (unsigniert, fuer SideStore)"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version | $version ($build) |"
+            echo "| Groesse | $(du -h "$ipa" | cut -f1) |"
+            echo "| SHA-256 | \`$sha\` |"
+            echo "| Architektur | $archs |"
+            echo ""
+            echo "Veroeffentlichen: release-ios.yml mit dieser Run-ID und dem Tag v$version (Freigabe app-signatur)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: aequitas-ios-ipa
+          path: |
+            ${{ steps.ipa.outputs.path }}/aequitas-ios.ipa
+            ${{ steps.ipa.outputs.path }}/aequitas-ios.ipa.sha256
+          retention-days: 30
+          if-no-files-found: error

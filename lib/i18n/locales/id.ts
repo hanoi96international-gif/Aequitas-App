@@ -18,6 +18,7 @@ const id: Translations = {
     bindHinweisTitel: 'Servermu ingin terhubung',
     updateTitel: "Versi baru {version} tersedia",
     updateText: "Kamu memakai versi {eigene}. Versi baru membawa perbaikan dan perbaikan keamanan. Unduh dari halaman resmi dan pasang di atas versi lama – dompetmu tetap ada.",
+    updateTextIos: "Kamu memakai versi {eigene}. Versi baru membawa perbaikan dan perbaikan keamanan. Perbarui di SideStore (sumber „Aequitas“) – dompetmu tetap ada.",
     updateJetzt: "Perbarui sekarang",
     updateSpaeter: "Nanti",
     bindHinweisText: 'Server {ip} menunggu konfirmasimu.',

@@ -18,6 +18,7 @@ const tr: Translations = {
     bindHinweisTitel: 'Sunucun bağlanmak istiyor',
     updateTitel: "Yeni sürüm {version} mevcut",
     updateText: "{eigene} sürümünü kullanıyorsun. Yeni sürüm iyileştirmeler ve güvenlik düzeltmeleri getiriyor. Resmî sayfadan indir ve eskisinin üzerine kur – cüzdanın korunur.",
+    updateTextIos: "{eigene} sürümünü kullanıyorsun. Yeni sürüm iyileştirmeler ve güvenlik düzeltmeleri getiriyor. SideStore’da güncelle (kaynak „Aequitas“) – cüzdanın korunur.",
     updateJetzt: "Şimdi güncelle",
     updateSpaeter: "Sonra",
     bindHinweisText: '{ip} sunucusu onayını bekliyor.',

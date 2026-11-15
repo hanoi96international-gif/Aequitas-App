@@ -18,6 +18,7 @@ const it: Translations = {
     bindHinweisTitel: 'Il tuo server vuole connettersi',
     updateTitel: "Nuova versione {version} disponibile",
     updateText: "Stai usando la versione {eigene}. La nuova versione porta miglioramenti e correzioni di sicurezza. Scaricala dalla pagina ufficiale e installala sopra quella vecchia: il tuo wallet resta.",
+    updateTextIos: "Stai usando la versione {eigene}. La nuova versione porta miglioramenti e correzioni di sicurezza. Aggiornala in SideStore (sorgente «Aequitas»): il tuo wallet resta.",
     updateJetzt: "Aggiorna ora",
     updateSpaeter: "Più tardi",
     bindHinweisText: 'Il server {ip} attende la tua conferma.',

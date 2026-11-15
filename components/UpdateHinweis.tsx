@@ -1,13 +1,14 @@
 // Hinweis oben auf der Startseite: es gibt eine neuere App-Version
 // (lib/appUpdate.ts). "Jetzt aktualisieren" oeffnet die Download-Seite des
-// Knotens; installiert wird vom Menschen selbst. "Spaeter" blendet den
+// Knotens (Android) bzw. die SideStore-Seite (iOS); installiert wird vom
+// Menschen selbst. "Spaeter" blendet den
 // Hinweis fuer diese Sitzung aus.
 import React, { useEffect, useState } from 'react';
-import { AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { neonTint, neonTintBorder, theme } from '@/constants/aequitas-theme';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { DOWNLOAD_URL, eigeneVersion, istNeuer, neuesteVersion } from '@/lib/appUpdate';
+import { downloadUrlFuer, eigeneVersion, istNeuer, neuesteVersion } from '@/lib/appUpdate';
 
 const PRUEFEN_ALLE_MS = 6 * 60 * 60 * 1000;
 // Nach einem Fehlschlag: so bald noch einmal.
@@ -58,8 +59,8 @@ export default function UpdateHinweis() {
   return (
     <View style={S.karte}>
       <Text style={S.titel}>{t('home.updateTitel').replace('{version}', neu)}</Text>
-      <Text style={S.text}>{t('home.updateText').replace('{eigene}', eigeneVersion())}</Text>
-      <TouchableOpacity style={S.knopf} onPress={() => Linking.openURL(DOWNLOAD_URL)} activeOpacity={0.85} accessibilityRole="button">
+      <Text style={S.text}>{t(Platform.OS === 'ios' ? 'home.updateTextIos' : 'home.updateText').replace('{eigene}', eigeneVersion())}</Text>
+      <TouchableOpacity style={S.knopf} onPress={() => Linking.openURL(downloadUrlFuer(Platform.OS))} activeOpacity={0.85} accessibilityRole="button">
         <Text style={S.knopfText}>{t('home.updateJetzt')}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => { ausgeblendetFuer = neu; setNeu(null); }} activeOpacity={0.7}>

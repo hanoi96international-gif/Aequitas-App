@@ -1,4 +1,4 @@
-import { istNeuer, neuesteVersion, updateVerfuegbar, DOWNLOAD_URL } from '../appUpdate';
+import { istNeuer, neuesteVersion, updateVerfuegbar, DOWNLOAD_URL, IOS_DOWNLOAD_URL, downloadUrlFuer } from '../appUpdate';
 import { API_BASE, WEBAPP } from '../config';
 
 function antwort(status: number, text: string) {
@@ -43,5 +43,16 @@ describe('updateVerfuegbar', () => {
     expect(await updateVerfuegbar(f('1.16.0'), '1.16.0')).toBeNull();
     expect(await updateVerfuegbar(f('1.15.0'), '1.16.0')).toBeNull();
     expect(await updateVerfuegbar(f('1.17.0'), '')).toBeNull();
+  });
+});
+
+describe('downloadUrlFuer', () => {
+  it('sends Android to the signed APK of the own node', () => {
+    expect(downloadUrlFuer('android')).toBe(`${WEBAPP}/download/app.apk`);
+  });
+  it('sends iOS to the SideStore page, never to an APK', () => {
+    expect(downloadUrlFuer('ios')).toBe(IOS_DOWNLOAD_URL);
+    expect(IOS_DOWNLOAD_URL).toBe('https://github.com/hanoi96international-gif/Aequitas-App/releases/tag/sidestore');
+    expect(downloadUrlFuer('ios')).not.toMatch(/\.apk$/);
   });
 });
