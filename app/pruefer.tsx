@@ -7,6 +7,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { COORDINATOR_BASE } from '@/lib/config';
 import { coordinatorAdresse } from '@/lib/coordinatorBindung';
 import { abstimmen, bewerben, holeRegisterStand, type PrueferArt, type RegisterStand, type StimmErgebnis } from '@/lib/prueferRegister';
+import { dienstPQEintragen } from '@/lib/dienstPQ';
 import { withTimeout } from '@/lib/signer';
 import { theme } from '@/constants/aequitas-theme';
 
@@ -104,6 +105,27 @@ export default function Pruefer() {
     ]);
   }
 
+  // Audit B2: den ML-DSA-Schluessel des Dienstes unter der Adresse oben
+  // eintragen (lib/dienstPQ.ts) -- der Tresor fragt nach der Biometrie.
+  async function dienstEintragen() {
+    if (!signer) return;
+    setLaeuft('dienst-pq');
+    setMeldung(null);
+    try {
+      const r = await withTimeout(dienstPQEintragen(ich, url), TIMEOUT_MS, t('trade.signTimeout'));
+      if (r.ok) {
+        const zeit = r.wirktAb ? new Date(r.wirktAb * 1000).toLocaleString() : '';
+        setMeldung({ ok: true, text: t('node.dienstPQOk').replace('{zeit}', zeit) });
+      } else {
+        setMeldung({ ok: false, text: t('node.dienstPQFehler').replace('{fehler}', [r.fehler, r.meldung].filter(Boolean).join(': ')) });
+      }
+    } catch (e: any) {
+      setMeldung({ ok: false, text: e?.message ?? '' });
+    } finally {
+      setLaeuft(null);
+    }
+  }
+
   async function bewerbenDruecken() {
     if (!signer) return;
     setLaeuft('antrag');
@@ -158,6 +180,16 @@ export default function Pruefer() {
               maxLength={200}
             />
             <Text style={S.hinweis}>{t('node.regUrlHinweis')}</Text>
+          </View>
+        ) : null}
+
+        {stand?.aktiv && binPruefer && signer ? (
+          <View style={S.card}>
+            <Text style={S.cardTitle}>{t('node.dienstPQTitel')}</Text>
+            <Text style={S.body}>{t('node.dienstPQDesc')}</Text>
+            <TouchableOpacity style={S.btn} onPress={dienstEintragen} disabled={!!laeuft || !urlOk} activeOpacity={0.85}>
+              {laeuft === 'dienst-pq' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.dienstPQKnopf')}</Text>}
+            </TouchableOpacity>
           </View>
         ) : null}
 

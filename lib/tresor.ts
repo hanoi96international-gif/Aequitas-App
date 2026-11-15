@@ -84,7 +84,7 @@ export async function tresorAdresse(wallet: string): Promise<string | null> {
   }
 }
 
-async function seedLaden(): Promise<Uint8Array | null> {
+export async function seedLaden(): Promise<Uint8Array | null> {
   const roh = await SecureStore.getItemAsync(SEED_SCHLUESSEL, {
     requireAuthentication: SecureStore.canUseBiometricAuthentication(),
     authenticationPrompt: 'Aus dem Tresor senden',
