@@ -19,6 +19,8 @@ import {
   pqHashVergessen,
   pqSeed,
   pqStand,
+  quantenschutzAutomatisch,
+  QUANTENSCHUTZ_AUTO_PAUSE_S,
   zusageHinterlegen,
   zusageNachricht,
   zusageSchonDa,
@@ -114,5 +116,125 @@ describe('Stand', () => {
   it('Unsinn wird zu "nichts"', async () => {
     expect(await pqStand(ADRESSE, antwort(200, { pq_zusage_ab: -1, pq_zusage_seit: 5, pq_hash: 'X' }))).toEqual({ ab: 0, seit: 0, hash: '' });
     expect(await pqStand(ADRESSE, antwort(500, {}))).toBeNull();
+  });
+});
+
+describe('Quantenschutz ab Werk', () => {
+  const wallet = ethers.Wallet.fromPhrase(PHRASE);
+  const lokal = { address: wallet.address, kind: 'local', signMessage: jest.fn((m: string) => wallet.signMessage(m)) } as any;
+  const AB = 1794938400;
+  const JETZT = 1795000000;
+  const H = pqHash(PHRASE);
+
+  // Knoten: /umzug liefert den Stand (vorher ohne, nach dem POST mit Zusage).
+  function knoten(opts: { hash?: string; ab?: number; post?: number; postFehler?: string } = {}): any {
+    let hinterlegt = opts.hash ?? '';
+    return jest.fn(async (url: string, init?: any) => {
+      if (url.includes('/pq/zusage')) {
+        const status = opts.post ?? 200;
+        if (status === 200) hinterlegt = JSON.parse(init.body).pq_hash;
+        return { ok: status === 200, status, json: async () => (status === 200 ? { ok: true } : { error: opts.postFehler ?? 'rejected' }) } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ pq_zusage_ab: opts.ab ?? AB, pq_zusage_seit: hinterlegt ? JETZT : 0, pq_hash: hinterlegt }),
+      } as any;
+    });
+  }
+  const posts = (f: jest.Mock) => f.mock.calls.filter(([u]) => String(u).includes('/pq/zusage')).length;
+
+  beforeEach(async () => {
+    lokal.signMessage.mockClear();
+    await pqHashVergessen(ADRESSE);
+  });
+
+  it('richtet die Zusage ohne Zutun ein, genau einmal, und vergisst den Hash danach', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    const f = knoten();
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT })).toBe('eingerichtet');
+    expect(posts(f)).toBe(1);
+    expect(lokal.signMessage).toHaveBeenCalledTimes(1);
+    expect(await pqHashGemerkt(ADRESSE)).toBeNull();
+    // Beim naechsten Mal: aktiv, keine Unterschrift mehr.
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT })).toBe('aktiv');
+    expect(posts(f)).toBe(1);
+  });
+
+  it('unterschreibt nie ueber WalletConnect und nie fuer Nicht-Menschen', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    const f = knoten();
+    const extern = { ...lokal, kind: 'walletconnect' };
+    expect(await quantenschutzAutomatisch(extern, true, { fetchFn: f })).toBe('extern');
+    expect(await quantenschutzAutomatisch(lokal, false, { fetchFn: f })).toBe('kein_mensch');
+    expect(f).not.toHaveBeenCalled();
+    expect(lokal.signMessage).not.toHaveBeenCalled();
+  });
+
+  it('ohne gemerkten Hash: nichts senden (der Weg ueber die Phrase bleibt)', async () => {
+    const f = knoten();
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT })).toBe('kein_hash');
+    expect(posts(f)).toBe(0);
+  });
+
+  it('vor dem Stichtag der Kette und ohne Netz: nichts senden', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: knoten({ ab: JETZT + 10 }), jetztS: () => JETZT })).toBe('noch_nicht');
+    const tot = jest.fn(async () => ({ ok: false, status: 503, json: async () => ({}) })) as any;
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: tot, jetztS: () => JETZT })).toBe('netz');
+    expect(lokal.signMessage).not.toHaveBeenCalled();
+  });
+
+  it('Missbrauch: auf der Kette steht ein fremder Hash -- Warnung, nichts gesendet', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    const f = knoten({ hash: 'ab'.repeat(32) });
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT })).toBe('fremd');
+    expect(posts(f)).toBe(0);
+    expect(await pqHashGemerkt(ADRESSE)).toBe(H); // bleibt fuer die Pruefung erhalten
+  });
+
+  it('Missbrauch: jemand kam zuvor (pq_fest mit fremdem Hash) -- Warnung', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    let erster = true;
+    const f: any = jest.fn(async (url: string) => {
+      if (String(url).includes('/pq/zusage')) return { ok: false, status: 409, json: async () => ({ error: 'rejected: pq_fest' }) } as any;
+      const h = erster ? '' : 'cd'.repeat(32);
+      erster = false;
+      return { ok: true, status: 200, json: async () => ({ pq_zusage_ab: AB, pq_zusage_seit: h ? JETZT : 0, pq_hash: h }) } as any;
+    });
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT })).toBe('fremd');
+  });
+
+  it('Antwort verloren, Zusage aber auf der Kette: eingerichtet', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    let erster = true;
+    const f: any = jest.fn(async (url: string) => {
+      if (String(url).includes('/pq/zusage')) throw new Error('timeout');
+      const h = erster ? '' : H;
+      erster = false;
+      return { ok: true, status: 200, json: async () => ({ pq_zusage_ab: AB, pq_zusage_seit: h ? JETZT : 0, pq_hash: h }) } as any;
+    });
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT })).toBe('eingerichtet');
+  });
+
+  it('nach einem Fehlschlag erst nach der Pause wieder (kein Unterschreiben in Schleife)', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    const f = knoten({ post: 409, postFehler: 'rejected: pq_zeit' });
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT })).toBe('fehler');
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT + 60 })).toBe('pause');
+    expect(posts(f)).toBe(1);
+    const g = knoten();
+    expect(await quantenschutzAutomatisch(lokal, true, { fetchFn: g, jetztS: () => JETZT + QUANTENSCHUTZ_AUTO_PAUSE_S })).toBe('eingerichtet');
+  });
+
+  it('hoechstens ein Lauf zugleich', async () => {
+    await pqHashMerken(PHRASE, ADRESSE);
+    const f = knoten();
+    const [a, b] = await Promise.all([
+      quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT }),
+      quantenschutzAutomatisch(lokal, true, { fetchFn: f, jetztS: () => JETZT }),
+    ]);
+    expect([a, b].sort()).toEqual(['eingerichtet', 'pause']);
+    expect(posts(f)).toBe(1);
   });
 });

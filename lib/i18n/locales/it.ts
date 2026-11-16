@@ -867,6 +867,8 @@ const it: Translations = {
     fehler: "Non riuscito: {grund}",
     karteText: "Proteggi subito il tuo wallet dai futuri computer quantistici.",
     karteLink: "Configura protezione quantistica",
+    autoLaeuft: "Protezione quantistica in configurazione… non devi fare nulla.",
+    fremd: "Attenzione: per questo wallet è registrata una chiave quantistica diversa da quella della tua frase seed. Qualcun altro aveva la chiave del tuo wallet. Trasferisci il tuo stato di persona su un nuovo wallet con il volto e il codice di recupero.",
   },
   tresor: {
     titel: "Cassaforte quantistica",
