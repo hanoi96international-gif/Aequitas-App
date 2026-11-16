@@ -604,6 +604,7 @@ export interface Translations {
     qBestaetigenTitel: string;
     qBestaetigenText: string;
     qWenigePruefer: string;
+    qZuWenigePruefer: string;
     qOk: string;
     qOkEingereicht: string;
     qFehler: string;

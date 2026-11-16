@@ -2,7 +2,8 @@
 // Freischaltung eines Parametersatzes abstimmen.
 //
 // Die Kette (aequitas, quanten_geld.go, quanten_sammeln.go) schaltet einen
-// Satz frei, wenn zwei Drittel der Pruefer zustimmen. Jede Stimme
+// Satz frei, wenn zwei Drittel der Pruefer zustimmen, mindestens
+// QUANTEN_MINDEST_PRUEFER verschiedene. Jede Stimme
 // unterschreibt der Coordinator des Pruefers mit seinem Ed25519-Schluessel,
 // nur im Auftrag der Wallet seines Betreibers (aequitas-biometric-beta,
 // pruefer_stimme.quanten_stimme_ausstellen). Dazu der quantensichere Teil aus
@@ -86,6 +87,22 @@ export interface QuantenStand {
   noten: number;
   gedecktAeq: number;
   mindestDeckung: number;
+  // Mindestzahl verschiedener Pruefer fuer eine Freischaltung, wie der
+  // Knoten sie meldet (aeltere Knoten melden sie nicht).
+  mindestPruefer?: number;
+}
+
+// QUANTEN_MINDEST_PRUEFER: so viele verschiedene Pruefer braucht eine
+// Freischaltung mindestens -- zusaetzlich zu zwei Dritteln (Knoten:
+// quantenFreischaltungMindestPruefer in quanten_geld.go). Nur fuer die
+// Anzeige; gezaehlt wird in der Kette.
+export const QUANTEN_MINDEST_PRUEFER = 5;
+
+// quantenStimmenNoetig: Stimmen fuer eine Freischaltung bei pruefer
+// Pruefern -- zwei Drittel (aufgerundet), nie weniger als die Mindestzahl.
+export function quantenStimmenNoetig(pruefer: number, mindest: number = QUANTEN_MINDEST_PRUEFER): number {
+  const zweiDrittel = Math.max(1, Math.ceil((2 * Math.max(0, pruefer)) / 3));
+  return Math.max(zweiDrittel, mindest);
 }
 
 export interface QuantenAbstimmung {
@@ -130,7 +147,12 @@ export function leseQuantenStand(j: any): QuantenStand | null {
     if (typeof s?.name !== 'string' || !SATZ.test(s.name) || bits === null || ab === null || seit === null) return null;
     saetze.push({ name: s.name, ordnungBits: bits, ab, beschlossen: seit });
   }
-  return { aktiv: j.aktiv, topf: j.topf, saetze, noten, gedecktAeq: gedeckt, mindestDeckung: mindest };
+  const aus: QuantenStand = { aktiv: j.aktiv, topf: j.topf, saetze, noten, gedecktAeq: gedeckt, mindestDeckung: mindest };
+  // Optional (neuere Knoten). Unplausibel heisst: nicht uebernehmen, die
+  // Anzeige rechnet dann mit QUANTEN_MINDEST_PRUEFER.
+  const mp = ganz(j.mindest_pruefer);
+  if (mp !== null && mp >= 1 && mp <= 999) aus.mindestPruefer = mp;
+  return aus;
 }
 
 export function leseQuantenAbstimmungen(j: any): QuantenAbstimmung[] | null {

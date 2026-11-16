@@ -2,6 +2,8 @@ import { ethers } from 'ethers';
 import {
   leseQuantenAbstimmungen,
   leseQuantenStand,
+  quantenStimmenNoetig,
+  QUANTEN_MINDEST_PRUEFER,
   ordnungBits,
   ordnungKurz,
   quantenAbstimmen,
@@ -73,6 +75,18 @@ describe('Stand und Abstimmungen', () => {
   it('reads the node status', () => {
     expect(leseQuantenStand(stand)).toEqual({ aktiv: true, topf: stand.topf, saetze: [], noten: 0, gedecktAeq: 0, mindestDeckung: 1 });
     expect(leseQuantenStand({ ...stand, saetze: [{ name: SATZ, ordnung_bits: 257, ab: AB, beschlossen: JETZT }] })?.saetze[0].name).toBe(SATZ);
+  });
+  it('reads the minimum number of verifiers, if the node reports a plausible one', () => {
+    expect(leseQuantenStand({ ...stand, mindest_pruefer: 5 })?.mindestPruefer).toBe(5);
+    expect(leseQuantenStand({ ...stand, mindest_pruefer: 0 })?.mindestPruefer).toBeUndefined();
+    expect(leseQuantenStand({ ...stand, mindest_pruefer: 'x' })?.mindestPruefer).toBeUndefined();
+    expect(leseQuantenStand({ ...stand, mindest_pruefer: 1e6 })?.mindestPruefer).toBeUndefined();
+  });
+  it('counts the votes an activation needs like the node: two thirds, at least the minimum', () => {
+    expect(QUANTEN_MINDEST_PRUEFER).toBe(5);
+    const erwartet: Record<number, number> = { 0: 5, 1: 5, 4: 5, 6: 5, 7: 5, 8: 6, 9: 6, 30: 20, 256: 171 };
+    for (const [n, noetig] of Object.entries(erwartet)) expect(quantenStimmenNoetig(Number(n))).toBe(noetig);
+    expect(quantenStimmenNoetig(3, 7)).toBe(7);
   });
   it('refuses malformed status', () => {
     expect(leseQuantenStand({ ...stand, topf: 'x' })).toBeNull();
