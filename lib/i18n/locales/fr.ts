@@ -867,6 +867,8 @@ const fr: Translations = {
     fehler: "Échec : {grund}",
     karteText: "Protège dès maintenant ton portefeuille contre les futurs ordinateurs quantiques.",
     karteLink: "Configurer la protection quantique",
+    autoLaeuft: "Protection quantique en cours d'activation… tu n'as rien à faire.",
+    fremd: "Attention : une autre clé quantique que celle de ta phrase de récupération est enregistrée pour ce portefeuille. Quelqu'un d'autre avait la clé de ton portefeuille. Transfère ton statut de personne vers un nouveau portefeuille avec ton visage et ton code de récupération.",
   },
   tresor: {
     titel: "Coffre quantique",

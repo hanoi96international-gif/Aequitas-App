@@ -158,3 +158,84 @@ export async function zusageHinterlegen(
 export function zusageSchonDa(meldung: string | undefined): boolean {
   return !!meldung && meldung.includes('pq_fest');
 }
+
+// ------------------------------------------------------------ ab Werk
+
+/**
+ * Ergebnis von quantenschutzAutomatisch:
+ * - 'eingerichtet': die Zusage ist jetzt hinterlegt;
+ * - 'aktiv': sie war schon da (mit diesem Schluessel, soweit pruefbar);
+ * - 'fremd': auf der Kette steht ein ANDERER Hash als der aus der eigenen
+ *   Seed-Phrase -- jemand anders hatte den Wallet-Schluessel;
+ * - 'kein_hash': die App kennt den Hash nicht (Wallet ohne Seed-Phrase in der
+ *   App oder alter Import) -- dann bleibt der Weg ueber die Phrase;
+ * - 'extern': WalletConnect -- die App unterschreibt dort nie von selbst;
+ * - 'kein_mensch', 'noch_nicht' (Kette nimmt noch keine Zusagen), 'netz',
+ *   'pause' (kurz vorher schon versucht), 'fehler'.
+ */
+export type QuantenschutzAuto =
+  | 'eingerichtet' | 'aktiv' | 'fremd' | 'kein_hash' | 'extern'
+  | 'kein_mensch' | 'noch_nicht' | 'netz' | 'pause' | 'fehler';
+
+const AUTO_VERSUCH = 'aequitas_pq_auto_';
+/** Nach einem gescheiterten Versuch fruehestens nach so vielen Sekunden wieder. */
+export const QUANTENSCHUTZ_AUTO_PAUSE_S = 6 * 3600;
+
+let autoLaeuft = false;
+
+/**
+ * Quantenschutz ab Werk: hinterlegt die Zusage selbst, sobald die Wallet ein
+ * Mensch ist und die App den Hash aus der Seed-Phrase kennt -- ohne dass der
+ * Mensch etwas tun muss. Unterschreibt nur mit der Wallet im Geraet
+ * (signer.kind === 'local'), nie ueber WalletConnect. Ein gescheiterter
+ * Versuch wird gemerkt und erst nach QUANTENSCHUTZ_AUTO_PAUSE_S wiederholt;
+ * hoechstens ein Lauf zugleich.
+ */
+export async function quantenschutzAutomatisch(
+  signer: AequitasSigner,
+  istMensch: boolean,
+  deps: {
+    fetchFn?: typeof fetch;
+    jetztS?: () => number;
+    hinterlegen?: typeof zusageHinterlegen;
+  } = {},
+): Promise<QuantenschutzAuto> {
+  const fetchFn = deps.fetchFn ?? fetch;
+  const jetztS = deps.jetztS ?? (() => Math.floor(Date.now() / 1000));
+  const hinterlegen = deps.hinterlegen ?? zusageHinterlegen;
+  if (signer.kind !== 'local') return 'extern';
+  if (!istMensch) return 'kein_mensch';
+  if (autoLaeuft) return 'pause';
+  autoLaeuft = true;
+  try {
+    const wallet = signer.address.toLowerCase();
+    const stand = await pqStand(wallet, fetchFn);
+    if (!stand) return 'netz';
+    const jetzt = jetztS();
+    if (!stand.ab || stand.ab > jetzt) return 'noch_nicht';
+    const hash = await pqHashGemerkt(wallet);
+    if (stand.hash) {
+      if (hash && hash !== stand.hash) return 'fremd';
+      if (hash) await pqHashVergessen(wallet);
+      return 'aktiv';
+    }
+    if (!hash) return 'kein_hash';
+    const letzter = Number((await SecureStore.getItemAsync(AUTO_VERSUCH + wallet).catch(() => null)) ?? 0);
+    if (Number.isFinite(letzter) && letzter > 0 && jetzt - letzter < QUANTENSCHUTZ_AUTO_PAUSE_S) return 'pause';
+    const r = await hinterlegen(signer, hash, fetchFn, () => jetzt);
+    // Ging die Antwort verloren oder kam jemand zuvor: die Kette entscheidet.
+    const danach = r.ok ? null : await pqStand(wallet, fetchFn);
+    if (r.ok || danach?.hash === hash) {
+      await pqHashVergessen(wallet);
+      await SecureStore.deleteItemAsync(AUTO_VERSUCH + wallet).catch(() => undefined);
+      return 'eingerichtet';
+    }
+    if (danach?.hash) return 'fremd';
+    await SecureStore.setItemAsync(AUTO_VERSUCH + wallet, String(jetzt)).catch(() => undefined);
+    return 'fehler';
+  } catch {
+    return 'fehler';
+  } finally {
+    autoLaeuft = false;
+  }
+}

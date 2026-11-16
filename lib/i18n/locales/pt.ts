@@ -867,6 +867,8 @@ const pt: Translations = {
     fehler: "Não funcionou: {grund}",
     karteText: "Proteja já a sua carteira contra futuros computadores quânticos.",
     karteLink: "Configurar proteção quântica",
+    autoLaeuft: "A configurar a proteção quântica… não precisas de fazer nada.",
+    fremd: "Atenção: para esta carteira está registada uma chave quântica diferente da da tua frase-semente. Outra pessoa tinha a chave da tua carteira. Muda o teu estatuto de pessoa para uma nova carteira com o teu rosto e o código de recuperação.",
   },
   tresor: {
     titel: "Cofre quântico",

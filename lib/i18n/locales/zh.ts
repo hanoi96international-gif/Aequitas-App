@@ -867,6 +867,8 @@ const zh: Translations = {
     fehler: "未成功：{grund}",
     karteText: "现在就保护你的钱包，抵御未来的量子计算机。",
     karteLink: "设置量子保护",
+    autoLaeuft: "正在设置量子保护……你无需任何操作。",
+    fremd: "注意：此钱包登记的量子密钥与你助记词生成的不同。有其他人拿到了你的钱包密钥。请用你的面部和恢复码把你的“人”身份迁移到新钱包。",
   },
   tresor: {
     titel: "抗量子保险库",

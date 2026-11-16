@@ -882,6 +882,8 @@ export interface Translations {
     fehler: string;
     karteText: string;
     karteLink: string;
+    autoLaeuft: string;
+    fremd: string;
   };
   tresor: {
     titel: string;

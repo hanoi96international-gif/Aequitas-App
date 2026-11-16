@@ -867,6 +867,8 @@ const en: Translations = {
     fehler: "Did not work: {grund}",
     karteText: "Protect your wallet against future quantum computers now.",
     karteLink: "Set up quantum protection",
+    autoLaeuft: "Setting up quantum protection … you don't need to do anything.",
+    fremd: "Warning: a different quantum key is registered for this wallet than the one from your seed phrase. Someone else had your wallet key. Move your personhood to a new wallet using your face and recovery code.",
   },
   tresor: {
     titel: "Quantum-safe vault",

@@ -867,6 +867,8 @@ const tr: Translations = {
     fehler: "Olmadı: {grund}",
     karteText: "Cüzdanını gelecekteki kuantum bilgisayarlara karşı şimdiden koru.",
     karteLink: "Kuantum korumasını kur",
+    autoLaeuft: "Kuantum koruması kuruluyor… senin bir şey yapmana gerek yok.",
+    fremd: "Dikkat: Bu cüzdan için kurtarma ifadendekinden farklı bir kuantum anahtarı kayıtlı. Cüzdan anahtarın başka birinin elindeydi. İnsan statünü yüzün ve kurtarma kodunla yeni bir cüzdana taşı.",
   },
   tresor: {
     titel: "Kuantum kasası",

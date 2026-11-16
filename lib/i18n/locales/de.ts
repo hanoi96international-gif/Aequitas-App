@@ -867,6 +867,8 @@ const de: Translations = {
     fehler: "Nicht geklappt: {grund}",
     karteText: "Schütze deine Wallet schon jetzt gegen künftige Quantencomputer.",
     karteLink: "Quantenschutz einrichten",
+    autoLaeuft: "Quantenschutz wird eingerichtet … Du musst nichts tun.",
+    fremd: "Achtung: Für diese Wallet ist ein anderer Quantenschlüssel hinterlegt als der aus deiner Seed-Phrase. Jemand anderes hatte deinen Wallet-Schlüssel. Ziehe dein Menschsein mit Gesicht und Wiederherstellungscode auf eine neue Wallet um.",
   },
   tresor: {
     titel: "Quantensicherer Tresor",

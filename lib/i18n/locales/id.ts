@@ -867,6 +867,8 @@ const id: Translations = {
     fehler: "Gagal: {grund}",
     karteText: "Lindungi dompetmu sekarang dari komputer kuantum masa depan.",
     karteLink: "Siapkan perlindungan kuantum",
+    autoLaeuft: "Perlindungan kuantum sedang disiapkan… kamu tidak perlu melakukan apa pun.",
+    fremd: "Perhatian: untuk wallet ini terdaftar kunci kuantum yang berbeda dari kunci frasa seed-mu. Orang lain memegang kunci wallet-mu. Pindahkan status manusiamu ke wallet baru dengan wajah dan kode pemulihanmu.",
   },
   tresor: {
     titel: "Brankas kuantum",
