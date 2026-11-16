@@ -12,7 +12,9 @@ import {
   holeQuantenStand,
   ordnungBits,
   quantenAbstimmen,
+  quantenStimmenNoetig,
   vorschlagGueltig,
+  QUANTEN_MINDEST_PRUEFER,
   QUANTEN_VORLAUF_S,
   type QuantenAbstimmung,
   type QuantenStand,
@@ -63,7 +65,8 @@ export default function Quantengeld() {
 
   const binPruefer = !!pruefer && pruefer.includes(ich);
   const anzahlPruefer = pruefer?.length ?? 0;
-  const noetigGesamt = anzahlPruefer > 0 ? Math.ceil((2 * anzahlPruefer) / 3) : 0;
+  const mindestPruefer = stand?.mindestPruefer ?? QUANTEN_MINDEST_PRUEFER;
+  const noetigGesamt = quantenStimmenNoetig(anzahlPruefer, mindestPruefer);
 
   function ergebnisText(r: QuantenStimmErgebnis): { ok: boolean; text: string } {
     if (r.ok && r.eingereicht) return { ok: true, text: t('node.qOkEingereicht') };
@@ -90,11 +93,18 @@ export default function Quantengeld() {
   }
 
   // Jede Stimme erst nach ausdruecklicher Bestaetigung: sie bezeugt Hardware
-  // und Gutachten, und bei wenigen Pruefern entscheidet sie allein.
+  // und Gutachten. Bei wenigen Pruefern ein Hinweis: unter der Mindestzahl
+  // schaltet nichts frei; knapp darueber entscheiden wenige Stimmen.
   function bestaetigen(s: string, o: string, ab: number) {
-    const warnung = anzahlPruefer > 0 && anzahlPruefer < 4
-      ? '\n\n' + t('node.qWenigePruefer').replace('{n}', String(anzahlPruefer)).replace('{noetig}', String(noetigGesamt))
-      : '';
+    const ersetzt = (k: 'node.qWenigePruefer' | 'node.qZuWenigePruefer') => '\n\n' + t(k)
+      .replace('{n}', String(anzahlPruefer))
+      .replace('{noetig}', String(noetigGesamt))
+      .replace('{mindest}', String(mindestPruefer));
+    const warnung = anzahlPruefer > 0 && anzahlPruefer < mindestPruefer
+      ? ersetzt('node.qZuWenigePruefer')
+      : anzahlPruefer > 0 && noetigGesamt === mindestPruefer
+        ? ersetzt('node.qWenigePruefer')
+        : '';
     Alert.alert(t('node.qBestaetigenTitel'), t('node.qBestaetigenText') + warnung, [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('node.qZustimmen'), style: 'destructive', onPress: () => stimmen(s, o, ab) },
