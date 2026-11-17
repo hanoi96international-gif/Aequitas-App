@@ -905,6 +905,16 @@ export interface Translations {
     autoLaeuft: string;
     fremd: string;
   };
+  // Markenzeichen "Faelschungssicher" auf der Startseite (components/FaelschungssicherKarte.tsx).
+  marke: {
+    titel: string;
+    leitsatz: string;
+    p1: string;
+    p2: string;
+    p3: string;
+    mehr: string;
+    quantengeld: string;
+  };
   tresor: {
     titel: string;
     warum: string;
