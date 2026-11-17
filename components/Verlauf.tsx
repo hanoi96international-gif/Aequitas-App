@@ -30,6 +30,8 @@ export function Verlauf({ address, neuLaden }: { address: string; neuLaden: unkn
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState(false);
   const [mehr, setMehr] = useState(false);
+  // Aufgeklappte Tagesrunden (Rundenzeit): zeigen die einzelnen Buchungen.
+  const [offen, setOffen] = useState<Record<number, boolean>>({});
 
   const lade = useCallback(async (vor: number) => {
     setLaedt(true);
@@ -70,10 +72,14 @@ export function Verlauf({ address, neuLaden }: { address: string; neuLaden: unkn
         const vorzeichen = e.richtung === 'ein' ? '+' : e.richtung === 'aus' ? '−' : runde ? '±' : '';
         const farbe = e.richtung === 'ein' ? theme.neon : e.richtung === 'aus' ? theme.text : theme.muted;
         const betrag = e.betrag + (roh && roh.richtung === 'aus' ? roh.gebuehr ?? 0 : 0);
-        return (
-          <View key={`${e.hoehe}-${e.tx_index}-${e.richtung}-${e.art}`} style={S.zeile}>
+        const auf = runde ? !!offen[runde.zeit] : false;
+        const kopf = (
+          <View style={S.zeileInnen}>
             <View style={S.links}>
-              <Text style={S.art}>{runde ? t('history.art_tagesrunde') : t(artSchluessel(roh as VerlaufEintrag))}</Text>
+              <Text style={S.art}>
+                {runde ? t('history.art_tagesrunde') : t(artSchluessel(roh as VerlaufEintrag))}
+                {runde ? (auf ? '  ▾' : '  ▸') : ''}
+              </Text>
               <Text style={S.sub}>
                 {datum(e.zeit)}
                 {runde ? ' · ' + t('history.tagesrundeSub', { ein: betragText(runde.erhalten), aus: betragText(runde.abgabe) }) : ''}
@@ -85,6 +91,40 @@ export function Verlauf({ address, neuLaden }: { address: string; neuLaden: unkn
               {vorzeichen}
               {betragText(betrag)}
             </Text>
+          </View>
+        );
+        if (!runde) {
+          return (
+            <View key={`${e.hoehe}-${e.tx_index}-${e.richtung}-${e.art}`} style={S.zeile}>
+              {kopf}
+            </View>
+          );
+        }
+        return (
+          <View key={`runde-${runde.zeit}`} style={S.zeile}>
+            <TouchableOpacity
+              onPress={() => setOffen((o) => ({ ...o, [runde.zeit]: !o[runde.zeit] }))}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: auf }}
+              accessibilityLabel={t(auf ? 'history.tagesrundeAusblenden' : 'history.tagesrundeZeigen')}
+              activeOpacity={0.7}
+            >
+              {kopf}
+            </TouchableOpacity>
+            {auf ? (
+              <View style={S.teile}>
+                {runde.teile.map((x) => (
+                  <View key={`${x.hoehe}-${x.tx_index}-${x.art}`} style={S.teil}>
+                    <Text style={S.teilText} selectable>
+                      {t(artSchluessel(x))} {x.richtung === 'ein' ? '+' : '−'}
+                      {betragText(x.betrag)} · {t('history.block', { h: String(x.hoehe) })}
+                      {x.tx_hash ? ' · ' + x.tx_hash : ''}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={S.erklaerung}>{t('history.tagesrundeErklaerung')}</Text>
+              </View>
+            ) : null}
           </View>
         );
       })}
@@ -103,7 +143,12 @@ const S = StyleSheet.create({
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, marginTop: 16, borderWidth: 1, borderColor: theme.border },
   cardTitle: { fontSize: 11, color: theme.muted, letterSpacing: 3, marginBottom: 10, fontWeight: '600' },
   leer: { color: theme.muted, fontSize: 13, lineHeight: 19 },
-  zeile: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border, gap: 12 },
+  zeile: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
+  zeileInnen: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  teile: { marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: theme.border },
+  teil: { paddingVertical: 3 },
+  teilText: { color: theme.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  erklaerung: { color: theme.muted, fontSize: 11, lineHeight: 16, marginTop: 6 },
   links: { flex: 1 },
   art: { color: theme.text, fontSize: 14, fontWeight: '600' },
   sub: { color: theme.muted, fontSize: 11, marginTop: 2 },

@@ -19,12 +19,15 @@ export interface TagesrundeZeile {
   betrag: number;
   erhalten: number;
   abgabe: number;
+  /** Die einzelnen Buchungen der Runde, wie die Kette sie fuehrt (zum
+   *  Aufklappen: nichts wird versteckt). */
+  teile: VerlaufEintrag[];
 }
 
 export type VerlaufZeile = VerlaufEintrag | TagesrundeZeile;
 
 export function istTagesrunde(z: VerlaufZeile): z is TagesrundeZeile {
-  return z.art === 'tagesrunde' && 'erhalten' in z && 'abgabe' in z;
+  return z.art === 'tagesrunde' && 'erhalten' in z && 'abgabe' in z && 'teile' in z;
 }
 
 const MIKRO = 1_000_000;
@@ -66,6 +69,7 @@ export function tagesrundenZusammenfassen(eintraege: VerlaufEintrag[]): VerlaufZ
     }
     if (erledigt.has(e.zeit)) continue;
     erledigt.add(e.zeit);
+    const teile = eintraege.filter((x) => x.zeit === e.zeit && (istUbi(x) || istUmlauf(x)));
     const netto = r.ein - r.aus;
     aus.push({
       art: 'tagesrunde',
@@ -76,6 +80,7 @@ export function tagesrundenZusammenfassen(eintraege: VerlaufEintrag[]): VerlaufZ
       betrag: Math.abs(netto) / MIKRO,
       erhalten: r.ein / MIKRO,
       abgabe: r.aus / MIKRO,
+      teile,
     });
   }
   return aus;

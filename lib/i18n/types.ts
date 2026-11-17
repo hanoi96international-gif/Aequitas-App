@@ -742,6 +742,10 @@ export interface Translations {
     art_umlauf: string;
     art_tagesrunde: string;
     tagesrundeSub: string;
+    block: string;
+    tagesrundeErklaerung: string;
+    tagesrundeZeigen: string;
+    tagesrundeAusblenden: string;
     art_kappung: string;
     art_validator_distribution: string;
     art_lp_distribution: string;

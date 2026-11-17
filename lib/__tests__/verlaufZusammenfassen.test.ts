@@ -15,6 +15,12 @@ describe('tagesrundenZusammenfassen', () => {
     expect(z).toHaveLength(2);
     expect(z[0]).toMatchObject({ art: 'tagesrunde', richtung: 'neutral', betrag: 0, erhalten: 0.166, abgabe: 0.166, zeit: 2000 });
     expect(z[1]).toMatchObject({ art: 'transfer', betrag: 2 });
+    // Nichts versteckt: beide Buchungen bleiben an der Zeile, unveraendert.
+    const r = z[0] as { teile: VerlaufEintrag[] };
+    expect(r.teile.map((t) => [t.art, t.betrag, t.hoehe, t.tx_index])).toEqual([
+      ['ubi_distribution', 0.166, 9, 1],
+      ['umlauf', 0.166, 9, 0],
+    ]);
   });
 
   it('zeigt das Netto mit Richtung: unter dem fairen Anteil mehr erhalten, darueber mehr abgegeben', () => {
