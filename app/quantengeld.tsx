@@ -20,6 +20,7 @@ import {
   type QuantenStand,
   type QuantenStimmErgebnis,
 } from '@/lib/quantengeld';
+import { aeqText, holeQuantenWStand, kennungGueltig, type QuantenWErgebnis } from '@/lib/quantenW';
 import { withTimeout } from '@/lib/signer';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
@@ -46,6 +47,10 @@ export default function Quantengeld() {
   const [satz, setSatz] = useState('');
   const [ordnung, setOrdnung] = useState('');
   const [tage, setTage] = useState('30');
+  // Note oder Token nachsehen (lib/quantenW.ts): nur Anzeige.
+  const [kennung, setKennung] = useState('');
+  const [wErgebnis, setWErgebnis] = useState<QuantenWErgebnis | null>(null);
+  const [wLaeuft, setWLaeuft] = useState(false);
 
   const laden = useCallback(async () => {
     const [s, a, r] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand()]);
@@ -110,6 +115,17 @@ export default function Quantengeld() {
       { text: t('node.qZustimmen'), style: 'destructive', onPress: () => stimmen(s, o, ab) },
     ]);
   }
+
+  async function nachsehen() {
+    setWLaeuft(true);
+    try {
+      setWErgebnis(await holeQuantenWStand(kennung));
+    } finally {
+      setWLaeuft(false);
+    }
+  }
+
+  const kennungOk = kennungGueltig(kennung.trim().toLowerCase());
 
   const jetzt = Math.floor(Date.now() / 1000);
   const tageZahl = /^[0-9]{1,4}$/.test(tage) ? parseInt(tage, 10) : 0;
@@ -179,6 +195,31 @@ export default function Quantengeld() {
           )}
         </View>
 
+        <View style={S.card}>
+          <Text style={S.title}>{t('node.qwTitel')}</Text>
+          <Text style={S.body}>{t('node.qwText')}</Text>
+          <TextInput
+            style={S.input}
+            value={kennung}
+            onChangeText={(v) => { setKennung(v.replace(/[^0-9a-fA-F]/g, '').slice(0, 64)); setWErgebnis(null); }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={64}
+            placeholder="K"
+            placeholderTextColor={theme.muted}
+          />
+          {kennung.length > 0 && !kennungOk ? <Text style={S.muted}>{t('node.qwUngueltig')}</Text> : null}
+          <TouchableOpacity
+            style={[S.btn, (!kennungOk || wLaeuft) && { opacity: 0.5 }]}
+            disabled={!kennungOk || wLaeuft}
+            onPress={nachsehen}
+            activeOpacity={0.85}
+          >
+            {wLaeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qwAnzeigen')}</Text>}
+          </TouchableOpacity>
+          {wErgebnis ? <WAnsicht e={wErgebnis} t={t} /> : null}
+        </View>
+
         {binPruefer ? (
           <View style={S.card}>
             <Text style={S.title}>{t('node.qVorschlagen')}</Text>
@@ -201,6 +242,52 @@ export default function Quantengeld() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// Der Stand einer Note (W) oder eines Tokens (S), wie der Knoten ihn meldet.
+function WAnsicht({ e, t }: { e: QuantenWErgebnis; t: (k: any) => string }) {
+  if (!e.ok) {
+    const text = e.grund === 'unbekannt' ? t('node.qwUnbekannt') : e.grund === 'eingabe' ? t('node.qwUngueltig') : t('node.qwFehler');
+    return <Text style={[S.muted, { marginTop: 12 }]}>{text}</Text>;
+  }
+  const s = e.stand;
+  return (
+    <View style={{ marginTop: 12 }}>
+      {!s.aktiv ? <Text style={[S.muted, { marginBottom: 8 }]}>{t('node.qwSchlafend')}</Text> : null}
+      {s.art === 'tot' ? (
+        <Text style={S.body}>{t('node.qwTot')}</Text>
+      ) : s.art === 'w' ? (
+        <>
+          <Text style={S.vorschlagName}>{t('node.qwNote')}</Text>
+          <Zeile k={t('node.qwWert')} v={aeqText(s.wertMikro)} />
+          <Text style={S.muted}>{t('node.qwStellen').replace('{frei}', String(s.frei)).replace('{n}', String(s.n))}</Text>
+          <Text style={S.muted}>
+            {t('node.qwPruefung').replace('{k}', String(s.kNote)).replace('{tol}', String(s.tol)).replace('{t}', String(s.t)).replace('{v}', String(s.v))}
+          </Text>
+          {s.fehl > 0 ? <Text style={S.muted}>{t('node.qwFehl').replace('{fehl}', String(s.fehl))}</Text> : null}
+          {s.gesperrt ? <Text style={S.fehler}>{t('node.qwGesperrt')}</Text> : null}
+          {s.anfrage ? (
+            <Text style={S.stimmen}>
+              {t(s.anfrage.einloesen ? 'node.qwEinloesung' : 'node.qwLaeuft').replace('{offen}', String(s.anfrage.offen)).replace('{k}', String(s.anfrage.k))}
+            </Text>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <Text style={S.vorschlagName}>{t('node.qwToken')}</Text>
+          <Zeile k={t('node.qwWert')} v={aeqText(s.wertMikro)} />
+          <Zeile k={t('node.qwInhaber')} v={s.inhaber.slice(0, 10) + '…' + s.inhaber.slice(-6)} />
+          <Text style={S.muted}>{s.gebunden ? t('node.qwGebunden') : t('node.qwNichtGebunden')}</Text>
+          {s.fehl > 0 ? <Text style={S.muted}>{t('node.qwFehl').replace('{fehl}', String(s.fehl))}</Text> : null}
+          {s.anmeldung ? (
+            <Text style={S.stimmen}>
+              {t('node.qwEinloesung').replace('{offen}', String(s.anmeldung.offen)).replace('{k}', String(s.anmeldung.probe))}
+            </Text>
+          ) : null}
+        </>
+      )}
+    </View>
   );
 }
 
