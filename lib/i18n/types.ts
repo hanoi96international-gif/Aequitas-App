@@ -746,6 +746,16 @@ export interface Translations {
     tagesrundeErklaerung: string;
     tagesrundeZeigen: string;
     tagesrundeAusblenden: string;
+    rundeLaedt: string;
+    rundeFehlt: string;
+    rundeAnteil: string;
+    rundeAnteilSpanne: string;
+    rundeAbgaben: string;
+    rundeTopf: string;
+    rundeTopfZerlegt: string;
+    rundeRest: string;
+    rundeUnvollstaendig: string;
+    rundeBloecke: string;
     art_kappung: string;
     art_validator_distribution: string;
     art_lp_distribution: string;
