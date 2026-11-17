@@ -14,6 +14,7 @@ import BindungsHinweis from '@/components/BindungsHinweis';
 import UpdateHinweis from '@/components/UpdateHinweis';
 import { UmzugHinweis } from '@/components/UmzugKarten';
 import { LebensnachweisHinweis } from '@/components/Lebensnachweis';
+import FaelschungssicherKarte from '@/components/FaelschungssicherKarte';
 import { useAbfrage } from '@/hooks/use-abfrage';
 
 function formatCountdown(totalSecs: number): string {
@@ -149,6 +150,7 @@ export default function Home() {
         <UmzugHinweis />
         <BindungsHinweis />
         <LebensnachweisHinweis />
+        <FaelschungssicherKarte />
 
         {/* Stats grid — mirror of the website's exp-stats row */}
         <View style={S.statsGrid}>
