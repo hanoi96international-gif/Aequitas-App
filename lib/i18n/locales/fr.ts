@@ -726,6 +726,8 @@ const fr: Translations = {
     art_register_human: 'Dotation de départ',
     art_grant_release: 'Dotation débloquée',
     art_umlauf: 'Prélèvement de circulation',
+    art_tagesrunde: 'Revenu de base (net)',
+    tagesrundeSub: 'reçu +{ein} · prélèvement de circulation −{aus}',
     art_kappung: 'Plafond de patrimoine',
     art_validator_distribution: 'Part de validateur',
     art_lp_distribution: 'Part de liquidité',

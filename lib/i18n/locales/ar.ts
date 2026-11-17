@@ -726,6 +726,8 @@ const ar: Translations = {
     art_register_human: 'منحة البداية',
     art_grant_release: 'صُرفت المنحة',
     art_umlauf: 'اقتطاع التداول',
+    art_tagesrunde: 'الدخل الأساسي (صافٍ)',
+    tagesrundeSub: 'المستلم +{ein} · اقتطاع التداول −{aus}',
     art_kappung: 'حد الثروة',
     art_validator_distribution: 'حصة المدقّق',
     art_lp_distribution: 'حصة السيولة',

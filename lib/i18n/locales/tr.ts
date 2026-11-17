@@ -726,6 +726,8 @@ const tr: Translations = {
     art_register_human: 'Başlangıç desteği',
     art_grant_release: 'Destek serbest bırakıldı',
     art_umlauf: 'Dolaşım kesintisi',
+    art_tagesrunde: 'Temel gelir (net)',
+    tagesrundeSub: 'alınan +{ein} · dolaşım kesintisi −{aus}',
     art_kappung: 'Servet sınırı',
     art_validator_distribution: 'Doğrulayıcı payı',
     art_lp_distribution: 'Likidite payı',

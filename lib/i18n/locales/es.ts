@@ -726,6 +726,8 @@ const es: Translations = {
     art_register_human: 'Aportación inicial',
     art_grant_release: 'Aportación liberada',
     art_umlauf: 'Gravamen de circulación',
+    art_tagesrunde: 'Renta básica (neta)',
+    tagesrundeSub: 'recibido +{ein} · gravamen de circulación −{aus}',
     art_kappung: 'Límite de patrimonio',
     art_validator_distribution: 'Parte de validador',
     art_lp_distribution: 'Parte de liquidez',

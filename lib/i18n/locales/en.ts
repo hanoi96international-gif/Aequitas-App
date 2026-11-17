@@ -726,6 +726,8 @@ const en: Translations = {
     art_register_human: 'Starting grant',
     art_grant_release: 'Grant released',
     art_umlauf: 'Circulation levy',
+    art_tagesrunde: 'Basic income (net)',
+    tagesrundeSub: 'received +{ein} · circulation levy −{aus}',
     art_kappung: 'Wealth cap',
     art_validator_distribution: 'Validator share',
     art_lp_distribution: 'Liquidity share',

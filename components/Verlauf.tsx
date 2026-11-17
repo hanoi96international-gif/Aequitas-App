@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getVerlauf, type VerlaufEintrag } from '@/lib/api';
+import { istTagesrunde, tagesrundenZusammenfassen } from '@/lib/verlaufZusammenfassen';
 import { betragText } from '@/lib/ueberweisung';
 import { shortWallet } from '@/lib/format';
 import { theme } from '@/constants/aequitas-theme';
@@ -63,18 +64,21 @@ export function Verlauf({ address, neuLaden }: { address: string; neuLaden: unkn
       {eintraege.length === 0 && !laedt ? (
         <Text style={S.leer}>{fehler ? t('history.error') : t('history.empty')}</Text>
       ) : null}
-      {eintraege.map((e) => {
-        const vorzeichen = e.richtung === 'ein' ? '+' : e.richtung === 'aus' ? '−' : '';
+      {tagesrundenZusammenfassen(eintraege).map((e) => {
+        const runde = istTagesrunde(e) ? e : null;
+        const roh = istTagesrunde(e) ? null : e;
+        const vorzeichen = e.richtung === 'ein' ? '+' : e.richtung === 'aus' ? '−' : runde ? '±' : '';
         const farbe = e.richtung === 'ein' ? theme.neon : e.richtung === 'aus' ? theme.text : theme.muted;
-        const betrag = e.betrag + (e.richtung === 'aus' ? e.gebuehr ?? 0 : 0);
+        const betrag = e.betrag + (roh && roh.richtung === 'aus' ? roh.gebuehr ?? 0 : 0);
         return (
-          <View key={`${e.hoehe}-${e.tx_index}-${e.richtung}`} style={S.zeile}>
+          <View key={`${e.hoehe}-${e.tx_index}-${e.richtung}-${e.art}`} style={S.zeile}>
             <View style={S.links}>
-              <Text style={S.art}>{t(artSchluessel(e))}</Text>
+              <Text style={S.art}>{runde ? t('history.art_tagesrunde') : t(artSchluessel(roh as VerlaufEintrag))}</Text>
               <Text style={S.sub}>
                 {datum(e.zeit)}
-                {e.gegenpartei ? ' · ' + shortWallet(e.gegenpartei) : ''}
-                {e.gebuehr ? ' · ' + t('history.feeIncl', { fee: betragText(e.gebuehr) }) : ''}
+                {runde ? ' · ' + t('history.tagesrundeSub', { ein: betragText(runde.erhalten), aus: betragText(runde.abgabe) }) : ''}
+                {roh?.gegenpartei ? ' · ' + shortWallet(roh.gegenpartei) : ''}
+                {roh?.gebuehr ? ' · ' + t('history.feeIncl', { fee: betragText(roh.gebuehr) }) : ''}
               </Text>
             </View>
             <Text style={[S.betrag, { color: farbe }]}>

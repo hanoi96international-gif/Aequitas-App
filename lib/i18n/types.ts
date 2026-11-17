@@ -740,6 +740,8 @@ export interface Translations {
     art_register_human: string;
     art_grant_release: string;
     art_umlauf: string;
+    art_tagesrunde: string;
+    tagesrundeSub: string;
     art_kappung: string;
     art_validator_distribution: string;
     art_lp_distribution: string;

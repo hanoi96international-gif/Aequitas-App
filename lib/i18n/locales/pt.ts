@@ -726,6 +726,8 @@ const pt: Translations = {
     art_register_human: 'Aporte inicial',
     art_grant_release: 'Aporte liberado',
     art_umlauf: 'Contribuição de circulação',
+    art_tagesrunde: 'Renda básica (líquida)',
+    tagesrundeSub: 'recebido +{ein} · contribuição de circulação −{aus}',
     art_kappung: 'Limite de patrimônio',
     art_validator_distribution: 'Parte de validador',
     art_lp_distribution: 'Parte de liquidez',

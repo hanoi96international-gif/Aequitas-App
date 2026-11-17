@@ -726,6 +726,8 @@ const hi: Translations = {
     art_register_human: 'शुरुआती अनुदान',
     art_grant_release: 'अनुदान जारी',
     art_umlauf: 'परिसंचरण लेवी',
+    art_tagesrunde: 'बुनियादी आय (शुद्ध)',
+    tagesrundeSub: 'प्राप्त +{ein} · परिसंचरण लेवी −{aus}',
     art_kappung: 'संपत्ति सीमा',
     art_validator_distribution: 'वैलिडेटर हिस्सा',
     art_lp_distribution: 'तरलता हिस्सा',

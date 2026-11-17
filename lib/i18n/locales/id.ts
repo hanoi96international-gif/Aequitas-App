@@ -726,6 +726,8 @@ const id: Translations = {
     art_register_human: 'Hibah awal',
     art_grant_release: 'Hibah dicairkan',
     art_umlauf: 'Pungutan sirkulasi',
+    art_tagesrunde: 'Penghasilan dasar (bersih)',
+    tagesrundeSub: 'diterima +{ein} · pungutan sirkulasi −{aus}',
     art_kappung: 'Batas kekayaan',
     art_validator_distribution: 'Bagian validator',
     art_lp_distribution: 'Bagian likuiditas',

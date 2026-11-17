@@ -726,6 +726,8 @@ const it: Translations = {
     art_register_human: 'Contributo iniziale',
     art_grant_release: 'Contributo sbloccato',
     art_umlauf: 'Prelievo di circolazione',
+    art_tagesrunde: 'Reddito di base (netto)',
+    tagesrundeSub: 'ricevuto +{ein} · prelievo di circolazione −{aus}',
     art_kappung: 'Tetto patrimoniale',
     art_validator_distribution: 'Quota validatore',
     art_lp_distribution: 'Quota di liquidità',

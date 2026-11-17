@@ -726,6 +726,8 @@ const zh: Translations = {
     art_register_human: '初始补助',
     art_grant_release: '补助已发放',
     art_umlauf: '流通费',
+    art_tagesrunde: '基本收入（净额）',
+    tagesrundeSub: '收到 +{ein} · 流通费 −{aus}',
     art_kappung: '财富上限',
     art_validator_distribution: '验证者份额',
     art_lp_distribution: '流动性份额',

@@ -726,6 +726,8 @@ const de: Translations = {
     art_register_human: 'Startzuschuss',
     art_grant_release: 'Zuschuss freigegeben',
     art_umlauf: 'Umlaufabgabe',
+    art_tagesrunde: 'Grundeinkommen (netto)',
+    tagesrundeSub: 'erhalten +{ein} · Umlaufabgabe −{aus}',
     art_kappung: 'Vermögensgrenze',
     art_validator_distribution: 'Validator-Anteil',
     art_lp_distribution: 'Liquiditäts-Anteil',

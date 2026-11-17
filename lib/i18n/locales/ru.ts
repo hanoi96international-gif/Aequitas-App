@@ -726,6 +726,8 @@ const ru: Translations = {
     art_register_human: 'Стартовая выплата',
     art_grant_release: 'Выплата разблокирована',
     art_umlauf: 'Сбор за обращение',
+    art_tagesrunde: 'Базовый доход (нетто)',
+    tagesrundeSub: 'получено +{ein} · сбор за обращение −{aus}',
     art_kappung: 'Предел состояния',
     art_validator_distribution: 'Доля валидатора',
     art_lp_distribution: 'Доля ликвидности',
