@@ -616,6 +616,8 @@ const de: Translations = {
     qwInhaber: "Inhaber",
     qwGebunden: "An eine Annahmestelle gebunden",
     qwNichtGebunden: "Noch nicht gebunden",
+    qwGeheimnisS: "Geheimnis bei {v} Validatoren, {t} davon nötig, Toleranz {tol} %",
+    qwEinValidator: "Nur ein Validator: Er kennt das ganze Geheimnis. Die Fälschungssicherheit hängt dann allein an ihm.",
     bindTitle: 'MIT DEINER WALLET VERBINDEN',
     bindDesc: 'Wenn das Skript fertig ist, erscheint hier die Anfrage deines Servers. Prüfe die IP und tippe auf „Bestätigen“. Kostet nichts, bewegt kein Geld.',
     bindBtn: '📷 Knoten binden (QR scannen)',

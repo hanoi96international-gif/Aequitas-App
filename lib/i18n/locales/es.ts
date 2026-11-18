@@ -616,6 +616,8 @@ const es: Translations = {
     qwInhaber: "Titular",
     qwGebunden: "Vinculado a un punto de aceptación",
     qwNichtGebunden: "Aún no vinculado",
+    qwGeheimnisS: "Secreto en manos de {v} validadores, se necesitan {t}, tolerancia {tol} %",
+    qwEinValidator: "Un solo validador: conoce todo el secreto. La protección contra la falsificación depende solo de él.",
     bindTitle: 'VINCULAR A TU CARTERA',
     bindDesc: 'Cuando el script termine, aquí aparecerá la solicitud de tu servidor. Comprueba la IP y toca «Confirmar». Gratis, no mueve dinero.',
     bindBtn: '📷 Vincular nodo (escanear QR)',

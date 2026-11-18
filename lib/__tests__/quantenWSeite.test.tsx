@@ -80,13 +80,28 @@ describe('Note oder Token nachsehen', () => {
     const t = await zeige({ ok: true, stand: { art: 'w', k: K, aktiv: false, n: 400, t: 3, v: 4, tol: 4, kNote: 160, frei: 380, fehl: 1, gesperrt: true, wertMikro: 10_000_000, anfrage: { k: 160, offen: 64, einloesen: true } } });
     expect(t).toEqual(expect.arrayContaining(['node.qwSchlafend', 'node.qwNote', '10.0000 AEQ', 'node.qwStellen', 'node.qwPruefung', 'node.qwFehl', 'node.qwGesperrt', 'node.qwEinloesung']));
     expect(t).not.toContain('node.qwLaeuft');
+    expect(t).not.toContain('node.qwEinValidator');
+  });
+
+  it('Note W mit einem einzigen Validator: Hinweis, dass er das ganze Geheimnis kennt', async () => {
+    const t = await zeige({ ok: true, stand: { art: 'w', k: K, aktiv: true, n: 400, t: 1, v: 1, tol: 4, kNote: 160, frei: 400, fehl: 0, gesperrt: false, wertMikro: 1_000_000, anfrage: null } });
+    expect(t).toEqual(expect.arrayContaining(['node.qwNote', 'node.qwPruefung', 'node.qwEinValidator']));
   });
 
   it('Token S, freigeschaltet: kein Hinweis "schlafend"', async () => {
-    const t = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 3, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: false, gewaehlt: false, fehl: 0, wertMikro: 5_000_000, anmeldung: null } });
-    expect(t).toEqual(expect.arrayContaining(['node.qwToken', '5.0000 AEQ', 'node.qwInhaber', 'node.qwNichtGebunden']));
+    const t = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 3, v: 4, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: false, gewaehlt: false, fehl: 0, wertMikro: 5_000_000, anmeldung: null } });
+    expect(t).toEqual(expect.arrayContaining(['node.qwToken', '5.0000 AEQ', 'node.qwInhaber', 'node.qwGeheimnisS', 'node.qwNichtGebunden']));
     expect(t).not.toContain('node.qwSchlafend');
     expect(t).not.toContain('node.qwEinloesung');
+    expect(t).not.toContain('node.qwEinValidator');
+  });
+
+  it('Token S mit einem einzigen Validator: Hinweis; ohne v vom Knoten: keine Zeile dazu', async () => {
+    const eins = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 1, v: 1, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: true, gewaehlt: true, fehl: 0, wertMikro: 1_000_000, anmeldung: null } });
+    expect(eins).toEqual(expect.arrayContaining(['node.qwGeheimnisS', 'node.qwEinValidator']));
+    const alt = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 1, v: null, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: true, gewaehlt: true, fehl: 0, wertMikro: 1_000_000, anmeldung: null } });
+    expect(alt).not.toContain('node.qwGeheimnisS');
+    expect(alt).not.toContain('node.qwEinValidator');
   });
 
   it('tote Note, unbekannt, Netzfehler', async () => {

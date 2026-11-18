@@ -616,6 +616,8 @@ const it: Translations = {
     qwInhaber: "Titolare",
     qwGebunden: "Vincolato a un punto di accettazione",
     qwNichtGebunden: "Non ancora vincolato",
+    qwGeheimnisS: "Segreto presso {v} validatori, ne servono {t}, tolleranza {tol} %",
+    qwEinValidator: "Un solo validatore: conosce tutto il segreto. La protezione dalla contraffazione dipende solo da lui.",
     bindTitle: 'COLLEGA AL TUO WALLET',
     bindDesc: 'Quando lo script ha finito, qui compare la richiesta del tuo server. Controlla l\'IP e tocca «Conferma». Gratis, nessun movimento di denaro.',
     bindBtn: '📷 Collega nodo (scansiona QR)',

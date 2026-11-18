@@ -265,6 +265,7 @@ function WAnsicht({ e, t }: { e: QuantenWErgebnis; t: (k: any) => string }) {
           <Text style={S.muted}>
             {t('node.qwPruefung').replace('{k}', String(s.kNote)).replace('{tol}', String(s.tol)).replace('{t}', String(s.t)).replace('{v}', String(s.v))}
           </Text>
+          {s.v === 1 ? <Text style={S.fehler}>{t('node.qwEinValidator')}</Text> : null}
           {s.fehl > 0 ? <Text style={S.muted}>{t('node.qwFehl').replace('{fehl}', String(s.fehl))}</Text> : null}
           {s.gesperrt ? <Text style={S.fehler}>{t('node.qwGesperrt')}</Text> : null}
           {s.anfrage ? (
@@ -278,6 +279,12 @@ function WAnsicht({ e, t }: { e: QuantenWErgebnis; t: (k: any) => string }) {
           <Text style={S.vorschlagName}>{t('node.qwToken')}</Text>
           <Zeile k={t('node.qwWert')} v={aeqText(s.wertMikro)} />
           <Zeile k={t('node.qwInhaber')} v={s.inhaber.slice(0, 10) + '…' + s.inhaber.slice(-6)} />
+          {s.v !== null ? (
+            <Text style={S.muted}>
+              {t('node.qwGeheimnisS').replace('{v}', String(s.v)).replace('{t}', String(s.t)).replace('{tol}', String(s.tol))}
+            </Text>
+          ) : null}
+          {s.v === 1 ? <Text style={S.fehler}>{t('node.qwEinValidator')}</Text> : null}
           <Text style={S.muted}>{s.gebunden ? t('node.qwGebunden') : t('node.qwNichtGebunden')}</Text>
           {s.fehl > 0 ? <Text style={S.muted}>{t('node.qwFehl').replace('{fehl}', String(s.fehl))}</Text> : null}
           {s.anmeldung ? (
