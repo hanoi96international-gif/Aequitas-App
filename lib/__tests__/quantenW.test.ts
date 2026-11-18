@@ -12,7 +12,7 @@ const noteW = () => ({
   anfrage: { Von: ADR('5'), Index: 1, K: 160, Stellen: [1, 2], Basen: [0, 1], Pfand: 1, Zeit: 1, Gezogen: 2, Antwort: [0, 1], AntwortZeit: 3, EinloesenAn: ADR('6'), Offen: 64, Treffer: 30, Fehler: 0 },
 });
 const tokenS = () => ({
-  k: K, art: 's', n: 64, t: 3, tol: 4, inhaber: ADR('7'), stellen: [ADR('8'), ADR('9')], gebunden: true, gewaehlt: false,
+  k: K, art: 's', n: 64, t: 3, v: 4, tol: 4, inhaber: ADR('7'), stellen: [ADR('8'), ADR('9')], gebunden: true, gewaehlt: false,
   fehl: 0, wert_mikro: 5_000_000, aktiv: true, anmeldung: { b: 1, stelle: ADR('9'), probe: [3, 5, 9], offen: 0, zeit: 7 },
 });
 
@@ -46,9 +46,15 @@ describe('leseQuantenWStand', () => {
 
   it('Token S und tote Note', () => {
     expect(leseQuantenWStand(tokenS(), K)).toEqual({
-      art: 's', k: K, aktiv: true, n: 64, t: 3, tol: 4, inhaber: ADR('7'), gebunden: true, gewaehlt: false,
+      art: 's', k: K, aktiv: true, n: 64, t: 3, v: 4, tol: 4, inhaber: ADR('7'), gebunden: true, gewaehlt: false,
       fehl: 0, wertMikro: 5_000_000, anmeldung: { probe: 3, offen: 0 },
     });
+    // Ein aelterer Knoten meldet v nicht: dann leer, nicht geraten.
+    const alt: any = tokenS();
+    delete alt.v;
+    expect(leseQuantenWStand(alt, K)).toMatchObject({ art: 's', t: 3, v: null });
+    // Ein einziger Validator (t = v = 1, wie beim ersten Token im Hauptnetz).
+    expect(leseQuantenWStand({ ...tokenS(), t: 1, v: 1 }, K)).toMatchObject({ t: 1, v: 1 });
     expect(leseQuantenWStand({ k: K, tot: true, aktiv: true }, K)).toEqual({ art: 'tot', k: K, aktiv: true });
   });
 
@@ -83,6 +89,10 @@ describe('leseQuantenWStand', () => {
     ['gebunden kein Wahrheitswert', (j: any) => { j.gebunden = 1; }],
     ['Stichprobe groesser als n', (j: any) => { j.anmeldung.probe = Array(65).fill(1); }],
     ['offen groesser als die Stichprobe', (j: any) => { j.anmeldung.offen = 4; }],
+    ['weniger Validatoren als t', (j: any) => { j.v = 2; }],
+    ['zu viele Validatoren', (j: any) => { j.v = 65; }],
+    ['Validatoren als Text', (j: any) => { j.v = '4'; }],
+    ['Validatoren leer', (j: any) => { j.v = null; }],
   ])('Token S: %s', (_name, kaputt) => {
     const j = tokenS();
     kaputt(j);

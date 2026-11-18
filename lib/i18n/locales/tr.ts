@@ -616,6 +616,8 @@ const tr: Translations = {
     qwInhaber: "Sahibi",
     qwGebunden: "Bir kabul noktasına bağlı",
     qwNichtGebunden: "Henüz bağlı değil",
+    qwGeheimnisS: "Sır {v} doğrulayıcıda, {t} tanesi gerekli, tolerans %{tol}",
+    qwEinValidator: "Yalnızca bir doğrulayıcı: sırrın tamamını o bilir. Sahteciliğe karşı koruma yalnızca ona bağlıdır.",
     bindTitle: 'CÜZDANINA BAĞLA',
     bindDesc: 'Betik bittiğinde sunucunun isteği burada görünür. IP\'yi kontrol et ve "Onayla"ya dokun. Ücretsiz, para hareket etmez.',
     bindBtn: '📷 Düğümü bağla (QR tara)',

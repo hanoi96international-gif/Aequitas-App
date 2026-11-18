@@ -616,6 +616,8 @@ const id: Translations = {
     qwInhaber: "Pemegang",
     qwGebunden: "Terikat ke titik penerimaan",
     qwNichtGebunden: "Belum terikat",
+    qwGeheimnisS: "Rahasia dipegang {v} validator, {t} di antaranya diperlukan, toleransi {tol} %",
+    qwEinValidator: "Hanya satu validator: ia mengetahui seluruh rahasia. Perlindungan dari pemalsuan lalu hanya bergantung padanya.",
     bindTitle: 'HUBUNGKAN KE DOMPETMU',
     bindDesc: 'Setelah skrip selesai, permintaan servermu muncul di sini. Periksa IP dan ketuk "Konfirmasi". Gratis, tidak memindahkan uang.',
     bindBtn: '📷 Hubungkan node (pindai QR)',

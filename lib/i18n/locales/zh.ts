@@ -616,6 +616,8 @@ const zh: Translations = {
     qwInhaber: "持有人",
     qwGebunden: "已绑定到受理点",
     qwNichtGebunden: "尚未绑定",
+    qwGeheimnisS: "秘密由 {v} 个验证者持有，需要其中 {t} 个，容差 {tol} %",
+    qwEinValidator: "只有一个验证者：它知道全部秘密。防伪因此完全依赖于它。",
     bindTitle: '绑定到你的钱包',
     bindDesc: '脚本完成后，你服务器的请求会出现在这里。核对 IP 并点击“确认”。免费，不转移任何资金。',
     bindBtn: '📷 绑定节点（扫描二维码）',

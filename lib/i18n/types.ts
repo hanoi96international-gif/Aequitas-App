@@ -630,6 +630,8 @@ export interface Translations {
     qwInhaber: string;
     qwGebunden: string;
     qwNichtGebunden: string;
+    qwGeheimnisS: string;
+    qwEinValidator: string;
     bindTitle: string;
     bindDesc: string;
     bindBtn: string;

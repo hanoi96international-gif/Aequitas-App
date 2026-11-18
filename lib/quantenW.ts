@@ -48,6 +48,9 @@ export type QuantenWStand =
       aktiv: boolean;
       n: number;
       t: number;
+      /** Validatoren, bei denen das Geheimnis liegt; null bei einem Knoten,
+       *  der es noch nicht meldet (vor dem 18.11.2026, quanten_w_s_kette.go). */
+      v: number | null;
       tol: number;
       inhaber: string;
       gebunden: boolean;
@@ -83,13 +86,16 @@ export function leseQuantenWStand(j: any, k: string): QuantenWStand | null {
   }
   if (j.art === 's') {
     if (typeof j.inhaber !== 'string' || !ADRESSE.test(j.inhaber) || !bool(j.gebunden) || !bool(j.gewaehlt)) return null;
+    // v fehlt bei aelteren Knoten (dann leer); ist es da, muss es passen.
+    if (j.v !== undefined && !ganz(j.v, j.t, V_MAX)) return null;
+    const v: number | null = j.v === undefined ? null : j.v;
     let anmeldung: { probe: number; offen: number } | null = null;
     if (j.anmeldung != null) {
       const a = j.anmeldung;
       if (!a || !Array.isArray(a.probe) || a.probe.length > j.n || !ganz(a.offen, 0, a.probe.length)) return null;
       anmeldung = { probe: a.probe.length, offen: a.offen };
     }
-    return { art: 's', k, aktiv: j.aktiv, n: j.n, t: j.t, tol: j.tol, inhaber: j.inhaber, gebunden: j.gebunden, gewaehlt: j.gewaehlt, fehl: j.fehl, wertMikro: j.wert_mikro, anmeldung };
+    return { art: 's', k, aktiv: j.aktiv, n: j.n, t: j.t, v, tol: j.tol, inhaber: j.inhaber, gebunden: j.gebunden, gewaehlt: j.gewaehlt, fehl: j.fehl, wertMikro: j.wert_mikro, anmeldung };
   }
   if (j.art !== undefined) return null;
   const v = Array.isArray(j.validatoren) ? j.validatoren.length : -1;

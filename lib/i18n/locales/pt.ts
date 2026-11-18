@@ -616,6 +616,8 @@ const pt: Translations = {
     qwInhaber: "Titular",
     qwGebunden: "Ligado a um ponto de aceitação",
     qwNichtGebunden: "Ainda não ligado",
+    qwGeheimnisS: "Segredo com {v} validadores, são necessários {t}, tolerância {tol} %",
+    qwEinValidator: "Apenas um validador: ele conhece todo o segredo. A proteção contra falsificação depende só dele.",
     bindTitle: 'LIGAR À TUA CARTEIRA',
     bindDesc: 'Quando o script terminar, o pedido do seu servidor aparece aqui. Confira o IP e toque em "Confirmar". Grátis, não movimenta dinheiro.',
     bindBtn: '📷 Ligar nó (ler QR)',
