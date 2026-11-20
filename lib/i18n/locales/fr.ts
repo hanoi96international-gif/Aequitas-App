@@ -618,6 +618,7 @@ const fr: Translations = {
     qwNichtGebunden: "Pas encore lié",
     qwGeheimnisS: "Secret détenu par {v} validateurs, {t} nécessaires, tolérance {tol} %",
     qwEinValidator: "Un seul validateur : il connaît tout le secret. La protection contre la contrefaçon repose alors sur lui seul.",
+    qwStichprobeV2: "Échantillon seulement après la liaison : aucun point d'acceptation ne connaissait auparavant une position vérifiée.",
     bindTitle: 'RELIER À TON PORTEFEUILLE',
     bindDesc: 'Quand le script a terminé, la demande de ton serveur apparaît ici. Vérifie l\'IP et touche « Confirmer ». Gratuit, aucun argent déplacé.',
     bindBtn: '📷 Relier le nœud (scanner le QR)',

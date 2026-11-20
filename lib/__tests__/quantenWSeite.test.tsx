@@ -89,7 +89,7 @@ describe('Note oder Token nachsehen', () => {
   });
 
   it('Token S, freigeschaltet: kein Hinweis "schlafend"', async () => {
-    const t = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 3, v: 4, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: false, gewaehlt: false, fehl: 0, wertMikro: 5_000_000, anmeldung: null } });
+    const t = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 3, v: 4, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: false, gewaehlt: false, fehl: 0, wertMikro: 5_000_000, anmeldung: null, stichprobeNachBindung: false } });
     expect(t).toEqual(expect.arrayContaining(['node.qwToken', '5.0000 AEQ', 'node.qwInhaber', 'node.qwGeheimnisS', 'node.qwNichtGebunden']));
     expect(t).not.toContain('node.qwSchlafend');
     expect(t).not.toContain('node.qwEinloesung');
@@ -97,11 +97,17 @@ describe('Note oder Token nachsehen', () => {
   });
 
   it('Token S mit einem einzigen Validator: Hinweis; ohne v vom Knoten: keine Zeile dazu', async () => {
-    const eins = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 1, v: 1, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: true, gewaehlt: true, fehl: 0, wertMikro: 1_000_000, anmeldung: null } });
+    const eins = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 1, v: 1, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: true, gewaehlt: true, fehl: 0, wertMikro: 1_000_000, anmeldung: null, stichprobeNachBindung: false } });
     expect(eins).toEqual(expect.arrayContaining(['node.qwGeheimnisS', 'node.qwEinValidator']));
-    const alt = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 1, v: null, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: true, gewaehlt: true, fehl: 0, wertMikro: 1_000_000, anmeldung: null } });
+    const alt = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 64, t: 1, v: null, tol: 4, inhaber: '0x' + '7'.repeat(40), gebunden: true, gewaehlt: true, fehl: 0, wertMikro: 1_000_000, anmeldung: null, stichprobeNachBindung: false } });
     expect(alt).not.toContain('node.qwGeheimnisS');
     expect(alt).not.toContain('node.qwEinValidator');
+    expect(eins).not.toContain('node.qwStichprobeV2');
+  });
+
+  it('Token S mit Stichprobe v2: Hinweis "erst nach der Bindung"', async () => {
+    const t = await zeige({ ok: true, stand: { art: 's', k: K, aktiv: true, n: 1104, t: 1, v: 1, tol: 2, inhaber: '0x' + '7'.repeat(40), gebunden: true, gewaehlt: true, fehl: 1, wertMikro: 1_000_000, anmeldung: null, stichprobeNachBindung: true } });
+    expect(t).toEqual(expect.arrayContaining(['node.qwToken', 'node.qwStichprobeV2', 'node.qwEinValidator', 'node.qwGebunden']));
   });
 
   it('tote Note, unbekannt, Netzfehler', async () => {

@@ -618,6 +618,7 @@ const en: Translations = {
     qwNichtGebunden: "Not bound yet",
     qwGeheimnisS: "Secret held by {v} validators, {t} of them needed, tolerance {tol} %",
     qwEinValidator: "Only one validator: it knows the whole secret. Protection against forgery then rests on it alone.",
+    qwStichprobeV2: "Sample only after binding: no acceptance point knew a checked position beforehand.",
     bindTitle: 'BIND TO YOUR WALLET',
     bindDesc: 'When the script is done, your server\'s request appears here. Check the IP and tap "Confirm". Free, moves no money.',
     bindBtn: '📷 Bind node (scan QR)',
