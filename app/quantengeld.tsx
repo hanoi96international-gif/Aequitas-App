@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { COORDINATOR_BASE } from '@/lib/config';
@@ -218,6 +218,9 @@ export default function Quantengeld() {
             {wLaeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qwAnzeigen')}</Text>}
           </TouchableOpacity>
           {wErgebnis ? <WAnsicht e={wErgebnis} t={t} /> : null}
+          <TouchableOpacity style={S.btn} onPress={() => router.push('/quanten-token')} activeOpacity={0.85} accessibilityRole="button">
+            <Text style={S.btnText}>{t('node.qtOeffnen')}</Text>
+          </TouchableOpacity>
         </View>
 
         {binPruefer ? (
