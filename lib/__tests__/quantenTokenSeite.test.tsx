@@ -13,6 +13,8 @@ const mockNeu = jest.fn();
 const mockAbholen = jest.fn();
 const mockEinloesen = jest.fn();
 const mockBestellung = jest.fn();
+const mockAnnehmen = jest.fn();
+const mockValidatorKennung = jest.fn();
 
 jest.mock('expo-router', () => {
   const R = require('react');
@@ -32,6 +34,14 @@ jest.mock('@/lib/quantenSInhaberin', () => ({
   bestellungAnzeigen: (...a: any[]) => mockBestellung(...a),
   vergessen: jest.fn(),
 }));
+
+jest.mock('@/lib/quantenSStelle', () => ({
+  ...jest.requireActual('@/lib/quantenSStelle'),
+  annehmenAlsStelle: (...a: any[]) => mockAnnehmen(...a),
+  validatorKennung: (...a: any[]) => mockValidatorKennung(...a),
+}));
+jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '81'.repeat(32) }) }));
+jest.mock('@/components/QrScanner', () => ({ QrScanner: (p: any) => require('react').createElement('Scanner', p) }));
 
 import QuantenToken from '../../app/quanten-token';
 const RN = require('react-native');
@@ -133,4 +143,66 @@ test('Fehler beim Abholen steht da, die Seite bleibt bedienbar', async () => {
   expect(mockAbholen).toHaveBeenCalledTimes(1);
   expect(texte(root).join(' ')).toContain('node.qtFehler Abschnitt 1 ist nicht von Validator 1 unterschrieben');
   expect(knopf(root, 'node.qtAbholen').props.disabled).toBe(false);
+});
+
+
+describe('Annahmestelle', () => {
+  const ich = stelle(0x81);
+  const C1 = { stelle: stelle(0x61), validator: '0x' + 'c1'.repeat(20) + '=https://knoten.test/api' };
+
+  test('Bestellung: C1 und das eigene Konto als Stellen eintragen', async () => {
+    mockZustand.mockResolvedValue(null);
+    mockValidatorKennung.mockResolvedValue(C1);
+    mockNeu.mockResolvedValue({ n: 1104, basen: [], inhaberin: '0x', inhaberin_schluessel: '04', stellen: [] });
+    const r = await zeigen();
+    const [c1Stelle] = knoepfe(r, 'node.qtC1');
+    await act(async () => c1Stelle.props.onPress());
+    await act(async () => knopf(r, 'node.qtMeinKonto').props.onPress());
+    await act(async () => knopf(r, 'node.qtAnlegen').props.onPress());
+    const [, , , stellen] = mockNeu.mock.calls[0];
+    expect(stellen[0]).toEqual({ adresse: C1.stelle.split('=')[0], schluessel: C1.stelle.split('=')[1] });
+    expect(stellen[1]).toEqual({ adresse: ich.split('=')[0], schluessel: ich.split('=')[1] });
+  });
+
+  test('eigene Kennung zeigen: QR mit adresse=schluessel (nichts Geheimes)', async () => {
+    mockZustand.mockResolvedValue(null);
+    const r = await zeigen();
+    await act(async () => knopf(r, 'node.qtKennung').props.onPress());
+    const qrs = r.findAllByType('QR' as any).map((q: any) => q.props.value);
+    expect(qrs).toContain(ich);
+    expect(qrs.join()).not.toContain('81'.repeat(32));
+  });
+
+  test('Vorlage scannen: erst mit Validatoren; der gescannte Text geht unveraendert an die Annahme', async () => {
+    mockZustand.mockResolvedValue(null);
+    mockValidatorKennung.mockResolvedValue(C1);
+    mockAnnehmen.mockResolvedValue({ k: 'ab'.repeat(32), stelle_nummer: 1, stelle: ich.split('=')[0], inhaberin: '0x', stichprobe: 552, treffer: 290, fehler: 2, vorab: 'besteht', urteil: 'eingeloest' });
+    const r = await zeigen();
+    expect(knopf(r, 'node.qtScannen').props.disabled).toBe(true);
+    const c1Knoepfe = knoepfe(r, 'node.qtC1');
+    await act(async () => c1Knoepfe[c1Knoepfe.length - 1].props.onPress()); // Validatoren der Annahmestelle
+    expect(knopf(r, 'node.qtScannen').props.disabled).toBe(false);
+    await act(async () => knopf(r, 'node.qtScannen').props.onPress());
+    const scanner = r.findByType('Scanner' as any);
+    expect(scanner.props.visible).toBe(true);
+    await act(async () => scanner.props.onScanned('{"k":"…"}'));
+    const [, schluessel, text, validatoren] = mockAnnehmen.mock.calls[0];
+    expect(schluessel).toBe('81'.repeat(32));
+    expect(text).toBe('{"k":"…"}');
+    expect(validatoren).toEqual([{ adresse: '0x' + 'c1'.repeat(20), api: 'https://knoten.test/api' }]);
+    expect(texte(r).join(' ')).toContain('node.qtAErgebnis');
+    expect(r.findByType('Scanner' as any).props.visible).toBe(false);
+  });
+
+  test('Annahme abgebrochen (z. B. Vorlage fuer die andere Stelle): Fehler steht da', async () => {
+    mockZustand.mockResolvedValue(null);
+    mockValidatorKennung.mockResolvedValue(C1);
+    mockAnnehmen.mockRejectedValue(new Error('die Vorlage ist fuer Stelle 0, das ist nicht dieses Konto'));
+    const r = await zeigen();
+    const c1Knoepfe = knoepfe(r, 'node.qtC1');
+    await act(async () => c1Knoepfe[c1Knoepfe.length - 1].props.onPress());
+    await act(async () => knopf(r, 'node.qtScannen').props.onPress());
+    await act(async () => r.findByType('Scanner' as any).props.onScanned('x'));
+    expect(texte(r).join(' ')).toContain('nicht dieses Konto');
+  });
 });

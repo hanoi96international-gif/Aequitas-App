@@ -18,12 +18,17 @@ import {
   type Vorlage,
 } from '@/lib/quantenSInhaberin';
 import type { Bestellung } from '@/lib/quantenS';
+import { annehmenAlsStelle, stelleKennung, validatorKennung, type AnnahmeErgebnis, type AnnahmeSchritt } from '@/lib/quantenSStelle';
+import { unlockWallet } from '@/lib/wallet';
+import { QrScanner } from '@/components/QrScanner';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
 // Quantengeld S: die App als Inhaberin eines Tokens (lib/quantenSInhaberin.ts).
 // Drei Schritte: bestellen (Bestellung an den Ausgeber), abholen (nur mit K,
 // direkt bei den Validatoren), einloesen (Vorlage als QR fuer die Stelle).
-// Jede Pruefung steht in lib/quantenS.ts; die Seite zeigt nur und reicht durch.
+// Dazu die App als Annahmestelle (lib/quantenSStelle.ts): eigene Kennung
+// zeigen, Vorlage per QR annehmen und einloesen, der Wert geht an dieses Konto.
+// Jede Pruefung steht in lib/quantenS*.ts; die Seite zeigt nur und reicht durch.
 type Anzeige = Awaited<ReturnType<typeof zustandAnzeigen>>;
 
 export default function QuantenToken() {
@@ -40,6 +45,10 @@ export default function QuantenToken() {
   const [vorlage, setVorlage] = useState<Vorlage | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
+  const [kennung, setKennung] = useState<string | null>(null);
+  const [stelleValidatoren, setStelleValidatoren] = useState('');
+  const [scannen, setScannen] = useState(false);
+  const [annahme, setAnnahme] = useState<AnnahmeErgebnis | null>(null);
 
   const laden = useCallback(async () => {
     try {
@@ -85,6 +94,43 @@ export default function QuantenToken() {
       );
       setVorlage(vl);
     });
+  // Eingabehilfen: der Validator-Dienst des eigenen Knotens (C1) und das eigene Konto.
+  const c1 = (ziel: 'stelle0' | 'validatoren' | 'stelleValidatoren') =>
+    schritt('c1', async () => {
+      const k = await validatorKennung(u);
+      if (ziel === 'stelle0') setStelle0(k.stelle);
+      else if (ziel === 'validatoren') setValidatoren(k.validator);
+      else setStelleValidatoren(k.validator);
+    });
+  const meinKonto = () =>
+    schritt('konto', async () => {
+      const w = await unlockWallet();
+      setStelle1(stelleKennung(w.privateKey.slice(2)));
+    });
+  const kennungZeigen = () =>
+    schritt('kennung', async () => {
+      const w = await unlockWallet();
+      setKennung(stelleKennung(w.privateKey.slice(2)));
+    });
+  const SCHRITT_TEXT: Record<AnnahmeSchritt, string> = {
+    pruefen: 'node.qtAPruefen', blaetter: 'node.qtABlaetter', oeffnung: 'node.qtAOeffnung', anmelden: 'node.qtAAnmelden', urteil: 'node.qtAUrteil',
+  };
+  const annehmen = (text: string) => {
+    setScannen(false);
+    void schritt('annahme', async () => {
+      setAnnahme(null);
+      const w = await unlockWallet();
+      const erg = await annehmenAlsStelle(u, w.privateKey.slice(2), text, validatorenLesen(stelleValidatoren), (s) =>
+        setMeldung({ ok: true, text: t(SCHRITT_TEXT[s] as any) }),
+      );
+      setAnnahme(erg);
+      setMeldung({
+        ok: erg.urteil === 'eingeloest',
+        text: t('node.qtAErgebnis').replace('{urteil}', erg.urteil ?? '?').replace('{vorab}', erg.vorab).replace('{fehler}', String(erg.fehler)).replace('{treffer}', String(erg.treffer)),
+      });
+    });
+  };
+
   const loeschen = () =>
     Alert.alert(t('node.qtVergessen'), t('node.qtVergessenFrage'), [
       { text: t('common.cancel'), style: 'cancel' },
@@ -125,8 +171,14 @@ export default function QuantenToken() {
             <TextInput style={S.input} value={v} onChangeText={(x) => setV(x.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={2} />
             <Text style={S.label}>{t('node.qtStelle').replace('{b}', '0')}</Text>
             <TextInput style={S.input} value={stelle0} onChangeText={setStelle0} autoCapitalize="none" autoCorrect={false} multiline placeholder="0x…=04…" placeholderTextColor={theme.muted} />
+            <TouchableOpacity style={S.btnZweit} onPress={() => c1('stelle0')} disabled={beschaeftigt} accessibilityRole="button">
+              <Text style={S.btnZweitText}>{t('node.qtC1')}</Text>
+            </TouchableOpacity>
             <Text style={S.label}>{t('node.qtStelle').replace('{b}', '1')}</Text>
             <TextInput style={S.input} value={stelle1} onChangeText={setStelle1} autoCapitalize="none" autoCorrect={false} multiline placeholder="0x…=04…" placeholderTextColor={theme.muted} />
+            <TouchableOpacity style={S.btnZweit} onPress={meinKonto} disabled={beschaeftigt} accessibilityRole="button">
+              <Text style={S.btnZweitText}>{t('node.qtMeinKonto')}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[S.btn, beschaeftigt && { opacity: 0.5 }]} disabled={beschaeftigt} onPress={anlegen} activeOpacity={0.85}>
               {laeuft === 'neu' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qtAnlegen')}</Text>}
             </TouchableOpacity>
@@ -154,6 +206,9 @@ export default function QuantenToken() {
             <TextInput style={S.input} value={k} onChangeText={(x) => setK(x.replace(/[^0-9a-fA-F]/g, '').slice(0, 64))} autoCapitalize="none" autoCorrect={false} maxLength={64} placeholder="K" placeholderTextColor={theme.muted} />
             <Text style={S.label}>{t('node.qtValidatoren')}</Text>
             <TextInput style={[S.input, { minHeight: 60 }]} value={validatoren} onChangeText={setValidatoren} autoCapitalize="none" autoCorrect={false} multiline placeholder="0x…=https://…/api" placeholderTextColor={theme.muted} />
+            <TouchableOpacity style={S.btnZweit} onPress={() => c1('validatoren')} disabled={beschaeftigt} accessibilityRole="button">
+              <Text style={S.btnZweitText}>{t('node.qtC1')}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[S.btn, (beschaeftigt || k.length !== 64) && { opacity: 0.5 }]} disabled={beschaeftigt || k.length !== 64} onPress={holen} activeOpacity={0.85}>
               {laeuft === 'abholen' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qtAbholen')}</Text>}
             </TouchableOpacity>
@@ -183,6 +238,41 @@ export default function QuantenToken() {
             ) : null}
           </View>
         ) : null}
+
+        <View style={S.card}>
+          <Text style={S.title}>{t('node.qtAnnahmeTitel')}</Text>
+          <Text style={S.body}>{t('node.qtAnnahmeText')}</Text>
+          {kennung ? (
+            <View style={{ alignItems: 'center' }}>
+              <View style={S.qr}>
+                <QRCode value={kennung} size={220} backgroundColor="#ffffff" color="#000000" ecl="M" />
+              </View>
+              <Text style={[S.muted, { marginTop: 10 }]}>{t('node.qtKennungHinweis')}</Text>
+              <TouchableOpacity style={S.btnZweit} onPress={() => Clipboard.setStringAsync(kennung)} accessibilityRole="button">
+                <Text style={S.btnZweitText}>{t('node.qtKopieren')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={S.btnZweit} onPress={kennungZeigen} disabled={beschaeftigt} accessibilityRole="button">
+              <Text style={S.btnZweitText}>{t('node.qtKennung')}</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={S.label}>{t('node.qtValidatoren')}</Text>
+          <TextInput style={[S.input, { minHeight: 60 }]} value={stelleValidatoren} onChangeText={setStelleValidatoren} autoCapitalize="none" autoCorrect={false} multiline placeholder="0x…=https://…/api" placeholderTextColor={theme.muted} />
+          <TouchableOpacity style={S.btnZweit} onPress={() => c1('stelleValidatoren')} disabled={beschaeftigt} accessibilityRole="button">
+            <Text style={S.btnZweitText}>{t('node.qtC1')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[S.btn, (beschaeftigt || !stelleValidatoren.trim()) && { opacity: 0.5 }]}
+            disabled={beschaeftigt || !stelleValidatoren.trim()}
+            onPress={() => setScannen(true)}
+            activeOpacity={0.85}
+          >
+            {laeuft === 'annahme' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qtScannen')}</Text>}
+          </TouchableOpacity>
+          {annahme ? <Text style={[S.muted, { marginTop: 10 }]}>K {annahme.k.slice(0, 12)}… · {annahme.stichprobe}</Text> : null}
+        </View>
+        <QrScanner visible={scannen} onScanned={annehmen} onClose={() => setScannen(false)} />
 
         {meldung ? (
           <View style={S.card}>
