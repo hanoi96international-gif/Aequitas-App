@@ -176,10 +176,9 @@ export default function QuantenToken() {
                 <View style={S.qr}>
                   <QRCode value={vorlageText} size={260} backgroundColor="#ffffff" color="#000000" ecl="L" />
                 </View>
+                {/* Kein Kopieren: die Vorlage wirkt bei dieser Stelle wie Bargeld, und
+                    die Zwischenablage koennen andere Apps lesen. Nur als QR, nur dort zeigen. */}
                 <Text style={[S.muted, { marginTop: 10 }]}>{t('node.qtVorlageHinweis').replace('{b}', String(vorlage.b))}</Text>
-                <TouchableOpacity style={S.btnZweit} onPress={() => Clipboard.setStringAsync(vorlageText)} accessibilityRole="button">
-                  <Text style={S.btnZweitText}>{t('node.qtKopieren')}</Text>
-                </TouchableOpacity>
               </View>
             ) : null}
           </View>

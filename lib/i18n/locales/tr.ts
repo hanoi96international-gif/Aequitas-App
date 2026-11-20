@@ -644,7 +644,7 @@ const tr: Translations = {
     qtBinden: "Bağlama gönderiliyor …",
     qtWaehlen: "Seçim gönderiliyor …",
     qtVorlageFertig: "Sunum hazır.",
-    qtVorlageHinweis: "Bu kodu kabul noktası {b}'ye göster. O, kodu zincire karşı kendisi denetler.",
+    qtVorlageHinweis: "Bu kodu yalnızca kabul noktası {b}'ye göster – kimde varsa orada bozdurabilir. Nokta kodu zincire karşı kendisi denetler.",
     qtVergessen: "Unut",
     qtVergessenFrage: "Anahtar ve durum silinsin mi? Hâlâ zincirde olan bir jeton kaybolurdu – uygulama buna izin vermez.",
     qtFehler: "Durduruldu:",

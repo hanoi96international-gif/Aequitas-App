@@ -644,7 +644,7 @@ const zh: Translations = {
     qtBinden: "正在提交绑定 …",
     qtWaehlen: "正在提交选择 …",
     qtVorlageFertig: "出示码已就绪。",
-    qtVorlageHinweis: "向受理点 {b} 出示此码。它会自行对照链检查。",
+    qtVorlageHinweis: "只向受理点 {b} 出示此码——谁拿到它，谁就能在那里兑换。受理点会自行对照链检查。",
     qtVergessen: "忘记",
     qtVergessenFrage: "删除密钥和状态？仍在链上的代币将会丢失——应用不允许这样做。",
     qtFehler: "已中止：",

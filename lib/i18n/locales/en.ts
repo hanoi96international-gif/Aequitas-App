@@ -644,7 +644,7 @@ const en: Translations = {
     qtBinden: "Submitting binding …",
     qtWaehlen: "Submitting choice …",
     qtVorlageFertig: "Presentation ready.",
-    qtVorlageHinweis: "Show this code to acceptance point {b}. It checks it itself against the chain.",
+    qtVorlageHinweis: "Show this code only to acceptance point {b} – whoever has it can redeem there. The point checks it itself against the chain.",
     qtVergessen: "Forget",
     qtVergessenFrage: "Delete key and state? A token still on the chain would be lost – the app does not allow that.",
     qtFehler: "Stopped:",

@@ -644,7 +644,7 @@ const de: Translations = {
     qtBinden: "Bindung wird eingereicht …",
     qtWaehlen: "Wahl wird eingereicht …",
     qtVorlageFertig: "Vorlage fertig.",
-    qtVorlageHinweis: "Zeig diesen Code der Annahmestelle {b}. Sie prüft ihn selbst gegen die Kette.",
+    qtVorlageHinweis: "Zeig diesen Code nur der Annahmestelle {b} – wer ihn hat, kann dort einlösen. Die Stelle prüft ihn selbst gegen die Kette.",
     qtVergessen: "Vergessen",
     qtVergessenFrage: "Schlüssel und Zustand löschen? Ein Token, der noch auf der Kette steht, wäre damit verloren – die App lässt das nicht zu.",
     qtFehler: "Abgebrochen:",

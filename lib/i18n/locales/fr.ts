@@ -644,7 +644,7 @@ const fr: Translations = {
     qtBinden: "Envoi de la liaison …",
     qtWaehlen: "Envoi du choix …",
     qtVorlageFertig: "Présentation prête.",
-    qtVorlageHinweis: "Montre ce code au point d'acceptation {b}. Il le vérifie lui-même sur la chaîne.",
+    qtVorlageHinweis: "Ne montre ce code qu'au point d'acceptation {b} – qui l'a peut encaisser là-bas. Le point le vérifie lui-même sur la chaîne.",
     qtVergessen: "Oublier",
     qtVergessenFrage: "Supprimer la clé et l'état ? Un jeton encore sur la chaîne serait perdu – l'app ne le permet pas.",
     qtFehler: "Interrompu :",

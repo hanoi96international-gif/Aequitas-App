@@ -644,7 +644,7 @@ const pt: Translations = {
     qtBinden: "A enviar vinculação …",
     qtWaehlen: "A enviar escolha …",
     qtVorlageFertig: "Apresentação pronta.",
-    qtVorlageHinweis: "Mostra este código ao ponto de aceitação {b}. Ele verifica-o contra a cadeia.",
+    qtVorlageHinweis: "Mostra este código só ao ponto de aceitação {b} – quem o tiver pode resgatar lá. O ponto verifica-o contra a cadeia.",
     qtVergessen: "Esquecer",
     qtVergessenFrage: "Apagar chave e estado? Um token ainda na cadeia ficaria perdido – a app não o permite.",
     qtFehler: "Interrompido:",

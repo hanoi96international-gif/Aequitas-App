@@ -644,7 +644,7 @@ const it: Translations = {
     qtBinden: "Invio del vincolo …",
     qtWaehlen: "Invio della scelta …",
     qtVorlageFertig: "Presentazione pronta.",
-    qtVorlageHinweis: "Mostra questo codice al punto di accettazione {b}. Lo controlla da sé sulla catena.",
+    qtVorlageHinweis: "Mostra questo codice solo al punto di accettazione {b}: chi lo ha può riscuotere lì. Il punto lo controlla da sé sulla catena.",
     qtVergessen: "Dimentica",
     qtVergessenFrage: "Cancellare chiave e stato? Un token ancora sulla catena andrebbe perso: l'app non lo consente.",
     qtFehler: "Interrotto:",

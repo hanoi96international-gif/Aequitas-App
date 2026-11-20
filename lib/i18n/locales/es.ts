@@ -644,7 +644,7 @@ const es: Translations = {
     qtBinden: "Enviando vinculación …",
     qtWaehlen: "Enviando elección …",
     qtVorlageFertig: "Presentación lista.",
-    qtVorlageHinweis: "Muestra este código al punto de aceptación {b}. Él lo comprueba frente a la cadena.",
+    qtVorlageHinweis: "Muestra este código solo al punto de aceptación {b}: quien lo tenga puede canjear allí. El punto lo comprueba frente a la cadena.",
     qtVergessen: "Olvidar",
     qtVergessenFrage: "¿Borrar clave y estado? Un token que siga en la cadena se perdería: la app no lo permite.",
     qtFehler: "Interrumpido:",

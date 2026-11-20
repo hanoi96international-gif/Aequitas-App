@@ -115,6 +115,8 @@ test('mit Token: Einloesen fuer Stelle 1, danach die Vorlage als QR', async () =
   const qr = root.findByType('QR' as any);
   expect(JSON.parse(qr.props.value)).toEqual(vl);
   expect(texte(root)).toContain('node.qtVorlageFertig');
+  // Die Vorlage wirkt bei der Stelle wie Bargeld: kein Kopieren in die Zwischenablage.
+  expect(knoepfe(root, 'node.qtKopieren').length).toBe(0);
 });
 
 test('Fehler beim Abholen steht da, die Seite bleibt bedienbar', async () => {

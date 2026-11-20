@@ -644,7 +644,7 @@ const id: Translations = {
     qtBinden: "Mengirim pengikatan …",
     qtWaehlen: "Mengirim pilihan …",
     qtVorlageFertig: "Presentasi siap.",
-    qtVorlageHinweis: "Tunjukkan kode ini ke titik penerimaan {b}. Titik itu memeriksanya sendiri terhadap rantai.",
+    qtVorlageHinweis: "Tunjukkan kode ini hanya ke titik penerimaan {b} – siapa pun yang memilikinya bisa menukar di sana. Titik itu memeriksanya sendiri terhadap rantai.",
     qtVergessen: "Lupakan",
     qtVergessenFrage: "Hapus kunci dan status? Token yang masih di rantai akan hilang – aplikasi tidak mengizinkannya.",
     qtFehler: "Dihentikan:",
