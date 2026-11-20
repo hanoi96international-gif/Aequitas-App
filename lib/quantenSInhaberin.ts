@@ -43,13 +43,13 @@ import {
 const SCHLUESSEL = 'aequitas.quantenS.inhaberin.schluessel';
 const ZUSTAND = 'aequitas.quantenS.inhaberin.zustand';
 /** Abschnitt eines Validators: Blaetter fuer bis zu 16.384 Stellen (~1,1 MB). */
-const ABSCHNITT_MAX = 4 * 1024 * 1024;
+export const ABSCHNITT_MAX = 4 * 1024 * 1024;
 /** Stand eines Tokens: d und die Stichprobe einer Anmeldung, je bis 16.384. */
 const STAND_MAX = 1024 * 1024;
 const FRIST_MS = 30_000;
 /** So lange wartet die App hoechstens, bis Bindung oder Wahl auf der Kette stehen. */
 export const WARTEN_MAX_MS = 20 * 60_000;
-const TAKT_MS = 5_000;
+export const TAKT_MS = 5_000;
 
 const K_FORM = /^[0-9a-f]{64}$/;
 const ADRESSE = /^0x[0-9a-f]{40}$/;
@@ -141,7 +141,7 @@ export function apiPruefen(roh: string): string {
   return roh.replace(/\/+$/, '');
 }
 
-async function holeJson(u: Umgebung, url: string, max: number): Promise<{ status: number; json: unknown }> {
+export async function holeJson(u: Umgebung, url: string, max: number): Promise<{ status: number; json: unknown }> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FRIST_MS);
   try {
@@ -159,7 +159,7 @@ async function holeJson(u: Umgebung, url: string, max: number): Promise<{ status
   }
 }
 
-async function stand(u: Umgebung, K: string): Promise<KettenStand | null> {
+export async function stand(u: Umgebung, K: string): Promise<KettenStand | null> {
   const { status, json } = await holeJson(u, `${u.apiBasis}/quanten-w/note?k=${K}`, STAND_MAX);
   if (status === 404) return null;
   if (!json || typeof json !== 'object' || Array.isArray(json) || (json as KettenStand).k !== K) fehler('Stand: fremdes K');
@@ -168,7 +168,7 @@ async function stand(u: Umgebung, K: string): Promise<KettenStand | null> {
 
 const ABSCHNITT_FELDER = 'bis,blaetter,buendel_hash,buendel_sig_hash,fuer_inhaberin,sig,teile,von,x,zaehlung';
 
-async function abschnittHolen(u: Umgebung, api: string, K: string): Promise<PaketAbschnitt> {
+export async function abschnittHolen(u: Umgebung, api: string, K: string): Promise<PaketAbschnitt> {
   const { status, json } = await holeJson(u, `${apiPruefen(api)}/quanten-w/validator/fuer-inhaberin?k=${K}`, ABSCHNITT_MAX);
   if (status === 404 || !json || typeof json !== 'object' || Array.isArray(json)) fehler('Abschnitt: keine Antwort');
   // Streng wie im Knoten (DisallowUnknownFields): genau diese Felder.
@@ -176,7 +176,9 @@ async function abschnittHolen(u: Umgebung, api: string, K: string): Promise<Pake
   return json as PaketAbschnitt;
 }
 
-async function einreichen(u: Umgebung, art: 's_binden' | 's_waehlen', wallet: string, quantenW: Record<string, string>): Promise<void> {
+const ART_TEXT = { s_binden: 'Bindung', s_waehlen: 'Wahl', s_anmelden: 'Anmeldung' } as const;
+
+export async function einreichen(u: Umgebung, art: keyof typeof ART_TEXT, wallet: string, quantenW: Record<string, unknown>): Promise<void> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FRIST_MS);
   try {
@@ -187,7 +189,7 @@ async function einreichen(u: Umgebung, art: 's_binden' | 's_waehlen', wallet: st
       signal: ctrl.signal,
       redirect: 'error',
     } as RequestInit);
-    if (!r.ok) fehler(`${art === 's_binden' ? 'Bindung' : 'Wahl'}: HTTP ${r.status}`);
+    if (!r.ok) fehler(`${ART_TEXT[art]}: HTTP ${r.status}`);
   } catch (e) {
     if (e instanceof QuantenSFehler) throw e;
     fehler('Netz');
