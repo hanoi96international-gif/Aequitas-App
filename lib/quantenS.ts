@@ -158,9 +158,24 @@ export function unterschreiben(schluesselHex: string, nachricht: string): string
   return sig.serialized.toLowerCase();
 }
 
-/** kanonischeSignatur + verifyPersonalSign: nur 0x + 130 Hex-Zeichen mit v 1b/1c. */
+// Ordnung der Gruppe von secp256k1.
+const N_KURVE = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
+
+/**
+ * kanonischeSignatur (validator_register.go): 0x + 130 Hex-Zeichen klein, v 1b/1c,
+ * 1 <= r < N und 1 <= s <= N/2 (crypto.ValidateSignatureValues mit homestead) --
+ * die gespiegelte Unterschrift (N - s) nimmt der Knoten nicht, also auch die App nicht.
+ */
+export function kanonisch(sig: string): boolean {
+  if (!SIG.test(sig)) return false;
+  const r = BigInt('0x' + sig.slice(2, 66));
+  const s = BigInt('0x' + sig.slice(66, 130));
+  return r >= 1n && r < N_KURVE && s >= 1n && s <= N_KURVE / 2n;
+}
+
+/** kanonischeSignatur + verifyPersonalSign. */
 export function unterschriftVon(nachricht: string, sig: string, adresse: string): boolean {
-  if (!SIG.test(sig) || !ADRESSE.test(adresse)) return false;
+  if (!kanonisch(sig) || !ADRESSE.test(adresse)) return false;
   try {
     return ethers.verifyMessage(nachricht, sig).toLowerCase() === adresse;
   } catch {

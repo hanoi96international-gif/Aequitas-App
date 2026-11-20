@@ -15,6 +15,7 @@ import {
   fuerInhaberinOeffnen,
   hashListe,
   hexZuBits,
+  kanonisch,
   kNote,
   merkleWurzel,
   probeHashV2,
@@ -141,6 +142,17 @@ describe('quantenS: Missbrauch', () => {
     expect(unterschriftVon(V.binden_nachricht, sig.slice(0, -2) + '01', V.inhaberin)).toBe(false);
     expect(unterschriftVon(V.binden_nachricht + 'x', sig, V.inhaberin)).toBe(false);
     expect(unterschriftVon(V.binden_nachricht, sig, validatoren[0])).toBe(false);
+    // Gespiegelt (s' = N - s, v umgedreht): der Knoten weist sie ab (homestead).
+    // ethers 6.17 auch ("non-canonical s"); die App prueft es zusaetzlich selbst
+    // wie der Knoten, unabhaengig von der Bibliothek.
+    const N = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
+    const s2 = (N - BigInt('0x' + sig.slice(66, 130))).toString(16).padStart(64, '0');
+    const gespiegelt = sig.slice(0, 66) + s2 + (sig.endsWith('1b') ? '1c' : '1b');
+    expect(() => require('ethers').ethers.verifyMessage(V.binden_nachricht, gespiegelt)).toThrow('non-canonical s');
+    expect(kanonisch(gespiegelt)).toBe(false);
+    expect(unterschriftVon(V.binden_nachricht, gespiegelt, V.inhaberin)).toBe(false);
+    expect(kanonisch('0x' + '0'.repeat(64) + sig.slice(66))).toBe(false); // r = 0
+    expect(kanonisch(sig)).toBe(true);
   });
 });
 
