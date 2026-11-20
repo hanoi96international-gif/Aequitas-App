@@ -675,6 +675,9 @@ export interface Translations {
     qtAAnmelden: string;
     qtAUrteil: string;
     qtAErgebnis: string;
+    qtNachweis: string;
+    qtNachweisWarten: string;
+    qtNachweisOk: string;
     bindTitle: string;
     bindDesc: string;
     bindBtn: string;

@@ -41,6 +41,8 @@ jest.mock('@/lib/quantenSStelle', () => ({
   validatorKennung: (...a: any[]) => mockValidatorKennung(...a),
 }));
 jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '81'.repeat(32) }) }));
+const mockNachweis = jest.fn();
+jest.mock('@/lib/quantenSNachweis', () => ({ nachweisAbwarten: (...a: any[]) => mockNachweis(...a) }));
 jest.mock('@/components/QrScanner', () => ({ QrScanner: (p: any) => require('react').createElement('Scanner', p) }));
 
 import QuantenToken from '../../app/quanten-token';
@@ -176,7 +178,8 @@ describe('Annahmestelle', () => {
   test('Vorlage scannen: erst mit Validatoren; der gescannte Text geht unveraendert an die Annahme', async () => {
     mockZustand.mockResolvedValue(null);
     mockValidatorKennung.mockResolvedValue(C1);
-    mockAnnehmen.mockResolvedValue({ k: 'ab'.repeat(32), stelle_nummer: 1, stelle: ich.split('=')[0], inhaberin: '0x', stichprobe: 552, treffer: 290, fehler: 2, vorab: 'besteht', urteil: 'eingeloest' });
+    mockAnnehmen.mockResolvedValue({ k: 'ab'.repeat(32), stelle_nummer: 1, stelle: ich.split('=')[0], inhaberin: '0x', stichprobe: 552, treffer: 290, fehler: 2, vorab: 'besteht', urteil: 'eingeloest',
+      wurzel: 'cd'.repeat(32), proben: ['ee'.repeat(32), 'ff'.repeat(32)] });
     const r = await zeigen();
     expect(knopf(r, 'node.qtScannen').props.disabled).toBe(true);
     const c1Knoepfe = knoepfe(r, 'node.qtC1');
@@ -192,6 +195,13 @@ describe('Annahmestelle', () => {
     expect(validatoren).toEqual([{ adresse: '0x' + 'c1'.repeat(20), api: 'https://knoten.test/api' }]);
     expect(texte(r).join(' ')).toContain('node.qtAErgebnis');
     expect(r.findByType('Scanner' as any).props.visible).toBe(false);
+    // Nach dem Einloesen: Nachweis pruefen -- gegen Wurzel und Proben aus der Annahme.
+    mockNachweis.mockResolvedValue({ n: 1104, fehler: 5, treffer: 580, fehler_stelle: 2, treffer_stelle: 290 });
+    await act(async () => knopf(r, 'node.qtNachweis').props.onPress());
+    const [, k, vs, wurzel, proben] = mockNachweis.mock.calls[0];
+    expect([k, wurzel, proben]).toEqual(['ab'.repeat(32), 'cd'.repeat(32), ['ee'.repeat(32), 'ff'.repeat(32)]]);
+    expect(vs).toEqual([{ adresse: '0x' + 'c1'.repeat(20), api: 'https://knoten.test/api' }]);
+    expect(texte(r).join(' ')).toContain('node.qtNachweisOk');
   });
 
   test('Annahme abgebrochen (z. B. Vorlage fuer die andere Stelle): Fehler steht da', async () => {

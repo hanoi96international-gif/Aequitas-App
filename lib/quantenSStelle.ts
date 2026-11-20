@@ -200,6 +200,9 @@ export interface AnnahmeErgebnis {
   vorab: 'besteht' | 'abgewiesen';
   /** Urteil der Kette: "eingeloest", "abgewiesen" oder "frist" */
   urteil?: 'eingeloest' | 'abgewiesen' | 'frist';
+  /** Wurzel und Proben der Ausgabe, vor dem Anmelden von der Kette gelesen (fuer den Nachweis nach dem Ende). */
+  wurzel: string;
+  proben: string[];
 }
 
 export type AnnahmeSchritt = 'pruefen' | 'blaetter' | 'oeffnung' | 'anmelden' | 'urteil';
@@ -301,7 +304,10 @@ export async function annehmenAlsStelle(
   if (probeV2Pruefen(K, b, n, v, probe, salze) !== proben[b]) fehler('Stichprobe und Salze passen nicht zur Bindung der Ausgabe');
 
   // Vorab dieselbe Rechnung wie die Kette.
-  const erg: AnnahmeErgebnis = { k: K, stelle_nummer: b, stelle, inhaberin: inhaber, stichprobe: probe.length, treffer: 0, fehler: 0, vorab: 'abgewiesen' };
+  const erg: AnnahmeErgebnis = {
+    k: K, stelle_nummer: b, stelle, inhaberin: inhaber, stichprobe: probe.length, treffer: 0, fehler: 0, vorab: 'abgewiesen',
+    wurzel, proben: [proben[0] as string, proben[1] as string],
+  };
   for (const [i, [basis, wert]] of geladen) {
     if ((Number(dText[i]) ^ b ^ c) === basis) {
       erg.treffer++;
