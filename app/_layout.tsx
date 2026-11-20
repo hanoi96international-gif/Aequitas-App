@@ -41,6 +41,7 @@ function Navigation() {
         <Stack.Screen name="coordinator-binden" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="pruefer" options={{ headerShown: false }} />
         <Stack.Screen name="quantengeld" options={{ headerShown: false }} />
+        <Stack.Screen name="quanten-token" options={{ headerShown: false }} />
         <Stack.Screen name="umzug" options={{ headerShown: false }} />
         <Stack.Screen name="wiederherstellungscode" options={{ headerShown: false }} />
         <Stack.Screen name="quantenschutz" options={{ headerShown: false }} />

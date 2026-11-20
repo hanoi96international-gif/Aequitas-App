@@ -76,6 +76,8 @@ export interface Zustand {
   v: number;
   y: string;
   stellen: [string, string];
+  /** oeffentliche Schluessel der Stellen -- damit die Bestellung jederzeit wieder gezeigt werden kann. */
+  stellenSchluessel: [string, string];
   k?: string;
   x?: string;
   z?: 0 | 1;
@@ -210,7 +212,9 @@ async function zustandLesen(u: Umgebung): Promise<Zustand | null> {
   const roh = await u.speicher.lesen(ZUSTAND);
   if (!roh) return null;
   const z = JSON.parse(roh) as Zustand;
-  if (!Number.isInteger(z.n) || !Number.isInteger(z.v) || typeof z.y !== 'string' || !Array.isArray(z.stellen)) fehler('Zustand im Geraet unlesbar');
+  if (!Number.isInteger(z.n) || !Number.isInteger(z.v) || typeof z.y !== 'string' || !Array.isArray(z.stellen) || !Array.isArray(z.stellenSchluessel)) {
+    fehler('Zustand im Geraet unlesbar');
+  }
   return z;
 }
 
@@ -252,8 +256,19 @@ export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, S
   if (!Number.isInteger(n) || !Number.isInteger(v) || n < 2 || n > N_MAX || v < 1 || v > V_MAX || !abschnitt(n, v, v)) fehler('n oder v');
   const st = [stelleSchluesselPruefen(stellen[0]), stelleSchluesselPruefen(stellen[1])] as [Stelle, Stelle];
   if (st[0].adresse === st[1].adresse) fehler('Annahmestellen: zweimal dieselbe');
+  // Nie eine bestehende Bestellung ueberschreiben: hat der Ausgeber schon auf
+  // sie ausgegeben, waere dieser Token sonst verloren (Schluessel und y weg).
   const alt = await zustandLesen(u);
   if (alt?.k) fehler('es gibt schon einen angenommenen Token -- erst einloesen');
+  if (alt) fehler('es gibt schon eine Bestellung -- erst abholen oder vergessen');
+  // Passt der Zustand samt x nach dem Abholen in den Speicher (SecureStore:
+  // 2048 Byte je Wert)? Vorher pruefen -- dann erst Zufall ziehen und schreiben.
+  const hexLaenge = Math.ceil(n / 4);
+  const groesst: Zustand = {
+    n, v, y: '0'.repeat(hexLaenge), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel],
+    k: '0'.repeat(64), x: '0'.repeat(hexLaenge), z: 1, validatoren: Array(v).fill('0x' + '0'.repeat(40)),
+  };
+  if (JSON.stringify(groesst).length > 2048) fehler('n zu gross fuer den Speicher dieses Geraets');
   let schl = '';
   for (let i = 0; i < 8 && !schl; i++) {
     const k = BigInt('0x' + ethers.hexlify(u.zufall(32)).slice(2));
@@ -272,8 +287,36 @@ export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, S
     basen.push(y.slice(a.von, a.bis));
   }
   await u.speicher.schreiben(SCHLUESSEL, schl, true);
-  await zustandSchreiben(u, { n, v, y: bitsZuHex(y), stellen: [st[0].adresse, st[1].adresse] });
-  return { n, basen, inhaberin, inhaberin_schluessel: pubVon(schl), stellen: [st[0], st[1]] as Bestellung['stellen'] };
+  const zustand: Zustand = { n, v, y: bitsZuHex(y), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel] };
+  await u.speicher.schreiben(SCHLUESSEL, schl, true);
+  await zustandSchreiben(u, zustand);
+  return bestellungAus(zustand, schl);
+}
+
+function bestellungAus(z: Zustand, schl: string): Bestellung {
+  const y = hexZuBits(z.y, z.n);
+  const basen: string[] = [];
+  for (let x = 1; x <= z.v; x++) {
+    const a = abschnitt(z.n, z.v, x)!;
+    basen.push(y.slice(a.von, a.bis));
+  }
+  return {
+    n: z.n,
+    basen,
+    inhaberin: adresseVon(schl),
+    inhaberin_schluessel: pubVon(schl),
+    stellen: [
+      { adresse: z.stellen[0], schluessel: z.stellenSchluessel[0] },
+      { adresse: z.stellen[1], schluessel: z.stellenSchluessel[1] },
+    ],
+  };
+}
+
+/** Die Bestellung noch einmal (z. B. nach einem Neustart), solange kein Token abgeholt ist. */
+export async function bestellungAnzeigen(u: Umgebung): Promise<Bestellung | null> {
+  const z = await zustandLesen(u);
+  if (!z || z.k) return null;
+  return bestellungAus(z, await schluesselLesen(u));
 }
 
 /** abholen: nur mit K -- Stand von der Kette, jeder Abschnitt direkt vom Validator, dann annehmen. */
@@ -291,22 +334,7 @@ export async function abholen(u: Umgebung, Kroh: string, validatoren: ValidatorA
   const st = await stand(u, K);
   const abschnitte: PaketAbschnitt[] = [];
   for (const v of validatoren) abschnitte.push(await abschnittHolen(u, v.api, K));
-  const y = hexZuBits(z.y, z.n);
-  const basen: string[] = [];
-  for (let x = 1; x <= z.v; x++) {
-    const a = abschnitt(z.n, z.v, x)!;
-    basen.push(y.slice(a.von, a.bis));
-  }
-  const best: Bestellung = {
-    n: z.n,
-    basen,
-    inhaberin: adresseVon(schl),
-    inhaberin_schluessel: pubVon(schl),
-    stellen: [
-      { adresse: z.stellen[0], schluessel: '' },
-      { adresse: z.stellen[1], schluessel: '' },
-    ],
-  };
+  const best = bestellungAus(z, schl);
   if (z.k === K && st && st.gebunden === true) fehler('der Token ist schon gebunden -- weiter mit Einloesen');
   const erg = annehmen({ schluessel: schl, bestellung: best, validatoren: adressen, K, stand: st, abschnitte });
   await zustandSchreiben(u, { ...z, k: K, x: bitsZuHex(erg.x), validatoren: adressen });
@@ -378,4 +406,26 @@ export async function vergessen(u: Umgebung): Promise<void> {
   if (z?.k && (await stand(u, z.k)) != null) fehler('der Token steht noch auf der Kette -- erst einloesen');
   await u.speicher.loeschen(SCHLUESSEL);
   await u.speicher.loeschen(ZUSTAND);
+}
+
+// ------------------------------------------------------------ Eingaben der Seite
+
+/** "0xadresse=04schluessel" (eine Annahmestelle), so wie die Stelle sie zeigt. */
+export function stelleLesen(text: string): Stelle {
+  const [a, s, rest] = text.trim().split('=');
+  if (!a || !s || rest !== undefined) fehler('Annahmestelle: Form adresse=schluessel');
+  return stelleSchluesselPruefen({ adresse: a, schluessel: s });
+}
+
+/** "0xadresse=https://api, ..." (Komma oder neue Zeile), in der Reihenfolge der Abschnitte. */
+export function validatorenLesen(text: string): ValidatorAngabe[] {
+  const teile = text.split(/[\n,]+/).map((t) => t.trim()).filter(Boolean);
+  if (teile.length < 1 || teile.length > V_MAX) fehler('Validatoren: mindestens einer');
+  return teile.map((t) => {
+    const i = t.indexOf('=');
+    const adresse = t.slice(0, i).trim().toLowerCase();
+    const api = t.slice(i + 1).trim();
+    if (i < 1 || !ADRESSE.test(adresse)) fehler('Validatoren: Form adresse=api');
+    return { adresse, api: apiPruefen(api) };
+  });
 }

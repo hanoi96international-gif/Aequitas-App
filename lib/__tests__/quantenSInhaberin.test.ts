@@ -151,6 +151,22 @@ describe('App als Inhaberin: Missbrauch', () => {
     expect(() => stelleSchluesselPruefen({ adresse: a.adresse, schluessel: 'zz' })).toThrow('Form');
   });
 
+  test('neu ueberschreibt keine offene Bestellung (der Ausgeber koennte schon ausgegeben haben)', async () => {
+    const w = welt();
+    const best = await bestellt(w);
+    await expect(neu(w.u, V.n, V.v, (w as any).stellen)).rejects.toThrow('schon eine Bestellung');
+    const { bestellungAnzeigen } = require('../quantenSInhaberin');
+    expect(await bestellungAnzeigen(w.u)).toEqual(best); // nach einem Neustart wieder zu zeigen
+    await abholen(w.u, V.k, VAL);
+    expect(await bestellungAnzeigen(w.u)).toBeNull();
+  });
+
+  test('zu grosses n fuer den Speicher: nichts geschrieben', async () => {
+    const w = welt();
+    await expect(neu(w.u, 8000, 1, (w as any).stellen)).rejects.toThrow('zu gross');
+    expect(w.speicher.size).toBe(0);
+  });
+
   test('neu ueberschreibt keinen angenommenen Token; vergessen nicht, solange er auf der Kette steht', async () => {
     const w = welt();
     await bestellt(w);
@@ -226,5 +242,22 @@ describe('App als Inhaberin: Missbrauch', () => {
     for (const roh of ['http://knoten.test/api', 'ftp://x', 'https://u:p@x', 'https://x/api?k=1', 'kein']) {
       expect(() => apiPruefen(roh)).toThrow();
     }
+  });
+});
+
+describe('App als Inhaberin: Eingaben der Seite', () => {
+  test('Stelle und Validatoren lesen', () => {
+    const { stelleLesen, validatorenLesen } = require('../quantenSInhaberin');
+    const s = stelle(0x31);
+    expect(stelleLesen(` ${s.adresse.toUpperCase().replace('0X', '0x')}=0x${s.schluessel} `)).toEqual(s);
+    expect(() => stelleLesen(s.adresse)).toThrow('Form');
+    expect(() => stelleLesen(`${s.adresse}=${s.schluessel}=x`)).toThrow('Form');
+    expect(() => stelleLesen(`${stelle(0x32).adresse}=${s.schluessel}`)).toThrow('gehoert nicht zur Adresse');
+    expect(validatorenLesen(`${VAL[0].adresse}=${VAL[0].api}\n${VAL[1].adresse}=${VAL[1].api}/`)).toEqual(VAL);
+    expect(validatorenLesen(`${VAL[0].adresse}=${VAL[0].api}, ${VAL[1].adresse}=${VAL[1].api}`)).toEqual(VAL);
+    expect(() => validatorenLesen('')).toThrow('mindestens einer');
+    expect(() => validatorenLesen(`${VAL[0].adresse}`)).toThrow('Form');
+    expect(() => validatorenLesen(`kein=https://v.test`)).toThrow('Form');
+    expect(() => validatorenLesen(`${VAL[0].adresse}=http://v.test`)).toThrow('nur https');
   });
 });
