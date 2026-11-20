@@ -59,6 +59,10 @@ export type QuantenWStand =
       wertMikro: number;
       /** Laufende Einloesung: so viele Stellen der Stichprobe, so viele offen. */
       anmeldung: { probe: number; offen: number } | null;
+      /** Stichprobe v2 (probe_art 2): vor Bindung und Wahl kannte keine
+       *  Annahmestelle eine Stelle der Stichproben. false bei Token im
+       *  bisherigen Weg und bei Knoten, die das Feld noch nicht melden. */
+      stichprobeNachBindung: boolean;
     }
   | { art: 'tot'; k: string; aktiv: boolean };
 
@@ -95,7 +99,11 @@ export function leseQuantenWStand(j: any, k: string): QuantenWStand | null {
       if (!a || !Array.isArray(a.probe) || a.probe.length > j.n || !ganz(a.offen, 0, a.probe.length)) return null;
       anmeldung = { probe: a.probe.length, offen: a.offen };
     }
-    return { art: 's', k, aktiv: j.aktiv, n: j.n, t: j.t, v, tol: j.tol, inhaber: j.inhaber, gebunden: j.gebunden, gewaehlt: j.gewaehlt, fehl: j.fehl, wertMikro: j.wert_mikro, anmeldung };
+    // probe_art fehlt (bisheriger Weg, aelterer Knoten) oder ist 2 (v2);
+    // jede andere Angabe passt nicht -- dann nichts anzeigen statt halb.
+    if (j.probe_art !== undefined && j.probe_art !== 2) return null;
+    const stichprobeNachBindung = j.probe_art === 2;
+    return { art: 's', k, aktiv: j.aktiv, n: j.n, t: j.t, v, tol: j.tol, inhaber: j.inhaber, gebunden: j.gebunden, gewaehlt: j.gewaehlt, fehl: j.fehl, wertMikro: j.wert_mikro, anmeldung, stichprobeNachBindung };
   }
   if (j.art !== undefined) return null;
   const v = Array.isArray(j.validatoren) ? j.validatoren.length : -1;

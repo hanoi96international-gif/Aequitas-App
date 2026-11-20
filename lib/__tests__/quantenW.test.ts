@@ -47,8 +47,10 @@ describe('leseQuantenWStand', () => {
   it('Token S und tote Note', () => {
     expect(leseQuantenWStand(tokenS(), K)).toEqual({
       art: 's', k: K, aktiv: true, n: 64, t: 3, v: 4, tol: 4, inhaber: ADR('7'), gebunden: true, gewaehlt: false,
-      fehl: 0, wertMikro: 5_000_000, anmeldung: { probe: 3, offen: 0 },
+      fehl: 0, wertMikro: 5_000_000, anmeldung: { probe: 3, offen: 0 }, stichprobeNachBindung: false,
     });
+    // Stichprobe v2: der Knoten nennt probe_art 2 (sonst fehlt das Feld).
+    expect(leseQuantenWStand({ ...tokenS(), probe_art: 2 }, K)).toMatchObject({ art: 's', stichprobeNachBindung: true });
     // Ein aelterer Knoten meldet v nicht: dann leer, nicht geraten.
     const alt: any = tokenS();
     delete alt.v;
@@ -93,6 +95,12 @@ describe('leseQuantenWStand', () => {
     ['zu viele Validatoren', (j: any) => { j.v = 65; }],
     ['Validatoren als Text', (j: any) => { j.v = '4'; }],
     ['Validatoren leer', (j: any) => { j.v = null; }],
+    // Nur probe_art 2 kennt die Kette; alles andere wird nicht als v2 gezeigt.
+    ['probe_art 1', (j: any) => { j.probe_art = 1; }],
+    ['probe_art 0 ausdruecklich', (j: any) => { j.probe_art = 0; }],
+    ['probe_art als Text', (j: any) => { j.probe_art = '2'; }],
+    ['probe_art wahr', (j: any) => { j.probe_art = true; }],
+    ['probe_art leer', (j: any) => { j.probe_art = null; }],
   ])('Token S: %s', (_name, kaputt) => {
     const j = tokenS();
     kaputt(j);

@@ -285,6 +285,7 @@ function WAnsicht({ e, t }: { e: QuantenWErgebnis; t: (k: any) => string }) {
             </Text>
           ) : null}
           {s.v === 1 ? <Text style={S.fehler}>{t('node.qwEinValidator')}</Text> : null}
+          {s.stichprobeNachBindung ? <Text style={S.muted}>{t('node.qwStichprobeV2')}</Text> : null}
           <Text style={S.muted}>{s.gebunden ? t('node.qwGebunden') : t('node.qwNichtGebunden')}</Text>
           {s.fehl > 0 ? <Text style={S.muted}>{t('node.qwFehl').replace('{fehl}', String(s.fehl))}</Text> : null}
           {s.anmeldung ? (

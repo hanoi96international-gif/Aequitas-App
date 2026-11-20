@@ -632,6 +632,7 @@ export interface Translations {
     qwNichtGebunden: string;
     qwGeheimnisS: string;
     qwEinValidator: string;
+    qwStichprobeV2: string;
     bindTitle: string;
     bindDesc: string;
     bindBtn: string;
