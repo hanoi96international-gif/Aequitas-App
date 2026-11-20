@@ -19,6 +19,7 @@ import {
 } from '@/lib/quantenSInhaberin';
 import type { Bestellung } from '@/lib/quantenS';
 import { annehmenAlsStelle, stelleKennung, validatorKennung, type AnnahmeErgebnis, type AnnahmeSchritt } from '@/lib/quantenSStelle';
+import { nachweisAbwarten } from '@/lib/quantenSNachweis';
 import { unlockWallet } from '@/lib/wallet';
 import { QrScanner } from '@/components/QrScanner';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
@@ -130,6 +131,18 @@ export default function QuantenToken() {
       });
     });
   };
+
+  const nachweisPruefen = () =>
+    schritt('nachweis', async () => {
+      if (!annahme) return;
+      setMeldung({ ok: true, text: t('node.qtNachweisWarten') });
+      const ber = await nachweisAbwarten(u, annahme.k, validatorenLesen(stelleValidatoren), annahme.wurzel, annahme.proben, 20 * 60_000);
+      setMeldung({
+        ok: true,
+        text: t('node.qtNachweisOk').replace('{n}', String(ber.n)).replace('{fehler}', String(ber.fehler)).replace('{treffer}', String(ber.treffer))
+          .replace('{fs}', String(ber.fehler_stelle)).replace('{ts}', String(ber.treffer_stelle)),
+      });
+    });
 
   const loeschen = () =>
     Alert.alert(t('node.qtVergessen'), t('node.qtVergessenFrage'), [
@@ -271,6 +284,11 @@ export default function QuantenToken() {
             {laeuft === 'annahme' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qtScannen')}</Text>}
           </TouchableOpacity>
           {annahme ? <Text style={[S.muted, { marginTop: 10 }]}>K {annahme.k.slice(0, 12)}… · {annahme.stichprobe}</Text> : null}
+          {annahme?.urteil === 'eingeloest' ? (
+            <TouchableOpacity style={S.btnZweit} onPress={nachweisPruefen} disabled={beschaeftigt} accessibilityRole="button">
+              {laeuft === 'nachweis' ? <ActivityIndicator color={theme.text} /> : <Text style={S.btnZweitText}>{t('node.qtNachweis')}</Text>}
+            </TouchableOpacity>
+          ) : null}
         </View>
         <QrScanner visible={scannen} onScanned={annehmen} onClose={() => setScannen(false)} />
 

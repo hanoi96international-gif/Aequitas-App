@@ -152,7 +152,10 @@ describe('Annahmestelle: der ganze Weg', () => {
     const w = welt();
     const schritte: string[] = [];
     const erg = await annehmenAlsStelle(w.u, SCHL, vorlageText_(), VALIDATOREN, (s) => schritte.push(s));
-    expect(erg).toEqual({ k: V.k, stelle_nummer: V.b, stelle: V.stelle, inhaberin: V.inhaberin, stichprobe: 552, treffer: V.treffer, fehler: V.fehler, vorab: 'besteht', urteil: 'eingeloest' });
+    expect(erg).toEqual({
+      k: V.k, stelle_nummer: V.b, stelle: V.stelle, inhaberin: V.inhaberin, stichprobe: 552, treffer: V.treffer, fehler: V.fehler, vorab: 'besteht', urteil: 'eingeloest',
+      wurzel: V.stand.wurzel, proben: V.stand.proben,
+    });
     expect(schritte).toEqual(['pruefen', 'blaetter', 'oeffnung', 'anmelden', 'urteil']);
     expect(w.posts).toHaveLength(1);
     expect(w.posts[0].url).toBe(`${API}/quanten-w/s_anmelden`);
