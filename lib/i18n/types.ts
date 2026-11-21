@@ -647,6 +647,9 @@ export interface Translations {
     qtAnlegen: string;
     qtAngelegt: string;
     qtBestellungHinweis: string;
+    qtVerschluesseln: string;
+    qtVerschluesselnText: string;
+    qtZuGrossFuerQr: string;
     qtKopieren: string;
     qtSchritt2: string;
     qtAbholenText: string;

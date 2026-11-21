@@ -5,7 +5,11 @@
 //
 // Wie das Werkzeug der Inhaberin im Knoten (quanten_s_rollen.go):
 //   neu        Schluessel und Basen y aus dem Zufall des Geraets; heraus kommt
-//              die Bestellung (oeffentlich) fuer den Ausgeber.
+//              die Bestellung (oeffentlich) fuer den Ausgeber. Auf Wunsch (R8)
+//              y je Abschnitt an den Validator verschluesselt: dann sieht der
+//              Ausgeber nur Chiffrate; ihre Hashes bleiben im Geraet und
+//              werden beim Abholen gegen die Unterschrift jedes Validators
+//              geprueft.
 //   abholen    nur mit K: Stand von der Kette, jeder Abschnitt direkt vom
 //              Validator (GET /api/quanten-w/validator/fuer-inhaberin), alles
 //              geprueft (quantenS.annehmen), dann x im Geraet.
@@ -24,6 +28,9 @@ import {
   abschnitt,
   adresseVon,
   annehmen,
+  BASEN_CHIFFRAT_MAX,
+  basenHash,
+  basenVerschluesseln,
   binden,
   bindenNachricht,
   bitsZuHex,
@@ -44,6 +51,8 @@ const SCHLUESSEL = 'aequitas.quantenS.inhaberin.schluessel';
 /** Schluessel der Annahmestelle, wenn das Geraet keine eigene Wallet hat (quantenSStelle.ts). */
 export const STELLE_SCHLUESSEL = 'aequitas.quantenS.stelle.schluessel';
 const ZUSTAND = 'aequitas.quantenS.inhaberin.zustand';
+/** Chiffrate der Basen (oeffentlich, zu gross fuer SecureStore); ihre Hashes stehen im Zustand. */
+const CHIFFRATE = 'aequitas.quantenS.inhaberin.chiffrate';
 /** Abschnitt eines Validators: Blaetter fuer bis zu 16.384 Stellen (~1,1 MB). */
 export const ABSCHNITT_MAX = 4 * 1024 * 1024;
 /** Stand eines Tokens: d und die Stichprobe einer Anmeldung, je bis 16.384. */
@@ -84,6 +93,9 @@ export interface Zustand {
   x?: string;
   z?: 0 | 1;
   validatoren?: string[];
+  /** R8: Hashes der Chiffrate je Abschnitt und die Validatoren, an die verschluesselt ist. */
+  basenHash?: string[];
+  verschluesseltAn?: string[];
 }
 
 export interface Speicher {
@@ -95,10 +107,17 @@ export interface Speicher {
 export interface Umgebung {
   fetchFn: typeof fetch;
   speicher: Speicher;
+  /** fuer grosse, oeffentliche Werte (die Chiffrate der Bestellung, R8); ohne sie keine verschluesselte Bestellung. */
+  ablage?: Speicher;
   zufall: (n: number) => Uint8Array;
   apiBasis: string;
   warten: (ms: number) => Promise<void>;
   jetzt: () => number;
+}
+
+function asyncStorage(): { getItem(k: string): Promise<string | null>; setItem(k: string, v: string): Promise<void>; removeItem(k: string): Promise<void> } {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('@react-native-async-storage/async-storage').default;
 }
 
 export function standardUmgebung(): Umgebung {
@@ -120,6 +139,12 @@ export function standardUmgebung(): Umgebung {
         );
       },
       loeschen: (key) => SecureStore.deleteItemAsync(key),
+    },
+    ablage: {
+      // Erst beim Gebrauch geladen: Tests und Seiten ohne R8 brauchen das native Modul nicht.
+      lesen: (key) => asyncStorage().getItem(key),
+      schreiben: (key, wert) => asyncStorage().setItem(key, wert),
+      loeschen: (key) => asyncStorage().removeItem(key),
     },
     zufall: (n) => getRandomBytes(n),
     apiBasis: API_BASE,
@@ -169,13 +194,26 @@ export async function stand(u: Umgebung, K: string): Promise<KettenStand | null>
 }
 
 const ABSCHNITT_FELDER = 'bis,blaetter,buendel_hash,buendel_sig_hash,fuer_inhaberin,sig,teile,von,x,zaehlung';
+/** Mit verschluesselten Basen (R8) kommt basen_hash dazu. */
+const ABSCHNITT_FELDER_R8 = 'basen_hash,bis,blaetter,buendel_hash,buendel_sig_hash,fuer_inhaberin,sig,teile,von,x,zaehlung';
 
 export async function abschnittHolen(u: Umgebung, api: string, K: string): Promise<PaketAbschnitt> {
   const { status, json } = await holeJson(u, `${apiPruefen(api)}/quanten-w/validator/fuer-inhaberin?k=${K}`, ABSCHNITT_MAX);
   if (status === 404 || !json || typeof json !== 'object' || Array.isArray(json)) fehler('Abschnitt: keine Antwort');
   // Streng wie im Knoten (DisallowUnknownFields): genau diese Felder.
-  if (Object.keys(json as object).sort().join(',') !== ABSCHNITT_FELDER) fehler('Abschnitt: Felder');
+  const felder = Object.keys(json as object).sort().join(',');
+  if (felder !== ABSCHNITT_FELDER && felder !== ABSCHNITT_FELDER_R8) fehler('Abschnitt: Felder');
   return json as PaketAbschnitt;
+}
+
+const PUB_EINGABE = /^(0x)?04[0-9a-f]{128}$/i;
+
+/** Der oeffentliche Schluessel eines Validators (GET .../validator/schluessel); gegen die Adresse prueft basenVerschluesseln. */
+export async function validatorSchluessel(u: Umgebung, api: string): Promise<string> {
+  const { status, json } = await holeJson(u, `${apiPruefen(api)}/quanten-w/validator/schluessel`, 4096);
+  const s = (json as { schluessel?: unknown } | null)?.schluessel;
+  if (status === 404 || typeof s !== 'string' || !PUB_EINGABE.test(s)) fehler('Validator: kein Schluessel');
+  return s.toLowerCase().replace(/^0x/, '');
 }
 
 const ART_TEXT = { s_binden: 'Bindung', s_waehlen: 'Wahl', s_anmelden: 'Anmeldung' } as const;
@@ -256,8 +294,12 @@ export function stelleSchluesselPruefen(s: Stelle): Stelle {
  * gibt die Bestellung zurueck. Ein angenommener, noch nicht eingeloester Token
  * wird nicht ueberschrieben (er waere sonst verloren).
  */
-export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, Stelle]): Promise<Bestellung> {
+export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, Stelle], verschluesseln?: ValidatorAngabe[]): Promise<Bestellung> {
   if (!Number.isInteger(n) || !Number.isInteger(v) || n < 2 || n > N_MAX || v < 1 || v > V_MAX || !abschnitt(n, v, v)) fehler('n oder v');
+  const an = verschluesseln?.map((x) => x.adresse.trim().toLowerCase());
+  if (verschluesseln && !u.ablage) fehler('keine Ablage fuer die Chiffrate');
+  if (verschluesseln && verschluesseln.length !== v) fehler(`v = ${v}, aber ${verschluesseln.length} Validatoren zum Verschluesseln`);
+  if (an && (an.some((a) => !ADRESSE.test(a)) || new Set(an).size !== an.length)) fehler('Validatoren: Adresse');
   const st = [stelleSchluesselPruefen(stellen[0]), stelleSchluesselPruefen(stellen[1])] as [Stelle, Stelle];
   if (st[0].adresse === st[1].adresse) fehler('Annahmestellen: zweimal dieselbe');
   // Nie eine bestehende Bestellung ueberschreiben: hat der Ausgeber schon auf
@@ -271,6 +313,7 @@ export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, S
   const groesst: Zustand = {
     n, v, y: '0'.repeat(hexLaenge), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel],
     k: '0'.repeat(64), x: '0'.repeat(hexLaenge), z: 1, validatoren: Array(v).fill('0x' + '0'.repeat(40)),
+    ...(an ? { basenHash: Array(v).fill('0'.repeat(64)), verschluesseltAn: an } : {}),
   };
   if (JSON.stringify(groesst).length > 2048) fehler('n zu gross fuer den Speicher dieses Geraets');
   let schl = '';
@@ -290,23 +333,53 @@ export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, S
     const a = abschnitt(n, v, x)!;
     basen.push(y.slice(a.von, a.bis));
   }
-  await u.speicher.schreiben(SCHLUESSEL, schl, true);
   const zustand: Zustand = { n, v, y: bitsZuHex(y), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel] };
+  if (verschluesseln && an) {
+    // Erst alle Schluessel holen und verschluesseln, dann schreiben: ein
+    // Fehler hier hinterlaesst keine halbe Bestellung.
+    const chiffrate: string[] = [];
+    for (let x = 1; x <= v; x++) {
+      const pub = await validatorSchluessel(u, verschluesseln[x - 1].api);
+      chiffrate.push(basenVerschluesseln(pub, an, n, x, inhaberin, basen[x - 1], u.zufall));
+    }
+    zustand.basenHash = chiffrate.map(basenHash);
+    zustand.verschluesseltAn = an;
+    await u.ablage!.schreiben(CHIFFRATE, JSON.stringify(chiffrate), false);
+  }
   await u.speicher.schreiben(SCHLUESSEL, schl, true);
   await zustandSchreiben(u, zustand);
-  return bestellungAus(zustand, schl);
+  return bestellungAus(u, zustand, schl);
 }
 
-function bestellungAus(z: Zustand, schl: string): Bestellung {
+async function bestellungAus(u: Umgebung, z: Zustand, schl: string): Promise<Bestellung> {
   const y = hexZuBits(z.y, z.n);
   const basen: string[] = [];
   for (let x = 1; x <= z.v; x++) {
     const a = abschnitt(z.n, z.v, x)!;
     basen.push(y.slice(a.von, a.bis));
   }
+  let teil: Pick<Bestellung, 'basen' | 'basen_verschluesselt'> = { basen };
+  if (z.basenHash) {
+    // Die Chiffrate liegen in der Ablage; sie muessen genau zu den Hashes im
+    // geschuetzten Zustand passen (sonst haette sie jemand getauscht).
+    const roh = u.ablage ? await u.ablage.lesen(CHIFFRATE) : null;
+    let c: unknown;
+    try {
+      c = roh ? JSON.parse(roh) : null;
+    } catch {
+      c = null;
+    }
+    if (
+      !Array.isArray(c) || c.length !== z.v ||
+      c.some((e, i) => typeof e !== 'string' || e.length > BASEN_CHIFFRAT_MAX || !/^[0-9a-f]+$/.test(e) || basenHash(e) !== z.basenHash![i])
+    ) {
+      fehler('Chiffrate der Bestellung fehlen oder passen nicht');
+    }
+    teil = { basen_verschluesselt: c as string[] };
+  }
   return {
     n: z.n,
-    basen,
+    ...teil,
     inhaberin: adresseVon(schl),
     inhaberin_schluessel: pubVon(schl),
     stellen: [
@@ -320,7 +393,7 @@ function bestellungAus(z: Zustand, schl: string): Bestellung {
 export async function bestellungAnzeigen(u: Umgebung): Promise<Bestellung | null> {
   const z = await zustandLesen(u);
   if (!z || z.k) return null;
-  return bestellungAus(z, await schluesselLesen(u));
+  return bestellungAus(u, z, await schluesselLesen(u));
 }
 
 /** abholen: nur mit K -- Stand von der Kette, jeder Abschnitt direkt vom Validator, dann annehmen. */
@@ -338,7 +411,8 @@ export async function abholen(u: Umgebung, Kroh: string, validatoren: ValidatorA
   const st = await stand(u, K);
   const abschnitte: PaketAbschnitt[] = [];
   for (const v of validatoren) abschnitte.push(await abschnittHolen(u, v.api, K));
-  const best = bestellungAus(z, schl);
+  if (z.verschluesseltAn && z.verschluesseltAn.join(',') !== adressen.join(',')) fehler('die Basen sind an andere Validatoren verschluesselt als angegeben');
+  const best = await bestellungAus(u, z, schl);
   if (z.k === K && st && st.gebunden === true) fehler('der Token ist schon gebunden -- weiter mit Einloesen');
   const erg = annehmen({ schluessel: schl, bestellung: best, validatoren: adressen, K, stand: st, abschnitte });
   await zustandSchreiben(u, { ...z, k: K, x: bitsZuHex(erg.x), validatoren: adressen });
@@ -410,6 +484,7 @@ export async function vergessen(u: Umgebung): Promise<void> {
   if (z?.k && (await stand(u, z.k)) != null) fehler('der Token steht noch auf der Kette -- erst einloesen');
   await u.speicher.loeschen(SCHLUESSEL);
   await u.speicher.loeschen(ZUSTAND);
+  await u.ablage?.loeschen(CHIFFRATE);
 }
 
 // ------------------------------------------------------------ Eingaben der Seite

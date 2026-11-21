@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -32,6 +32,7 @@ import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 // zeigen, Vorlage per QR annehmen und einloesen, der Wert geht an dieses Konto.
 // Jede Pruefung steht in lib/quantenS*.ts; die Seite zeigt nur und reicht durch.
 type Anzeige = Awaited<ReturnType<typeof zustandAnzeigen>>;
+const QR_MAX = 2900;
 
 export default function QuantenToken() {
   const { t } = useLanguage();
@@ -44,6 +45,8 @@ export default function QuantenToken() {
   const [bestellung, setBestellung] = useState<Bestellung | null>(null);
   const [k, setK] = useState('');
   const [validatoren, setValidatoren] = useState('');
+  // R8: Basen an die Validatoren verschluesseln (dieselbe Validatorenliste wie beim Abholen).
+  const [verschluesseln, setVerschluesseln] = useState(false);
   const [vorlage, setVorlage] = useState<Vorlage | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
@@ -83,7 +86,7 @@ export default function QuantenToken() {
 
   const anlegen = () =>
     schritt('neu', async () => {
-      const best = await neu(u, Number(n), Number(v), [stelleLesen(stelle0), stelleLesen(stelle1)]);
+      const best = await neu(u, Number(n), Number(v), [stelleLesen(stelle0), stelleLesen(stelle1)], verschluesseln ? validatorenLesen(validatoren) : undefined);
       setBestellung(best);
       setVorlage(null);
       setMeldung({ ok: true, text: t('node.qtAngelegt') });
@@ -201,6 +204,19 @@ export default function QuantenToken() {
             <TouchableOpacity style={S.btnZweit} onPress={meinKonto} disabled={beschaeftigt} accessibilityRole="button">
               <Text style={S.btnZweitText}>{t('node.qtMeinKonto')}</Text>
             </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
+              <Text style={[S.label, { flex: 1, marginTop: 0 }]}>{t('node.qtVerschluesseln')}</Text>
+              <Switch value={verschluesseln} onValueChange={setVerschluesseln} disabled={beschaeftigt} accessibilityLabel={t('node.qtVerschluesseln')} />
+            </View>
+            {verschluesseln ? (
+              <>
+                <Text style={S.muted}>{t('node.qtVerschluesselnText')}</Text>
+                <TextInput style={[S.input, { minHeight: 60 }]} value={validatoren} onChangeText={setValidatoren} autoCapitalize="none" autoCorrect={false} multiline placeholder="0x…=https://…/api" placeholderTextColor={theme.muted} />
+                <TouchableOpacity style={S.btnZweit} onPress={() => c1('validatoren')} disabled={beschaeftigt} accessibilityRole="button">
+                  <Text style={S.btnZweitText}>{t('node.qtC1')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
             <TouchableOpacity style={[S.btn, beschaeftigt && { opacity: 0.5 }]} disabled={beschaeftigt} onPress={anlegen} activeOpacity={0.85}>
               {laeuft === 'neu' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qtAnlegen')}</Text>}
             </TouchableOpacity>
@@ -211,9 +227,15 @@ export default function QuantenToken() {
           <View style={S.card}>
             <Text style={S.title}>{t('node.qtSchritt1')}</Text>
             <Text style={S.muted}>{t('node.qtBestellungHinweis')}</Text>
-            <View style={[S.qr, { alignSelf: 'center', marginTop: 12 }]}>
-              <QRCode value={bestellungText} size={260} backgroundColor="#ffffff" color="#000000" ecl="L" />
-            </View>
+            {/* Ein QR-Code faesst bei Stufe L hoechstens 2.953 Byte; verschluesselte
+                Bestellungen sind groesser -- dann nur kopieren. */}
+            {bestellungText.length <= QR_MAX ? (
+              <View style={[S.qr, { alignSelf: 'center', marginTop: 12 }]}>
+                <QRCode value={bestellungText} size={260} backgroundColor="#ffffff" color="#000000" ecl="L" />
+              </View>
+            ) : (
+              <Text style={[S.muted, { marginTop: 12 }]}>{t('node.qtZuGrossFuerQr')}</Text>
+            )}
             <TouchableOpacity style={S.btnZweit} onPress={() => Clipboard.setStringAsync(bestellungText)} accessibilityRole="button">
               <Text style={S.btnZweitText}>{t('node.qtKopieren')}</Text>
             </TouchableOpacity>

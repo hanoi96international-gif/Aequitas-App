@@ -90,7 +90,7 @@ describe('App als Inhaberin: Ablauf', () => {
     const best = await bestellt(w);
     expect(best.inhaberin).toBe(V.inhaberin);
     expect(best.inhaberin_schluessel).toBe(V.inhaberin_pub);
-    expect(best.basen.join('')).toBe(V.y);
+    expect(best.basen!.join('')).toBe(V.y);
     expect(JSON.stringify(best)).not.toContain(V.inhaberin_schluessel_nur_test);
     expect(await abholen(w.u, V.k.toUpperCase(), VAL)).toEqual({ k: V.k, n: V.n });
     const schritte: string[] = [];
