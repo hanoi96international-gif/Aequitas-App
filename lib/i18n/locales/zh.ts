@@ -664,6 +664,7 @@ const zh: Translations = {
     qtNachweis: "检查证明",
     qtNachweisWarten: "等待验证者公开（仅在最终确定之后，最多 20 分钟）…",
     qtNachweisOk: "证明：公开的制备恰好得出发行时的根。{n} 个位置，{treffer} 次命中中有 {fehler} 个错误；在此受理点 {ts} 次中有 {fs} 个。这并不证明是量子计算机进行了测量。",
+    qtGeraeteStelle: "此应用没有自己的钱包。作为受理点，它使用本设备的一把密钥；价值进入 {adresse}。",
     bindTitle: '绑定到你的钱包',
     bindDesc: '脚本完成后，你服务器的请求会出现在这里。核对 IP 并点击“确认”。免费，不转移任何资金。',
     bindBtn: '📷 绑定节点（扫描二维码）',

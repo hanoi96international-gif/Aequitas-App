@@ -664,6 +664,7 @@ const de: Translations = {
     qtNachweis: "Nachweis prüfen",
     qtNachweisWarten: "Warten, bis die Validatoren offenlegen (erst nach der Finalität, bis 20 Minuten) …",
     qtNachweisOk: "Nachweis: Die offengelegte Präparation ergibt genau die Wurzel der Ausgabe. {n} Stellen, {fehler} Fehler bei {treffer} Treffern; an dieser Stelle {fs} bei {ts}. Das zeigt nicht, dass ein Quantenrechner gemessen hat.",
+    qtGeraeteStelle: "Diese App hat keine eigene Wallet. Für die Annahmestelle nutzt sie einen eigenen Schlüssel dieses Geräts; der Wert geht an {adresse}.",
     bindTitle: 'MIT DEINER WALLET VERBINDEN',
     bindDesc: 'Wenn das Skript fertig ist, erscheint hier die Anfrage deines Servers. Prüfe die IP und tippe auf „Bestätigen“. Kostet nichts, bewegt kein Geld.',
     bindBtn: '📷 Knoten binden (QR scannen)',

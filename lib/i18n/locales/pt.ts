@@ -664,6 +664,7 @@ const pt: Translations = {
     qtNachweis: "Verificar a prova",
     qtNachweisWarten: "À espera de que os validadores revelem (só após a finalidade, até 20 minutos) …",
     qtNachweisOk: "Prova: a preparação revelada dá exatamente a raiz da emissão. {n} posições, {fehler} erros em {treffer} acertos; neste ponto {fs} em {ts}. Isto não mostra que um computador quântico mediu.",
+    qtGeraeteStelle: "Esta app não tem carteira própria. Como ponto de aceitação usa uma chave deste dispositivo; o valor vai para {adresse}.",
     bindTitle: 'LIGAR À TUA CARTEIRA',
     bindDesc: 'Quando o script terminar, o pedido do seu servidor aparece aqui. Confira o IP e toque em "Confirmar". Grátis, não movimenta dinheiro.',
     bindBtn: '📷 Ligar nó (ler QR)',

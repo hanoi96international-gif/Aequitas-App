@@ -18,9 +18,10 @@ import {
   type Vorlage,
 } from '@/lib/quantenSInhaberin';
 import type { Bestellung } from '@/lib/quantenS';
-import { annehmenAlsStelle, stelleKennung, validatorKennung, type AnnahmeErgebnis, type AnnahmeSchritt } from '@/lib/quantenSStelle';
+import { annehmenAlsStelle, stelleKennung, stelleSchluesselHolen, validatorKennung, type AnnahmeErgebnis, type AnnahmeSchritt } from '@/lib/quantenSStelle';
+import { adresseVon } from '@/lib/quantenS';
 import { nachweisAbwarten } from '@/lib/quantenSNachweis';
-import { unlockWallet } from '@/lib/wallet';
+import { hasStoredWallet, unlockWallet } from '@/lib/wallet';
 import { QrScanner } from '@/components/QrScanner';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
@@ -69,7 +70,11 @@ export default function QuantenToken() {
     try {
       await f();
     } catch (e: any) {
-      setMeldung({ ok: false, text: `${t('node.qtFehler')} ${e?.message ?? ''}`.trim() });
+      const text = `${t('node.qtFehler')} ${e?.message ?? ''}`.trim();
+      setMeldung({ ok: false, text });
+      // Auch als Fenster: die Meldung unten auf der Seite sieht man nicht, wenn
+      // man weiter oben auf einen Knopf getippt hat.
+      Alert.alert(t('node.qtFehler'), e?.message ?? '');
     } finally {
       setLaeuft(null);
       void laden();
@@ -103,15 +108,19 @@ export default function QuantenToken() {
       else if (ziel === 'validatoren') setValidatoren(k.validator);
       else setStelleValidatoren(k.validator);
     });
+  // Schluessel der Annahmestelle: die Wallet der App, sonst ein eigener des Geraets.
+  const stelleSchluessel = async () => {
+    const s = await stelleSchluesselHolen(u, { vorhanden: hasStoredWallet, entsperren: unlockWallet });
+    if (s.quelle === 'geraet') setMeldung({ ok: true, text: t('node.qtGeraeteStelle').replace('{adresse}', adresseVon(s.schluessel)) });
+    return s.schluessel;
+  };
   const meinKonto = () =>
     schritt('konto', async () => {
-      const w = await unlockWallet();
-      setStelle1(stelleKennung(w.privateKey.slice(2)));
+      setStelle1(stelleKennung(await stelleSchluessel()));
     });
   const kennungZeigen = () =>
     schritt('kennung', async () => {
-      const w = await unlockWallet();
-      setKennung(stelleKennung(w.privateKey.slice(2)));
+      setKennung(stelleKennung(await stelleSchluessel()));
     });
   const SCHRITT_TEXT: Record<AnnahmeSchritt, string> = {
     pruefen: 'node.qtAPruefen', blaetter: 'node.qtABlaetter', oeffnung: 'node.qtAOeffnung', anmelden: 'node.qtAAnmelden', urteil: 'node.qtAUrteil',
@@ -120,8 +129,8 @@ export default function QuantenToken() {
     setScannen(false);
     void schritt('annahme', async () => {
       setAnnahme(null);
-      const w = await unlockWallet();
-      const erg = await annehmenAlsStelle(u, w.privateKey.slice(2), text, validatorenLesen(stelleValidatoren), (s) =>
+      const schl = await stelleSchluessel();
+      const erg = await annehmenAlsStelle(u, schl, text, validatorenLesen(stelleValidatoren), (s) =>
         setMeldung({ ok: true, text: t(SCHRITT_TEXT[s] as any) }),
       );
       setAnnahme(erg);

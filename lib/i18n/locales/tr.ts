@@ -664,6 +664,7 @@ const tr: Translations = {
     qtNachweis: "Kanıtı kontrol et",
     qtNachweisWarten: "Doğrulayıcıların açıklaması bekleniyor (yalnızca kesinleşmeden sonra, en fazla 20 dakika) …",
     qtNachweisOk: "Kanıt: açıklanan hazırlık tam olarak ihracın köküne denk geliyor. {n} konum, {treffer} eşleşmede {fehler} hata; bu noktada {ts} eşleşmede {fs}. Bu, bir kuantum bilgisayarının ölçtüğünü göstermez.",
+    qtGeraeteStelle: "Bu uygulamanın kendi cüzdanı yok. Kabul noktası olarak bu cihazın bir anahtarını kullanır; değer {adresse} adresine gider.",
     bindTitle: 'CÜZDANINA BAĞLA',
     bindDesc: 'Betik bittiğinde sunucunun isteği burada görünür. IP\'yi kontrol et ve "Onayla"ya dokun. Ücretsiz, para hareket etmez.',
     bindBtn: '📷 Düğümü bağla (QR tara)',

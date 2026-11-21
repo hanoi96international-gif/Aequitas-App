@@ -664,6 +664,7 @@ const id: Translations = {
     qtNachweis: "Periksa bukti",
     qtNachweisWarten: "Menunggu validator mengungkap (hanya setelah finalitas, hingga 20 menit) …",
     qtNachweisOk: "Bukti: persiapan yang diungkap menghasilkan tepat akar penerbitan. {n} posisi, {fehler} kesalahan dari {treffer} kecocokan; di titik ini {fs} dari {ts}. Ini tidak menunjukkan bahwa komputer kuantum yang mengukur.",
+    qtGeraeteStelle: "Aplikasi ini tidak punya dompet sendiri. Sebagai titik penerimaan ia memakai kunci perangkat ini; nilainya masuk ke {adresse}.",
     bindTitle: 'HUBUNGKAN KE DOMPETMU',
     bindDesc: 'Setelah skrip selesai, permintaan servermu muncul di sini. Periksa IP dan ketuk "Konfirmasi". Gratis, tidak memindahkan uang.',
     bindBtn: '📷 Hubungkan node (pindai QR)',

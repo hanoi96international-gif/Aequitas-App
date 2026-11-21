@@ -232,3 +232,48 @@ describe('validatorKennung (C1 eintragen)', () => {
     await expect(validatorKennung(mit({ validator: 'x', schluessel: pub }))).rejects.toThrow('Form');
   });
 });
+
+describe('stelleSchluesselHolen (Mein Konto eintragen)', () => {
+  const { stelleSchluesselHolen } = require('../quantenSStelle');
+  const umgebung = (zufall: Uint8Array[]) => {
+    const speicher = new Map<string, string>();
+    const u: Umgebung = {
+      fetchFn: (async () => ({ status: 404, ok: false, text: async () => '' })) as any,
+      speicher: { lesen: async (k) => speicher.get(k) ?? null, schreiben: async (k, v) => void speicher.set(k, v), loeschen: async (k) => void speicher.delete(k) },
+      zufall: (n) => {
+        const z = zufall.shift();
+        if (!z || z.length !== n) throw new Error('Zufall');
+        return z;
+      },
+      apiBasis: API,
+      warten: async () => {},
+      jetzt: () => 0,
+    };
+    return { u, speicher };
+  };
+  it('mit eigener Wallet: deren Schluessel, kein eigener angelegt', async () => {
+    const { u, speicher } = umgebung([]);
+    const s = await stelleSchluesselHolen(u, { vorhanden: async () => true, entsperren: async () => ({ privateKey: '0x' + 'AB'.repeat(32) }) });
+    expect(s).toEqual({ schluessel: 'ab'.repeat(32), quelle: 'konto' });
+    expect(speicher.size).toBe(0);
+  });
+  it('Wallet da, Entsperren abgebrochen: Fehler, KEIN Ausweichen auf einen anderen Schluessel', async () => {
+    const { u, speicher } = umgebung([new Uint8Array(32).fill(7)]);
+    await expect(stelleSchluesselHolen(u, { vorhanden: async () => true, entsperren: async () => { throw new Error('abgebrochen'); } })).rejects.toThrow('abgebrochen');
+    expect(speicher.size).toBe(0);
+  });
+  it('ohne eigene Wallet: einmal ein eigener Schluessel des Geraets, danach derselbe', async () => {
+    const { u, speicher } = umgebung([new Uint8Array(32).fill(0), new Uint8Array(32).fill(7)]); // 0 ist kein gueltiger Schluessel
+    const ohne = { vorhanden: async () => false, entsperren: async () => { throw new Error('nie'); } };
+    const a = await stelleSchluesselHolen(u, ohne);
+    expect(a).toEqual({ schluessel: '07'.repeat(32), quelle: 'geraet' });
+    expect([...speicher.values()]).toEqual(['07'.repeat(32)]);
+    const b = await stelleSchluesselHolen(u, ohne); // kein Zufall mehr noetig
+    expect(b).toEqual(a);
+  });
+  it('kaputter gespeicherter Schluessel: Fehler statt still neu', async () => {
+    const { u, speicher } = umgebung([]);
+    speicher.set('aequitas.quantenS.stelle.schluessel', 'kaputt');
+    await expect(stelleSchluesselHolen(u, { vorhanden: async () => false, entsperren: async () => ({ privateKey: '' }) })).rejects.toThrow('unlesbar');
+  });
+});

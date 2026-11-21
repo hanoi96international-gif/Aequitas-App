@@ -46,6 +46,7 @@ import {
 } from './quantenS';
 import {
   ABSCHNITT_MAX,
+  STELLE_SCHLUESSEL,
   WARTEN_MAX_MS,
   abschnittHolen,
   apiPruefen,
@@ -179,6 +180,43 @@ export function vorlageLesen(text: string): Vorlage {
     fehler('Vorlage: Form');
   }
   return { k: v.k, b: v.b, x: v.x, vorlage: v.vorlage };
+}
+
+/** Zugang zur Wallet der App (lib/wallet.ts) -- in Tests ersetzbar. */
+export interface WalletZugang {
+  vorhanden(): Promise<boolean>;
+  entsperren(): Promise<{ privateKey: string }>;
+}
+
+const N_KURVE = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
+
+/**
+ * stelleSchluesselHolen: der Schluessel, mit dem dieses Geraet Annahmestelle
+ * ist. Hat die App eine eigene Wallet, ist es deren Schluessel (der Wert geht
+ * an dieses Konto; entsperrt per Biometrie oder Geraetesperre -- scheitert das,
+ * bricht es ab, ohne auf einen anderen Schluessel auszuweichen). Ohne eigene
+ * Wallet (etwa nur extern verbunden) legt die App EINMAL einen eigenen
+ * Schluessel fuer die Annahmestelle an und bewahrt ihn im SecureStore.
+ */
+export async function stelleSchluesselHolen(u: Umgebung, w: WalletZugang): Promise<{ schluessel: string; quelle: 'konto' | 'geraet' }> {
+  if (await w.vorhanden()) {
+    const k = (await w.entsperren()).privateKey.replace(/^0x/, '').toLowerCase();
+    if (!HEX64.test(k)) fehler('Wallet: Schluessel unlesbar');
+    return { schluessel: k, quelle: 'konto' };
+  }
+  const alt = await u.speicher.lesen(STELLE_SCHLUESSEL);
+  if (alt) {
+    if (!HEX64.test(alt)) fehler('Schluessel der Annahmestelle im Geraet unlesbar');
+    return { schluessel: alt, quelle: 'geraet' };
+  }
+  let schl = '';
+  for (let i = 0; i < 8 && !schl; i++) {
+    const k = BigInt(ethers.hexlify(u.zufall(32)));
+    if (k > 0n && k < N_KURVE) schl = k.toString(16).padStart(64, '0');
+  }
+  if (!schl) fehler('Zufall');
+  await u.speicher.schreiben(STELLE_SCHLUESSEL, schl, true);
+  return { schluessel: schl, quelle: 'geraet' };
 }
 
 /** Wie eine Inhaberin dieses Konto als Annahmestelle eintraegt: "adresse=schluessel". */

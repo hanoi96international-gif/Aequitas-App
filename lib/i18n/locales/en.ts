@@ -664,6 +664,7 @@ const en: Translations = {
     qtNachweis: "Check the proof",
     qtNachweisWarten: "Waiting until the validators disclose (only after finality, up to 20 minutes) …",
     qtNachweisOk: "Proof: the disclosed preparation yields exactly the issuance root. {n} positions, {fehler} errors in {treffer} hits; at this point {fs} in {ts}. This does not show that a quantum computer measured.",
+    qtGeraeteStelle: "This app has no wallet of its own. As acceptance point it uses a key of this device; the value goes to {adresse}.",
     bindTitle: 'BIND TO YOUR WALLET',
     bindDesc: 'When the script is done, your server\'s request appears here. Check the IP and tap "Confirm". Free, moves no money.',
     bindBtn: '📷 Bind node (scan QR)',
