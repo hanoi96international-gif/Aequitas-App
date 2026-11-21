@@ -82,9 +82,8 @@ describe('config', () => {
   // EXPO_PUBLIC_BIOMETRIC_ENABLED=true, so the app offered a registration
   // flow that could not possibly complete.
   // CORRECTED 2026-08-23. The list above was right about the CHAIN and wrong
-  // as a blanket rule. Railway project aequitas-matching is still running and
-  // hosts the only reachable coordinator: /challenge returns a real liveness
-  // challenge with a nonce, /register names its missing required fields.
+  // as a blanket rule at the time: Railway project aequitas-matching was then
+  // still running and hosted the only reachable coordinator.
   //
   // So this guard blocked a LIVE host because it matched a hostname, while it
   // would have waved through a dead Contabo endpoint without a word. The
@@ -95,10 +94,12 @@ describe('config', () => {
   // https://aequitas.digital/coordinator where every path returned 200 by
   // serving the node's landing page.
   //
-  // What remains here is the one host that is genuinely gone: the specific
-  // coordinator deployment found dead on 2026-08-15, which answers
-  // {"status":"error","code":404,"message":"Application not found"}.
-  const DECOMMISSIONED_HOSTS = [/coordinator-production-dcd1\.up\.railway\.app/i];
+  // UPDATED 2026-11-21: since 2026-09-14 the biometric stack is off Railway
+  // too, so Railway hosts nothing of Aequitas any more. Railway names can be
+  // re-claimed by anyone -- a re-claimed name would answer 200 with JSON and
+  // pass build-apk.yml's reachability probe. So every Railway host is rejected
+  // again (build-apk.yml checks the same names before the probe).
+  const DECOMMISSIONED_HOSTS = [/railway\.app/i, /rlwy\.net/i, /railway\.com/i];
 
   it.each([
     ['API_BASE', 'EXPO_PUBLIC_API_BASE'],

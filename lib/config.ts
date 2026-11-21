@@ -30,7 +30,9 @@ const LOKAL = /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/|$)/;
 // eingebetteter IPv4. Ein Host, der nicht aus ASCII-Buchstaben, Ziffern,
 // Punkt und Bindestrich besteht, oder eine IPv4 in nicht-kanonischer Form
 // zaehlt darum ebenfalls nie.
-const ABGESCHALTET = ['proof2.aequitas.digital', '194.163.188.71', '173.249.37.118'];
+// Railway (21.11.2026): hostet seit dem 14.09.2026 nichts mehr von Aequitas;
+// seine Namen kann jeder neu beanspruchen -- also zaehlen sie ebenfalls nie.
+const ABGESCHALTET = ['proof2.aequitas.digital', '194.163.188.71', '173.249.37.118', 'railway.app', 'rlwy.net', 'railway.com'];
 const IPV4_KANONISCH = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 export function abgeschaltet(url: string): boolean {
   const autoritaet = (url.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#\\]*)/i) ?? [])[1];

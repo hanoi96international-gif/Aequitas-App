@@ -48,6 +48,12 @@ describe('sichereAdresse', () => {
       'https://0194.163.188.71/api',
       'https://194.163.48199/api',
       'https://[::ffff:c2a3:bc47]/api',
+      // Railway (seit 14.09.2026 ohne Aequitas; Namen neu beanspruchbar)
+      'https://coordinator-production-dcd1.up.railway.app',
+      'https://neu.up.railway.app/api',
+      'https://RAILWAY.app/api',
+      'https://reseau.proxy.rlwy.net:41277',
+      'https://x.railway.com/rpc',
     ]) {
       expect(sichereAdresse(v, false)).toBeNull();
       expect(sichereAdresse(v, true)).toBeNull();
@@ -62,6 +68,8 @@ describe('sichereAdresse', () => {
       'https://example.org/?r=proof2.aequitas.digital',
       'https://203.0.113.7/api',
       'https://proof1.aequitas.digital:8443/api',
+      'https://myrailway.app.example/api',
+      'https://notrlwy.net/api',
     ]) {
       expect(sichereAdresse(v, false)).toBe(v);
     }
