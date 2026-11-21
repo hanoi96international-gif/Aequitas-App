@@ -197,6 +197,13 @@ jobs:
           # /challenge und /register alle 200 lieferten -- die Landing-Page des
           # Knotens, die auf JEDEN Pfad HTML ausliefert. Eine 200, die nicht das
           # ist, wonach gefragt wurde. Ein Coordinator antwortet mit JSON.
+          #
+          # STAND 21.11.2026: Seit dem 14.09.2026 laeuft auch der Biometrie-Stack
+          # nicht mehr bei Railway -- Railway hostet nichts mehr von Aequitas.
+          # Railway-Namen (*.railway.app, *.rlwy.net) kann jeder neu beanspruchen;
+          # ein so uebernommener Name antwortete mit 200 und JSON und kaeme durch
+          # die Erreichbarkeitspruefung. Darum wird jeder Railway-Name wieder
+          # abgelehnt, zusaetzlich zur Pruefung unten.
           fail=0
           for var in EXPO_PUBLIC_API_BASE EXPO_PUBLIC_WEBAPP EXPO_PUBLIC_RPC_URL EXPO_PUBLIC_COORDINATOR_BASE; do
             value="${!var}"
@@ -204,6 +211,11 @@ jobs:
             case "$value" in
               http://*|https://*) ;;
               *) echo "::error title=Keine absolute URL in $var::'$value'"; fail=1; continue ;;
+            esac
+            case "${value,,}" in
+              *railway.app*|*rlwy.net*|*railway.com*)
+                echo "::error title=Railway-Host in $var::$var zeigt auf '$value'. Railway hostet seit dem 14.09.2026 nichts mehr von Aequitas, und solche Namen kann jeder neu beanspruchen."
+                fail=1; continue ;;
             esac
             probe="$value/health"
             body=$(curl -s -L --max-time 25 "$probe" | head -c 400)
