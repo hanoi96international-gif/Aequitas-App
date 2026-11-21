@@ -14,6 +14,10 @@
 //    Kette; die ehrliche Vorlage aus den unterschriebenen Zaehlungen.
 //  - Bindung d = y XOR z, Wahl c = b XOR z und die Vorlage unterschreiben
 //    (EIP-191, wie quantenSUnterschreiben).
+//  - R8 (quanten_s_basen_chiffrat.go): y je Abschnitt an den Validator
+//    verschluesseln (gebunden an Kette, Empfaenger, n, v, Nummer,
+//    Validatorenliste und Inhaberin); der Validator unterschreibt den Hash
+//    des Chiffrats, die App vergleicht ihn mit ihrem eigenen.
 //
 // Nichts hier haelt einen Schluessel fest: der Aufrufer gibt ihn herein und
 // bewahrt ihn im Geraet (SecureStore, hoechstens 2048 Byte je Wert -- darum
@@ -28,6 +32,9 @@ const DOM_PROBE_V2 = 'aequitas-quanten-s-probe-v2|';
 const DOM_BINDEN = 'aequitas-quanten-s-binden-v1';
 const DOM_WAHL = 'aequitas-quanten-s-wahl-v1';
 const DOM_VORLAGE = 'aequitas-quanten-s-vorlage-v1|';
+const DOM_BASEN = 'aequitas-quanten-s-basen-v1';
+/** quantenSBasenChiffratMax: Hex-Zeichen eines Chiffrats der Basen. */
+export const BASEN_CHIFFRAT_MAX = 2 * (16384 + 1024);
 
 export const N_MAX = 16384;
 export const V_MAX = 64;
@@ -124,6 +131,7 @@ export function antwortNachricht(
   buendelSigHash: string,
   teile: string[] | null,
   zaehlung: [number, number][] | null,
+  basenHash = '',
 ): string {
   const hf = sha256Hex(utf8(fuerInhaberin));
   let m = `${DOM_ANTWORT}|chain:${CHAIN_ID}|${K}|${x}|${von}|${bis}|${blaetterHash}|${hf}|${buendelHash}|${buendelSigHash}`;
@@ -132,6 +140,7 @@ export function antwortNachricht(
     for (const p of zaehlung ?? []) z.push(String(p[0]), String(p[1]));
     m += `|teile:${(teile ?? []).join(',')}|zaehlung:${z.join(',')}`;
   }
+  if (basenHash !== '') m += `|basen:${basenHash}`; // nur bei verschluesselten Basen (R8)
   return m;
 }
 
@@ -228,6 +237,83 @@ export function eciesOeffnen(schluesselHex: string, chiffratHex: string): Uint8A
   return ctr(ke, em.slice(0, 16)).decrypt(em.slice(16));
 }
 
+/**
+ * eciesVerschluesseln: go-ethereum ecies.Encrypt (ECIES_AES128_SHA256), die
+ * Umkehrung von eciesOeffnen. Ephemerer Schluessel und IV aus zufall (dem
+ * Zufall des Geraets); pubHex unkomprimiert (04...).
+ */
+export function eciesVerschluesseln(pubHex: string, klar: Uint8Array, zufall: (n: number) => Uint8Array): string {
+  const pub = '0x' + pubHex.replace(/^0x/, '');
+  let eph = '';
+  for (let i = 0; i < 8 && !eph; i++) {
+    const r = zufall(32);
+    if (r.length !== 32) fehler('Zufall');
+    const k = BigInt(ethers.hexlify(r));
+    if (k > 0n && k < N_KURVE) eph = ethers.hexlify(r);
+  }
+  if (!eph) fehler('Zufall');
+  const iv = zufall(16);
+  if (iv.length !== 16) fehler('Zufall');
+  let geteilt: Uint8Array;
+  const sk = new ethers.SigningKey(eph);
+  try {
+    geteilt = ethers.getBytes(sk.computeSharedSecret(pub));
+  } catch {
+    fehler('Schluessel: kein Punkt der Kurve');
+  }
+  const z = geteilt.slice(1, 33);
+  const k = ethers.getBytes(ethers.sha256(ethers.concat([new Uint8Array([0, 0, 0, 1]), z])));
+  const ke = k.slice(0, 16);
+  const km = ethers.getBytes(ethers.sha256(k.slice(16, 32)));
+  const em = ethers.getBytes(ethers.concat([iv, ctr(ke, iv).encrypt(klar)]));
+  const tag = ethers.getBytes(ethers.computeHmac('sha256', km, em));
+  return hexOhne(ethers.concat([ethers.getBytes(sk.publicKey), em, tag]));
+}
+
+/** quantenSValidatorenHash: woran das Chiffrat der Basen die Validatorenliste bindet. */
+export function validatorenHash(validatoren: string[]): string {
+  return hashListe(validatoren.map((a) => a.trim().toLowerCase()));
+}
+
+/** quantenSBasenHash: was der Validator ueber das geoeffnete Chiffrat unterschreibt. */
+export function basenHash(chiffrat: string): string {
+  return sha256Hex(utf8(chiffrat));
+}
+
+/**
+ * quantenSBasenVerschluesseln: y des Abschnitts x an dessen Validator
+ * validatoren[x-1]; pubHex muss zu dieser Adresse gehoeren.
+ */
+export function basenVerschluesseln(
+  pubHex: string,
+  validatoren: string[],
+  n: number,
+  x: number,
+  inhaberin: string,
+  basen: string,
+  zufall: (n: number) => Uint8Array,
+): string {
+  const v = validatoren.length;
+  if (!Number.isInteger(x) || x < 1 || x > v) fehler(`Nummer ${x} bei ${v} Validatoren`);
+  const an = validatoren[x - 1].trim().toLowerCase();
+  const pub = pubHex.trim().toLowerCase().replace(/^0x/, '');
+  if (!ADRESSE.test(an) || !/^04[0-9a-f]{128}$/.test(pub)) fehler('Validator: Form');
+  let ab: string;
+  try {
+    ab = ethers.computeAddress('0x' + pub).toLowerCase();
+  } catch {
+    fehler('Validator: kein Punkt der Kurve');
+  }
+  if (ab !== an) fehler('Validator: Schluessel gehoert nicht zur Adresse');
+  const a = abschnitt(n, v, x);
+  if (!a || basen.length !== a.bis - a.von || !BITS.test(basen)) fehler(`Basen: ${a ? a.bis - a.von : 0} Bits verlangt, nur 0 und 1`);
+  // Felder wie quantenSBasenInhalt (Go liest streng, die Reihenfolge ist egal).
+  const klar = JSON.stringify({
+    dom: DOM_BASEN, chain: CHAIN_ID, an, n, v, x, validatoren: validatorenHash(validatoren), inhaberin: inhaberin.toLowerCase(), basen,
+  });
+  return eciesVerschluesseln(pub, utf8(klar), zufall);
+}
+
 /** quantenSFuerInhaberinOeffnen: x des Abschnitts [von, bis) als '0'/'1'. */
 export function fuerInhaberinOeffnen(schluesselHex: string, chiffratHex: string, K: string, von: number, bis: number): string {
   const roh = eciesOeffnen(schluesselHex, chiffratHex);
@@ -259,6 +345,8 @@ export interface PaketAbschnitt {
   teile: string[] | null;
   zaehlung: [number, number][] | null;
   sig: string;
+  /** nur bei verschluesselten Basen (R8): Hash des geoeffneten Chiffrats. */
+  basen_hash?: string;
 }
 
 /** quantenSPaketAbschnittPruefen: Form und Unterschrift des Validators (aus der eigenen Liste). */
@@ -273,11 +361,12 @@ export function abschnittPruefen(ab: PaketAbschnitt, K: string, n: number, v: nu
     ab.blaetter.length !== a.bis - a.von ||
     !HEX64.test(ab.buendel_hash) ||
     !HEX64.test(ab.buendel_sig_hash) ||
-    typeof ab.fuer_inhaberin !== 'string'
+    typeof ab.fuer_inhaberin !== 'string' ||
+    (ab.basen_hash !== undefined && !HEX64.test(ab.basen_hash))
   ) {
     fehler(`Abschnitt ${x} hat nicht die Form`);
   }
-  const m = antwortNachricht(K, x, a.von, a.bis, hashListe(ab.blaetter), ab.fuer_inhaberin, ab.buendel_hash, ab.buendel_sig_hash, ab.teile, ab.zaehlung);
+  const m = antwortNachricht(K, x, a.von, a.bis, hashListe(ab.blaetter), ab.fuer_inhaberin, ab.buendel_hash, ab.buendel_sig_hash, ab.teile, ab.zaehlung, ab.basen_hash ?? '');
   if (!unterschriftVon(m, ab.sig, validator)) fehler(`Abschnitt ${x} ist nicht von Validator ${x} unterschrieben`);
 }
 
@@ -304,7 +393,9 @@ export type KettenStand = Record<string, unknown>;
 
 export interface Bestellung {
   n: number;
-  basen: string[];
+  /** genau eines: Basen im Klartext ODER an die Validatoren verschluesselt (R8). */
+  basen?: string[];
+  basen_verschluesselt?: string[];
   inhaberin: string;
   inhaberin_schluessel: string;
   stellen: [{ adresse: string; schluessel: string }, { adresse: string; schluessel: string }];
@@ -323,6 +414,9 @@ export function annehmen(o: {
   stand: KettenStand | null;
   abschnitte: PaketAbschnitt[];
 }): { x: string; treffer: [number, number]; fehler: [number, number] } {
+  // Bei verschluesselten Basen muss jeder Validator den Hash GENAU des
+  // eigenen Chiffrats unterschrieben haben; bei Klartext darf keiner dastehen.
+  const chiffrate = o.bestellung.basen_verschluesselt;
   const { schluessel, bestellung: best, stand: st } = o;
   const K = o.K.toLowerCase();
   if (!HEX64.test(K)) fehler('K');
@@ -357,6 +451,8 @@ export function annehmen(o: {
   o.abschnitte.forEach((ab, i) => {
     const xi = i + 1;
     abschnittPruefen(ab, K, n, v, xi, o.validatoren[i]);
+    const soll = chiffrate ? basenHash(chiffrate[i] ?? '') : '';
+    if ((ab.basen_hash ?? '') !== soll) fehler(`BEFUND: Validator ${xi} hat nicht in den eigenen Basen praepariert (Chiffrat getauscht)`);
     v2Pruefen(ab, ab.bis - ab.von);
     blaetter.push(...ab.blaetter);
     xBits += fuerInhaberinOeffnen(schluessel, ab.fuer_inhaberin, K, ab.von, ab.bis);
