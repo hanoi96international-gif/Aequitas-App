@@ -111,6 +111,12 @@ describe('Oeffnung aus t Anteilen ueber das Netz', () => {
     ).rejects.toThrow('keine Teilmenge');
   });
 
+  it('Pakete mit den Stellen der anderen Stelle (jeder Wert passt zu seinem Blatt): abgewiesen', async () => {
+    await expect(
+      ausAnteilenLaden(umgebung(V.pakete_andere_bits, []), validatoren, SCHL, V.k, V.b, V.praeparator, V.t, V.von, V.bis, blaetter),
+    ).rejects.toThrow('gehoert zur anderen Annahmestelle');
+  });
+
   it('ein falsches Blatt: kein Laden', async () => {
     const bl = [...blaetter];
     bl[[...soll.keys()][0]] = 'ab'.repeat(32);
