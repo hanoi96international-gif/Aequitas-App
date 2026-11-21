@@ -60,6 +60,7 @@ import {
 
 const DOM_POS = 'aequitas-quanten-w-pos-v1|chain:1926|';
 const DOM_OEFFNUNG = 'aequitas-quanten-s-oeffnung-v1';
+const DOM_ANTEIL_OEFFNUNG = 'aequitas-quanten-s-anteil-oeffnung-v1';
 const DOM_PROBE_TEIL = 'aequitas-quanten-s-probe-teil-v1|';
 const DOM_ANMELDEN = 'aequitas-quanten-s-anmelden-v1';
 const SALZ_BITS = 124; // quantenWSalzBits
@@ -68,6 +69,9 @@ const FRIST_OFFEN_MS = 1800_000; // quantenWFristOffen
 const NACHLAUF_MS = 3 * 60_000; // quantenSUrteilNachlauf
 const NACHFRAGEN_MS = 2_000; // quantenSV2Nachfragen
 const N_MAX = 16384;
+const P = (1n << 127n) - 1n; // quantenWP, Koerper der Anteile
+const PAKET_MAX = 2 * (N_MAX * 44 + 4096); // quantenSAnteilOeffnungHoechstens
+const VERSUCHE_MAX = 64; // quantenSAnteilOeffnungVersuche
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const ADRESSE = /^0x[0-9a-f]{40}$/;
@@ -148,6 +152,160 @@ export function oeffnungLesen(schluesselHex: string, chiffratHex: string, K: str
     werte.set(i, BigInt('0x' + wh));
   }
   return { werte, salz: inhalt.salz };
+}
+
+// ------------------------------------------------------------ Oeffnung aus t Anteilen (R9)
+
+export interface AnteilPaket {
+  j: number;
+  anteile: Map<number, bigint>;
+  salz: string;
+}
+
+/**
+ * quantenSAnteilOeffnungLesen: das Paket, das Praeparator x dem Validator j fuer
+ * diese Stelle b mitgab. Streng wie im Knoten: genau diese Felder, Stellen im
+ * Abschnitt, Anteile in F_P.
+ */
+export function anteilPaketLesen(schluesselHex: string, chiffratHex: string, K: string, b: number, x: number, j: number, von: number, bis: number): AnteilPaket {
+  if (chiffratHex.length === 0 || chiffratHex.length > PAKET_MAX || !/^[0-9a-f]+$/.test(chiffratHex)) fehler('Paket: Form oder Groesse');
+  const roh = eciesOeffnen(schluesselHex, chiffratHex);
+  let inhalt: any;
+  try {
+    inhalt = JSON.parse(ethers.toUtf8String(roh));
+  } catch {
+    fehler('Paket: kein JSON');
+  }
+  if (!inhalt || typeof inhalt !== 'object' || Array.isArray(inhalt) || Object.keys(inhalt).sort().join(',') !== 'anteile,b,bis,dom,empfaenger,k,praeparator,salz,von') {
+    fehler('Paket: Felder');
+  }
+  if (inhalt.dom !== DOM_ANTEIL_OEFFNUNG || inhalt.k !== K || inhalt.b !== b || inhalt.praeparator !== x || inhalt.empfaenger !== j || inhalt.von !== von || inhalt.bis !== bis) {
+    fehler('Paket: passt nicht zu K, Stelle, Praeparator oder Validator');
+  }
+  if (typeof inhalt.salz !== 'string' || !HEX64.test(inhalt.salz)) fehler('Paket: Salz');
+  if (!inhalt.anteile || typeof inhalt.anteile !== 'object' || Array.isArray(inhalt.anteile)) fehler('Paket: Anteile');
+  const anteile = new Map<number, bigint>();
+  for (const [si, yh] of Object.entries(inhalt.anteile)) {
+    const i = Number(si);
+    if (!/^(0|[1-9][0-9]*)$/.test(si) || i < von || i >= bis || typeof yh !== 'string' || !/^[0-9a-f]{1,32}$/.test(yh)) fehler(`Paket: Stelle ${si}`);
+    const y = BigInt('0x' + yh);
+    if (y >= P) fehler(`Paket: Anteil an Stelle ${i}`);
+    anteile.set(i, y);
+  }
+  return { j, anteile, salz: inhalt.salz };
+}
+
+const mod = (a: bigint) => ((a % P) + P) % P;
+
+function hoch(b: bigint, e: bigint): bigint {
+  let r = 1n;
+  b = mod(b);
+  while (e > 0n) {
+    if (e & 1n) r = (r * b) % P;
+    b = (b * b) % P;
+    e >>= 1n;
+  }
+  return r;
+}
+
+/** quantenWZusammensetzen: Lagrange an der Stelle 0 ueber F_P. */
+export function zusammensetzen(anteile: { x: number; y: bigint }[]): bigint {
+  let s = 0n;
+  for (let i = 0; i < anteile.length; i++) {
+    let z = 1n, n = 1n;
+    for (let k = 0; k < anteile.length; k++) {
+      if (i === k) continue;
+      z = mod(z * BigInt(-anteile[k].x));
+      n = mod(n * BigInt(anteile[i].x - anteile[k].x));
+    }
+    s = mod(s + anteile[i].y * z * hoch(n, P - 2n));
+  }
+  return s;
+}
+
+function teilmengeZusammensetzen(pakete: AnteilPaket[], auswahl: number[]): { werte: Map<number, bigint>; salz: string } {
+  const erstes = pakete[auswahl[0]];
+  for (const a of auswahl.slice(1)) {
+    const p = pakete[a];
+    if (p.salz !== erstes.salz || p.anteile.size !== erstes.anteile.size || [...erstes.anteile.keys()].some((i) => !p.anteile.has(i))) {
+      fehler(`Pakete von ${erstes.j} und ${p.j} nennen andere Stellen oder ein anderes Salz`);
+    }
+  }
+  const werte = new Map<number, bigint>();
+  for (const i of erstes.anteile.keys()) werte.set(i, zusammensetzen(auswahl.map((a) => ({ x: pakete[a].j, y: pakete[a].anteile.get(i)! }))));
+  return { werte, salz: erstes.salz };
+}
+
+/**
+ * quantenSAusAnteilenZusammensetzen: aus mindestens t Paketen die Werte; pruefen
+ * wirft, wenn sie nicht stimmen. Ist ein Paket falsch, weitere Teilmengen,
+ * hoechstens VERSUCHE_MAX.
+ */
+export function ausAnteilenZusammensetzen(pakete: AnteilPaket[], t: number, pruefen: (werte: Map<number, bigint>) => void): { werte: Map<number, bigint>; salz: string } {
+  if (t < 1 || pakete.length < t) fehler(`Pakete: ${pakete.length}, verlangt ${t}`);
+  const p = [...pakete].sort((a, c) => a.j - c.j);
+  for (let i = 1; i < p.length; i++) if (p[i].j === p[i - 1].j) fehler(`Pakete: Validator ${p[i].j} doppelt`);
+  const auswahl = Array.from({ length: t }, (_, i) => i);
+  let letzter = '';
+  for (let versuch = 0; versuch < VERSUCHE_MAX; versuch++) {
+    try {
+      const r = teilmengeZusammensetzen(p, auswahl);
+      pruefen(r.werte);
+      return r;
+    } catch (e) {
+      if (!(e instanceof QuantenSFehler)) throw e;
+      letzter = e.message;
+    }
+    let i = t - 1;
+    while (i >= 0 && auswahl[i] === p.length - t + i) i--;
+    if (i < 0) break;
+    auswahl[i]++;
+    for (let k = i + 1; k < t; k++) auswahl[k] = auswahl[k - 1] + 1;
+  }
+  fehler(`keine Teilmenge von ${t} Paketen ergibt die Stichprobe: ${letzter}`);
+}
+
+/**
+ * quantenSAusAnteilenLaden: Praeparator x antwortet nicht -- die Pakete der
+ * anderen Validatoren holen, zusammensetzen, jeden Wert gegen sein Blatt und
+ * sein Stellen-Bit pruefen. Die Stichprobe als Ganzes prueft der Aufrufer.
+ */
+export async function ausAnteilenLaden(
+  u: Umgebung, validatoren: ValidatorAngabe[], schluesselHex: string, K: string, b: number, x: number, t: number, von: number, bis: number, blaetter: string[],
+): Promise<{ werte: Map<number, bigint>; salz: string }> {
+  const v = validatoren.length;
+  if (t < 1 || v - 1 < t) fehler(`aus Anteilen: ${v - 1} andere Validatoren, Schwelle ${t}`);
+  const pakete: AnteilPaket[] = [];
+  for (let j = 1; j <= v; j++) {
+    if (j === x) continue;
+    try {
+      const { status, json } = await holeJson(u, `${apiPruefen(validatoren[j - 1].api)}/quanten-w/validator/anteil-oeffnung?k=${K}&x=${x}&b=${b}`, PAKET_MAX + 4096);
+      const c = (json as { paket?: unknown } | null)?.paket;
+      if (status === 200 && typeof c === 'string') pakete.push(anteilPaketLesen(schluesselHex, c, K, b, x, j, von, bis));
+    } catch (e) {
+      if (!(e instanceof QuantenSFehler)) throw e;
+    }
+  }
+  const grenze = 1n << BigInt(SALZ_BITS + 2);
+  return ausAnteilenZusammensetzen(pakete, t, (werte) => {
+    if (werte.size === 0) fehler('aus Anteilen: keine Stelle');
+    for (const [i, w] of werte) {
+      if (i < von || i >= bis || i >= blaetter.length || w >= grenze || pruefsumme(K, i, w) !== blaetter[i]) fehler(`aus Anteilen: Stelle ${i} passt nicht zu ihrem Blatt`);
+      if (Number((w >> 2n) & 1n) !== b) fehler(`aus Anteilen: Stelle ${i} gehoert zur anderen Annahmestelle`);
+    }
+  });
+}
+
+/** Alle Blaetter von Validator j (R9: wenn einer fuer seinen Abschnitt fehlt; geprueft wird an der Wurzel). */
+async function alleBlaetterHolen(u: Umgebung, api: string, K: string, n: number): Promise<string[] | null> {
+  try {
+    const { status, json } = await holeJson(u, `${apiPruefen(api)}/quanten-w/validator/blaetter?k=${K}`, ABSCHNITT_MAX);
+    const bl = (json as { blaetter?: unknown } | null)?.blaetter;
+    if (status === 200 && Array.isArray(bl) && bl.length === n && bl.every((h) => typeof h === 'string' && HEX64.test(h))) return bl as string[];
+  } catch (e) {
+    if (!(e instanceof QuantenSFehler)) throw e;
+  }
+  return null;
 }
 
 /** quantenSOeffnungLaden: jede Stelle gegen ihr Blatt, Stellen-Bit = b; Basis und Wert. */
@@ -257,19 +415,16 @@ async function standWarten(u: Umgebung, K: string, fertig: (st: KettenStand | nu
   }
 }
 
-async function oeffnungHolen(u: Umgebung, api: string, K: string, b: number, ende: number): Promise<string> {
-  for (;;) {
-    try {
-      const { status, json } = await holeJson(u, `${apiPruefen(api)}/quanten-w/validator/oeffnung?k=${K}&b=${b}`, ABSCHNITT_MAX);
-      const o = (json as { oeffnung?: unknown } | null)?.oeffnung;
-      if (status === 200 && typeof o === 'string' && /^[0-9a-f]+$/.test(o)) return o;
-    } catch (e) {
-      // Vor der Finalitaet antwortet der Validator mit einem Fehler -- nachfragen.
-      if (!(e instanceof QuantenSFehler)) throw e;
-    }
-    if (u.jetzt() >= ende) fehler('Oeffnung: der Validator gibt sie nicht heraus (Bindung und Wahl noch nicht final?)');
-    await u.warten(NACHFRAGEN_MS);
+async function oeffnungEinmal(u: Umgebung, api: string, K: string, b: number): Promise<string | null> {
+  try {
+    const { status, json } = await holeJson(u, `${apiPruefen(api)}/quanten-w/validator/oeffnung?k=${K}&b=${b}`, ABSCHNITT_MAX);
+    const o = (json as { oeffnung?: unknown } | null)?.oeffnung;
+    if (status === 200 && typeof o === 'string' && /^[0-9a-f]+$/.test(o)) return o;
+  } catch (e) {
+    // Vor der Finalitaet antwortet der Validator mit einem Fehler -- nachfragen.
+    if (!(e instanceof QuantenSFehler)) throw e;
   }
+  return null;
 }
 
 /**
@@ -317,11 +472,37 @@ export async function annehmenAlsStelle(
   fortschritt('blaetter');
   const adressen = validatoren.map((x) => x.adresse.trim().toLowerCase());
   if (adressen.some((a) => !ADRESSE.test(a)) || new Set(adressen).size !== adressen.length) fehler('Validatoren: Adresse');
-  const blaetter: string[] = [];
+  let blaetter: string[] = new Array(n).fill('');
+  const fehlend: number[] = [];
   for (let x = 1; x <= v; x++) {
-    const ab = await abschnittHolen(u, validatoren[x - 1].api, K);
+    let ab;
+    try {
+      ab = await abschnittHolen(u, validatoren[x - 1].api, K);
+    } catch (e) {
+      // R9: nicht erreichbar -- ein anderer Validator nennt alle Blaetter.
+      if (!(e instanceof QuantenSFehler)) throw e;
+      fehlend.push(x);
+      continue;
+    }
     abschnittPruefen(ab, K, n, v, x, adressen[x - 1]);
-    blaetter.push(...ab.blaetter);
+    const a = abschnitt(n, v, x)!;
+    ab.blaetter.forEach((h: string, k: number) => (blaetter[a.von + k] = h));
+  }
+  if (fehlend.length > 0) {
+    let voll: string[] | null = null;
+    for (let j = 1; j <= v && !voll; j++) {
+      if (fehlend.includes(j)) continue;
+      const alle = await alleBlaetterHolen(u, validatoren[j - 1].api, K, n);
+      if (!alle) continue;
+      const kandidat = [...blaetter];
+      for (const x of fehlend) {
+        const a = abschnitt(n, v, x)!;
+        for (let i = a.von; i < a.bis; i++) kandidat[i] = alle[i];
+      }
+      if (merkleWurzel(kandidat) === wurzel) voll = kandidat;
+    }
+    if (!voll) fehler(`Validator ${fehlend.join(', ')}: Abschnitt nicht erreichbar, und kein anderer nannte passende Blaetter`);
+    blaetter = voll;
   }
   if (merkleWurzel(blaetter) !== wurzel) fehler('die Blaetter ergeben nicht die Wurzel auf der Kette');
 
@@ -332,8 +513,25 @@ export async function annehmenAlsStelle(
   const salze: string[] = [];
   for (let x = 1; x <= v; x++) {
     const a = abschnitt(n, v, x)!;
-    const ch = await oeffnungHolen(u, validatoren[x - 1].api, K, b, ende);
-    const o = oeffnungLesen(schluesselHex, ch, K, b, x, a.von, a.bis);
+    let o: { werte: Map<number, bigint>; salz: string } | null = null;
+    for (;;) {
+      const ch = await oeffnungEinmal(u, validatoren[x - 1].api, K, b);
+      if (ch !== null) {
+        o = oeffnungLesen(schluesselHex, ch, K, b, x, a.von, a.bis);
+        break;
+      }
+      // R9: der Praeparator antwortet nicht -- aus t Paketen der anderen.
+      if (v - 1 >= t) {
+        try {
+          o = await ausAnteilenLaden(u, validatoren, schluesselHex, K, b, x, t, a.von, a.bis, blaetter);
+          break;
+        } catch (e) {
+          if (!(e instanceof QuantenSFehler)) throw e;
+        }
+      }
+      if (u.jetzt() >= ende) fehler('Oeffnung: der Validator gibt sie nicht heraus (Bindung und Wahl noch nicht final?)');
+      await u.warten(NACHFRAGEN_MS);
+    }
     o.werte.forEach((w, i) => oe.set(i, w));
     salze.push(o.salz);
   }
