@@ -308,6 +308,25 @@ async function alleBlaetterHolen(u: Umgebung, api: string, K: string, n: number)
   return null;
 }
 
+/**
+ * quantenSUrteilLesen: das Urteil aus dem Stand nach der Vorlage. Mit dem
+ * Urteil der Kette gilt nur dieses. Ohne: verschwunden nach 0 oder 1
+ * Fehlversuchen kann nur eingeloest sein; beim letzten Versuch offen (fehler).
+ */
+export function urteilLesen(nach: KettenStand | null, fehl: number, letzter: boolean): 'eingeloest' | 'abgewiesen' | 'tot' | 'frist' {
+  if (nach != null && nach.tot === true && nach.urteil != null) {
+    if (nach.urteil === 'eingeloest' || nach.urteil === 'tot') return nach.urteil;
+    fehler(`Urteil der Kette unbekannt: ${String(nach.urteil)}`);
+  }
+  if (nach == null || nach.tot === true) {
+    if (letzter) fehler('der Token ist beendet, aber die Kette nennt kein Urteil (eingeloest oder tot ist offen)');
+    return 'eingeloest'; // fehl+1 < FEHL_MAX: tot ist ausgeschlossen
+  }
+  if (zahl(nach.fehl) === fehl + 1) return 'abgewiesen';
+  if (zahl(nach.fehl) === fehl) return 'frist';
+  fehler(`Stand nach der Vorlage unlesbar (fehl ${String(nach.fehl)})`);
+}
+
 /** quantenSOeffnungLaden: jede Stelle gegen ihr Blatt, Stellen-Bit = b; Basis und Wert. */
 export function oeffnungLaden(b: number, K: string, n: number, wurzel: string, blaetter: string[], oeffnung: Map<number, bigint>, kSoll: number): Map<number, [number, number]> {
   if ((b !== 0 && b !== 1) || blaetter.length !== n || n > N_MAX || merkleWurzel(blaetter) !== wurzel) fehler('Ladung: Blaetter passen nicht zur Wurzel');
@@ -395,7 +414,7 @@ export interface AnnahmeErgebnis {
   /** eigene Rechnung vor dem Anmelden: "besteht" oder "abgewiesen" */
   vorab: 'besteht' | 'abgewiesen';
   /** Urteil der Kette: "eingeloest", "abgewiesen" oder "frist" */
-  urteil?: 'eingeloest' | 'abgewiesen' | 'frist';
+  urteil?: 'eingeloest' | 'abgewiesen' | 'tot' | 'frist';
   /** Wurzel und Proben der Ausgabe, vor dem Anmelden von der Kette gelesen (fuer den Nachweis nach dem Ende). */
   wurzel: string;
   proben: string[];
@@ -456,7 +475,11 @@ export async function annehmenAlsStelle(
   const n = zahl(st.n), t = zahl(st.t), v = zahl(st.v), tol = zahl(st.tol), fehl = zahl(st.fehl);
   const kn = kNote(tol, t, v);
   if (n < 2 || n > N_MAX || v !== validatoren.length || kn === 0 || fehl < 0) fehler(`die Kette nennt n = ${n}, t = ${t}, v = ${v}, Toleranz ${tol}; angegeben ${validatoren.length} Validatoren`);
-  if (fehl + 1 >= FEHL_MAX) fehler('zu viele Fehlversuche, um das Urteil eindeutig zu lesen');
+  // Beim letzten Versuch endet der Token in jedem Fall (eingeloest oder tot):
+  // nur anmelden, wenn die Kette das Urteil eindeutig schreibt (Stichtag,
+  // quanten_w_urteil.go im Knoten).
+  const letzter = fehl + 1 >= FEHL_MAX;
+  if (letzter && st.urteil_eindeutig !== true) fehler('zu viele Fehlversuche, um das Urteil eindeutig zu lesen (die Kette schreibt es erst ab dem Stichtag)');
   const inhaber = st.inhaber;
   if (typeof inhaber !== 'string' || !ADRESSE.test(inhaber)) fehler('Stand: Inhaberin');
   if (vl.x.length !== n) fehler(`Vorlage: x hat nicht ${n} Bits`);
@@ -562,10 +585,7 @@ export async function annehmenAlsStelle(
   await standWarten(u, K, (s) => s == null || s.anmeldung != null || zahl(s.fehl) !== fehl, 'Anmeldung', WARTEN_MAX_MS);
   fortschritt('urteil');
   const nach = await standWarten(u, K, (s) => s == null || s.tot === true || s.anmeldung == null, 'Urteil', Math.max(WARTEN_MAX_MS, FRIST_OFFEN_MS + NACHLAUF_MS));
-  if (nach == null || nach.tot === true) erg.urteil = 'eingeloest'; // fehl+1 < FEHL_MAX: tot ist ausgeschlossen
-  else if (zahl(nach.fehl) === fehl + 1) erg.urteil = 'abgewiesen';
-  else if (zahl(nach.fehl) === fehl) erg.urteil = 'frist';
-  else fehler('Stand nach der Anmeldung unlesbar');
+  erg.urteil = urteilLesen(nach, fehl, letzter);
   if (erg.urteil !== 'frist' && (erg.vorab === 'besteht') !== (erg.urteil === 'eingeloest')) {
     fehler(`BEFUND: vorab ${erg.vorab}, die Kette urteilt ${erg.urteil}`);
   }
