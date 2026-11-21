@@ -664,6 +664,7 @@ const es: Translations = {
     qtNachweis: "Comprobar la prueba",
     qtNachweisWarten: "Esperando a que los validadores lo revelen (solo tras la finalidad, hasta 20 minutos) …",
     qtNachweisOk: "Prueba: la preparación revelada da exactamente la raíz de la emisión. {n} posiciones, {fehler} errores en {treffer} aciertos; en este punto {fs} en {ts}. Esto no demuestra que haya medido un ordenador cuántico.",
+    qtGeraeteStelle: "Esta app no tiene cartera propia. Como punto de aceptación usa una clave de este dispositivo; el valor va a {adresse}.",
     bindTitle: 'VINCULAR A TU CARTERA',
     bindDesc: 'Cuando el script termine, aquí aparecerá la solicitud de tu servidor. Comprueba la IP y toca «Confirmar». Gratis, no mueve dinero.',
     bindBtn: '📷 Vincular nodo (escanear QR)',

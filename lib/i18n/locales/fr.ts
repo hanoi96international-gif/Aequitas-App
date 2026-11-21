@@ -664,6 +664,7 @@ const fr: Translations = {
     qtNachweis: "Vérifier la preuve",
     qtNachweisWarten: "Attente que les validateurs divulguent (seulement après la finalité, jusqu'à 20 minutes) …",
     qtNachweisOk: "Preuve : la préparation divulguée donne exactement la racine de l'émission. {n} positions, {fehler} erreurs sur {treffer} correspondances ; à ce point {fs} sur {ts}. Cela ne montre pas qu'un ordinateur quantique a mesuré.",
+    qtGeraeteStelle: "Cette app n'a pas de portefeuille propre. Comme point d'acceptation, elle utilise une clé de cet appareil ; la valeur va à {adresse}.",
     bindTitle: 'RELIER À TON PORTEFEUILLE',
     bindDesc: 'Quand le script a terminé, la demande de ton serveur apparaît ici. Vérifie l\'IP et touche « Confirmer ». Gratuit, aucun argent déplacé.',
     bindBtn: '📷 Relier le nœud (scanner le QR)',

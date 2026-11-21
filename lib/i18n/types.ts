@@ -678,6 +678,7 @@ export interface Translations {
     qtNachweis: string;
     qtNachweisWarten: string;
     qtNachweisOk: string;
+    qtGeraeteStelle: string;
     bindTitle: string;
     bindDesc: string;
     bindBtn: string;

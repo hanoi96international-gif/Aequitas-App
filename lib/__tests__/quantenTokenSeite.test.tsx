@@ -26,7 +26,13 @@ jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: ({ children }
 jest.mock('@/contexts/LanguageContext', () => ({ useLanguage: () => ({ t: (k: string) => k, lang: 'de' }) }));
 jest.mock('@/lib/quantenSInhaberin', () => ({
   ...jest.requireActual('@/lib/quantenSInhaberin'),
-  standardUmgebung: () => ({}),
+  standardUmgebung: () => {
+    const m = new Map<string, string>();
+    return {
+      speicher: { lesen: async (k: string) => m.get(k) ?? null, schreiben: async (k: string, v: string) => void m.set(k, v), loeschen: async () => {} },
+      zufall: (n: number) => new Uint8Array(n).fill(9),
+    };
+  },
   zustandAnzeigen: (...a: any[]) => mockZustand(...a),
   neu: (...a: any[]) => mockNeu(...a),
   abholen: (...a: any[]) => mockAbholen(...a),
@@ -40,7 +46,8 @@ jest.mock('@/lib/quantenSStelle', () => ({
   annehmenAlsStelle: (...a: any[]) => mockAnnehmen(...a),
   validatorKennung: (...a: any[]) => mockValidatorKennung(...a),
 }));
-jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '81'.repeat(32) }) }));
+const mockWalletDa = jest.fn(async () => true);
+jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '81'.repeat(32) }), hasStoredWallet: () => mockWalletDa() }));
 const mockNachweis = jest.fn();
 jest.mock('@/lib/quantenSNachweis', () => ({ nachweisAbwarten: (...a: any[]) => mockNachweis(...a) }));
 jest.mock('@/components/QrScanner', () => ({ QrScanner: (p: any) => require('react').createElement('Scanner', p) }));
@@ -164,6 +171,28 @@ describe('Annahmestelle', () => {
     const [, , , stellen] = mockNeu.mock.calls[0];
     expect(stellen[0]).toEqual({ adresse: C1.stelle.split('=')[0], schluessel: C1.stelle.split('=')[1] });
     expect(stellen[1]).toEqual({ adresse: ich.split('=')[0], schluessel: ich.split('=')[1] });
+  });
+
+  test('ohne eigene Wallet: Mein Konto nimmt einen Schluessel des Geraets und sagt es', async () => {
+    mockZustand.mockResolvedValue(null);
+    mockWalletDa.mockResolvedValueOnce(false);
+    const r = await zeigen();
+    await act(async () => knopf(r, 'node.qtMeinKonto').props.onPress());
+    expect(texte(r).join(' ')).toContain('node.qtGeraeteStelle');
+    const w = new ethers.Wallet('0x' + '09'.repeat(32)); // Zufall des Geraets im Test: lauter 0x09
+    const geraet = w.address.toLowerCase() + '=' + w.signingKey.publicKey.slice(2);
+    const eingaben = r.findAllByType(RN.TextInput).map((x: any) => x.props.value);
+    expect(eingaben).toContain(geraet);
+  });
+
+  test('Fehler beim Eintragen: als Fenster, nicht nur unten auf der Seite', async () => {
+    mockZustand.mockResolvedValue(null);
+    mockValidatorKennung.mockRejectedValueOnce(new Error('Validator-Dienst: keine Antwort'));
+    const alert = jest.spyOn(RN.Alert, 'alert').mockImplementation(() => {});
+    const r = await zeigen();
+    await act(async () => knoepfe(r, 'node.qtC1')[0].props.onPress());
+    expect(alert).toHaveBeenCalledWith('node.qtFehler', 'Validator-Dienst: keine Antwort');
+    alert.mockRestore();
   });
 
   test('eigene Kennung zeigen: QR mit adresse=schluessel (nichts Geheimes)', async () => {

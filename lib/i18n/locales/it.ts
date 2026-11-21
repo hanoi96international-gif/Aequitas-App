@@ -664,6 +664,7 @@ const it: Translations = {
     qtNachweis: "Verifica la prova",
     qtNachweisWarten: "In attesa che i validatori rivelino (solo dopo la finalità, fino a 20 minuti) …",
     qtNachweisOk: "Prova: la preparazione rivelata dà esattamente la radice dell'emissione. {n} posizioni, {fehler} errori su {treffer} corrispondenze; in questo punto {fs} su {ts}. Ciò non dimostra che abbia misurato un computer quantistico.",
+    qtGeraeteStelle: "Questa app non ha un portafoglio proprio. Come punto di accettazione usa una chiave di questo dispositivo; il valore va a {adresse}.",
     bindTitle: 'COLLEGA AL TUO WALLET',
     bindDesc: 'Quando lo script ha finito, qui compare la richiesta del tuo server. Controlla l\'IP e tocca «Conferma». Gratis, nessun movimento di denaro.',
     bindBtn: '📷 Collega nodo (scansiona QR)',

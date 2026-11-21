@@ -41,6 +41,8 @@ import {
 } from './quantenS';
 
 const SCHLUESSEL = 'aequitas.quantenS.inhaberin.schluessel';
+/** Schluessel der Annahmestelle, wenn das Geraet keine eigene Wallet hat (quantenSStelle.ts). */
+export const STELLE_SCHLUESSEL = 'aequitas.quantenS.stelle.schluessel';
 const ZUSTAND = 'aequitas.quantenS.inhaberin.zustand';
 /** Abschnitt eines Validators: Blaetter fuer bis zu 16.384 Stellen (~1,1 MB). */
 export const ABSCHNITT_MAX = 4 * 1024 * 1024;
@@ -105,7 +107,7 @@ export function standardUmgebung(): Umgebung {
     speicher: {
       lesen: (key) => {
         const bio = SecureStore.canUseBiometricAuthentication();
-        return SecureStore.getItemAsync(key, key === SCHLUESSEL ? { requireAuthentication: bio } : undefined);
+        return SecureStore.getItemAsync(key, key === SCHLUESSEL || key === STELLE_SCHLUESSEL ? { requireAuthentication: bio } : undefined);
       },
       schreiben: (key, wert, geheim) => {
         const bio = SecureStore.canUseBiometricAuthentication();
