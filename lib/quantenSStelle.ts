@@ -466,10 +466,18 @@ export async function annehmenAlsStelle(
   fortschritt('pruefen');
   const st = await stand(u, K);
   if (!st) fehler('der Token steht nicht (mehr) auf der Kette -- eingeloest, tot oder nie ausgegeben');
+  // Ein beendeter Token steht nur noch als {k, tot, urteil} auf der Kette
+  // (quantenWNoteAnsicht im Knoten): klar sagen, dass er schon eingeloest
+  // bzw. tot ist -- vor der Art-Pruefung, die sonst "kein Token mit Stichprobe
+  // v2" meldet. Abgebrochen wird in jedem Fall.
+  if (st.tot === true) {
+    if (st.urteil === 'eingeloest') fehler('der Token ist bereits eingeloest -- diese Vorlage gilt nicht mehr');
+    if (st.urteil === 'tot') fehler('der Token ist tot (Urteil der Kette) -- diese Vorlage gilt nicht mehr');
+    fehler('der Token ist beendet (eingeloest oder tot) -- diese Vorlage gilt nicht mehr');
+  }
   const stellen = st.stellen;
   if (st.art !== 's' || zahl(st.probe_art) !== 2) fehler('auf der Kette kein Token mit Stichprobe v2');
   if (st.gebunden !== true || st.gewaehlt !== true) fehler('erst nach Bindung und Wahl der Inhaberin');
-  if (st.tot === true) fehler('der Token ist tot');
   if (st.anmeldung != null) fehler('es gibt schon eine offene Anmeldung');
   if (!Array.isArray(stellen) || stellen.length !== 2 || stellen[b] !== stelle) fehler(`die Vorlage ist fuer Stelle ${b}, das ist nicht dieses Konto`);
   const n = zahl(st.n), t = zahl(st.t), v = zahl(st.v), tol = zahl(st.tol), fehl = zahl(st.fehl);
