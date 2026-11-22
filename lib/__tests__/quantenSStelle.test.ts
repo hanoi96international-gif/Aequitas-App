@@ -181,6 +181,10 @@ describe('Annahmestelle: der ganze Weg', () => {
     ['von jemand anderem unterschrieben', () => vorlageText_({ ...V.vorlage, vorlage: unterschreiben('82'.repeat(32), vorlageText(V.k, V.b, V.vorlage.x)) }), 'nicht von der Inhaberin'],
     ['x veraendert', () => vorlageText_({ ...V.vorlage, x: (V.vorlage.x[0] === '0' ? '1' : '0') + V.vorlage.x.slice(1) }), 'nicht von der Inhaberin'],
     ['Token schon tot', (w) => void (w.kette!.tot = true), 'tot'],
+    // So steht ein beendeter Token wirklich auf der Kette (quantenWNoteAnsicht): nur k, tot, urteil.
+    ['Vorlage nach dem Einloesen erneut (Doppelausgabe)', (w) => void (w.kette = { k: V.k, tot: true, urteil: 'eingeloest' }), 'bereits eingeloest'],
+    ['Vorlage nach Urteil tot erneut', (w) => void (w.kette = { k: V.k, tot: true, urteil: 'tot' }), 'Urteil der Kette'],
+    ['beendet ohne Urteil (vor dem Stichtag)', (w) => void (w.kette = { k: V.k, tot: true }), 'beendet'],
     ['Token nicht auf der Kette', (w) => void (w.kette = null), 'nicht (mehr) auf der Kette'],
     ['offene Anmeldung', (w) => void (w.kette!.anmeldung = { stelle: 0 }), 'offene Anmeldung'],
     ['noch nicht gewaehlt', (w) => void (w.kette!.gewaehlt = false), 'Bindung und Wahl'],

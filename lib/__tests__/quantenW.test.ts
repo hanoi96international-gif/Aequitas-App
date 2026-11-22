@@ -1,4 +1,4 @@
-import { aeqText, holeQuantenWStand, kennungGueltig, leseQuantenWStand } from '../quantenW';
+import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, leseQuantenWStand, leseQuantenWUeberblick } from '../quantenW';
 import { API_BASE } from '../config';
 
 const K = 'ab'.repeat(32);
@@ -57,7 +57,12 @@ describe('leseQuantenWStand', () => {
     expect(leseQuantenWStand(alt, K)).toMatchObject({ art: 's', t: 3, v: null });
     // Ein einziger Validator (t = v = 1, wie beim ersten Token im Hauptnetz).
     expect(leseQuantenWStand({ ...tokenS(), t: 1, v: 1 }, K)).toMatchObject({ t: 1, v: 1 });
-    expect(leseQuantenWStand({ k: K, tot: true, aktiv: true }, K)).toEqual({ art: 'tot', k: K, aktiv: true });
+    expect(leseQuantenWStand({ k: K, tot: true, aktiv: true }, K)).toEqual({ art: 'tot', k: K, aktiv: true, urteil: null });
+    // Urteil der Kette (R10): nur eingeloest/tot; alles andere nie als Erfolg.
+    expect(leseQuantenWStand({ k: K, tot: true, aktiv: true, urteil: 'eingeloest' }, K)).toMatchObject({ urteil: 'eingeloest' });
+    expect(leseQuantenWStand({ k: K, tot: true, aktiv: true, urteil: 'tot' }, K)).toMatchObject({ urteil: 'tot' });
+    expect(leseQuantenWStand({ k: K, tot: true, aktiv: true, urteil: 'echt' }, K)).toMatchObject({ urteil: null });
+    expect(leseQuantenWStand({ k: K, tot: true, aktiv: true, urteil: 1 }, K)).toMatchObject({ urteil: null });
   });
 
   // Missbrauch: ein Knoten (oder etwas dazwischen), das etwas anderes
@@ -137,5 +142,40 @@ describe('aeqText', () => {
   it('vier Nachkommastellen', () => {
     expect(aeqText(10_000_000)).toBe('10.0000 AEQ');
     expect(aeqText(1)).toBe('0.0000 AEQ');
+  });
+});
+
+describe('leseQuantenWUeberblick', () => {
+  const gut = () => ({
+    aktiv: true, noten_w: 0, token_s: 1, beendet: 2, eingeloest: 1, tot: 1, urteil_offen: 0, topf_mikro: 1_000_000, stand: 1795370000,
+    zuletzt: [{ k: K, urteil: 'eingeloest', ende: 1795369000 }, { k: 'cd'.repeat(32), urteil: 'tot', ende: 1795368000 }],
+  });
+  test('Gutfall', () => {
+    expect(leseQuantenWUeberblick(gut())).toEqual({
+      aktiv: true, notenW: 0, tokenS: 1, beendet: 2, eingeloest: 1, tot: 1, urteilOffen: 0, topfMikro: 1_000_000, stand: 1795370000,
+      zuletzt: [{ k: K, urteil: 'eingeloest', ende: 1795369000 }, { k: 'cd'.repeat(32), urteil: 'tot', ende: 1795368000 }],
+    });
+  });
+  test.each([
+    ['fremdes Urteil in der Liste', (j: any) => { j.zuletzt[0].urteil = 'echt'; }],
+    ['K nicht in Form', (j: any) => { j.zuletzt[0].k = 'xyz'; }],
+    ['zu lange Liste', (j: any) => { j.zuletzt = Array(6).fill(j.zuletzt[0]); }],
+    ['Summe passt nicht (mehr Erfolge behauptet)', (j: any) => { j.eingeloest = 5; }],
+    ['negative Zahl', (j: any) => { j.token_s = -1; }],
+    ['Bruchzahl', (j: any) => { j.tot = 0.5; j.eingeloest = 1.5; }],
+    ['aktiv fehlt', (j: any) => { delete j.aktiv; }],
+    ['kein Objekt', () => 'x'],
+    ['Liste kein Array', (j: any) => { j.zuletzt = {}; }],
+  ])('%s: nichts anzeigen', (_name, aendern) => {
+    const j: any = gut();
+    const ersatz = (aendern as (j: any) => unknown)(j);
+    expect(leseQuantenWUeberblick(ersatz === undefined ? j : ersatz)).toBeNull();
+  });
+  test('holen: 404 (aelterer Knoten), zu gross, Netzfehler -> null', async () => {
+    const antwort = (status: number, text: string) => (async () => ({ ok: status === 200, status, text: async () => text })) as unknown as typeof fetch;
+    expect(await holeQuantenWUeberblick(antwort(404, ''))).toBeNull();
+    expect(await holeQuantenWUeberblick(antwort(200, 'x'.repeat(20000)))).toBeNull();
+    expect(await holeQuantenWUeberblick((async () => { throw new Error('netz'); }) as unknown as typeof fetch)).toBeNull();
+    expect(await holeQuantenWUeberblick(antwort(200, JSON.stringify(gut())))).toMatchObject({ eingeloest: 1 });
   });
 });

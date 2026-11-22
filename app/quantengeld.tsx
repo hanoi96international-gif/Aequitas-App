@@ -20,7 +20,7 @@ import {
   type QuantenStand,
   type QuantenStimmErgebnis,
 } from '@/lib/quantengeld';
-import { aeqText, holeQuantenWStand, kennungGueltig, type QuantenWErgebnis } from '@/lib/quantenW';
+import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, type QuantenWErgebnis, type QuantenWUeberblick } from '@/lib/quantenW';
 import { withTimeout } from '@/lib/signer';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
@@ -51,10 +51,13 @@ export default function Quantengeld() {
   const [kennung, setKennung] = useState('');
   const [wErgebnis, setWErgebnis] = useState<QuantenWErgebnis | null>(null);
   const [wLaeuft, setWLaeuft] = useState(false);
+  // Ueberblick W/S (GET /api/quanten-w/stand); null: Knoten meldet ihn nicht.
+  const [ueberblick, setUeberblick] = useState<QuantenWUeberblick | null>(null);
 
   const laden = useCallback(async () => {
-    const [s, a, r] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand()]);
+    const [s, a, r, u] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand(), holeQuantenWUeberblick()]);
     setStand(s);
+    setUeberblick(u);
     setAbst(a);
     setPruefer(r ? r.pruefer : null);
     setGeladen(true);
@@ -116,10 +119,10 @@ export default function Quantengeld() {
     ]);
   }
 
-  async function nachsehen() {
+  async function nachsehen(k: string = kennung) {
     setWLaeuft(true);
     try {
-      setWErgebnis(await holeQuantenWStand(kennung));
+      setWErgebnis(await holeQuantenWStand(k));
     } finally {
       setWLaeuft(false);
     }
@@ -195,6 +198,36 @@ export default function Quantengeld() {
           )}
         </View>
 
+        {ueberblick ? (
+          <View style={S.card}>
+            <Text style={S.title}>{t('node.qwuTitel')}</Text>
+            {!ueberblick.aktiv ? <Text style={[S.muted, { marginBottom: 8 }]}>{t('node.qwSchlafend')}</Text> : null}
+            <Zeile k={t('node.qwuLebend')} v={String(ueberblick.tokenS + ueberblick.notenW)} />
+            <Zeile k={t('node.qwuEingeloest')} v={String(ueberblick.eingeloest)} />
+            <Zeile k={t('node.qwuTot')} v={String(ueberblick.tot)} />
+            <Zeile k={t('node.qwuTopf')} v={aeqText(ueberblick.topfMikro)} last />
+            <Text style={S.sub}>{t('node.qwuZuletzt')}</Text>
+            {ueberblick.zuletzt.length === 0 ? (
+              <Text style={S.muted}>{t('node.qwuKeine')}</Text>
+            ) : (
+              ueberblick.zuletzt.map((e) => (
+                <TouchableOpacity
+                  key={e.k}
+                  onPress={() => { setKennung(e.k); nachsehen(e.k); }}
+                  accessibilityRole="button"
+                  activeOpacity={0.7}
+                >
+                  <Zeile
+                    k={e.k.slice(0, 10) + '… · ' + datum(e.ende, lang)}
+                    v={e.urteil === 'eingeloest' ? t('node.qwTotEingeloest') : t('node.qwTotErloschen')}
+                  />
+                </TouchableOpacity>
+              ))
+            )}
+            <Text style={[S.muted, { marginTop: 8 }]}>{t('node.qwuHinweis')}</Text>
+          </View>
+        ) : null}
+
         <View style={S.card}>
           <Text style={S.title}>{t('node.qwTitel')}</Text>
           <Text style={S.body}>{t('node.qwText')}</Text>
@@ -212,7 +245,7 @@ export default function Quantengeld() {
           <TouchableOpacity
             style={[S.btn, (!kennungOk || wLaeuft) && { opacity: 0.5 }]}
             disabled={!kennungOk || wLaeuft}
-            onPress={nachsehen}
+            onPress={() => nachsehen()}
             activeOpacity={0.85}
           >
             {wLaeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qwAnzeigen')}</Text>}
@@ -259,7 +292,9 @@ function WAnsicht({ e, t }: { e: QuantenWErgebnis; t: (k: any) => string }) {
     <View style={{ marginTop: 12 }}>
       {!s.aktiv ? <Text style={[S.muted, { marginBottom: 8 }]}>{t('node.qwSchlafend')}</Text> : null}
       {s.art === 'tot' ? (
-        <Text style={S.body}>{t('node.qwTot')}</Text>
+        <Text style={s.urteil === 'eingeloest' ? S.ok : S.body}>
+          {s.urteil === 'eingeloest' ? t('node.qwTotEingeloest') : s.urteil === 'tot' ? t('node.qwTotErloschen') : t('node.qwTot')}
+        </Text>
       ) : s.art === 'w' ? (
         <>
           <Text style={S.vorschlagName}>{t('node.qwNote')}</Text>
