@@ -30,6 +30,12 @@ jest.mock('@/lib/quantengeld', () => ({
   quantenAbstimmen: (...a: any[]) => (mockAbstimmen as any)(...a),
 }));
 
+let mockUeberblick: any = null;
+jest.mock('@/lib/quantenW', () => ({
+  ...jest.requireActual('@/lib/quantenW'),
+  holeQuantenWUeberblick: async () => mockUeberblick,
+}));
+
 import Quantengeld from '../../app/quantengeld';
 const RN = require('react-native');
 
@@ -93,5 +99,24 @@ describe('Quantengeld-Seite', () => {
     const { text } = await bestaetigungsText([mockIch, ...andere(8)]);
     expect(text).not.toContain('node.qWenigePruefer');
     expect(text).not.toContain('node.qZuWenigePruefer');
+  });
+
+  it('shows the W/S overview with the chain verdict only when the node reports it', async () => {
+    mockPruefer = [];
+    mockUeberblick = null;
+    let r = await rendern();
+    expect(texte(r)).not.toContain('node.qwuTitel');
+    act(() => r.unmount());
+    mockUeberblick = {
+      aktiv: true, notenW: 0, tokenS: 0, beendet: 1, eingeloest: 1, tot: 0, urteilOffen: 0, topfMikro: 0, stand: 1795370000,
+      zuletzt: [{ k: 'ff'.repeat(32), urteil: 'eingeloest', ende: 1795369000 }],
+    };
+    r = await rendern();
+    const t = texte(r);
+    expect(t).toContain('node.qwuTitel');
+    expect(t).toContain('node.qwTotEingeloest');
+    expect(t).not.toContain('node.qwuKeine');
+    act(() => r.unmount());
+    mockUeberblick = null;
   });
 });

@@ -64,7 +64,14 @@ export type QuantenWStand =
        *  bisherigen Weg und bei Knoten, die das Feld noch nicht melden. */
       stichprobeNachBindung: boolean;
     }
-  | { art: 'tot'; k: string; aktiv: boolean };
+  | {
+      art: 'tot';
+      k: string;
+      aktiv: boolean;
+      /** Eindeutiges Urteil der Kette (ab dem Stichtag, R10); null = nicht
+       *  genannt oder unbekannt -- dann nie als Erfolg anzeigen. */
+      urteil: 'eingeloest' | 'tot' | null;
+    };
 
 export type QuantenWErgebnis = { ok: true; stand: QuantenWStand } | { ok: false; grund: 'eingabe' | 'unbekannt' | 'netz' };
 
@@ -84,7 +91,10 @@ export function kennungGueltig(k: string): boolean {
 /** Bringt die Antwort des Knotens in Form; null, wenn etwas nicht passt. */
 export function leseQuantenWStand(j: any, k: string): QuantenWStand | null {
   if (!j || typeof j !== 'object' || j.k !== k || !bool(j.aktiv)) return null;
-  if (j.tot === true) return { art: 'tot', k, aktiv: j.aktiv };
+  if (j.tot === true) {
+    const urteil = j.urteil === 'eingeloest' || j.urteil === 'tot' ? j.urteil : null;
+    return { art: 'tot', k, aktiv: j.aktiv, urteil };
+  }
   if (!ganz(j.n, 2, N_MAX) || !ganz(j.t, 1, T_MAX) || !ganz(j.tol, 1, 99) || !ganz(j.fehl, 0, FEHL_MAX) || !ganz(j.wert_mikro, 0, Number.MAX_SAFE_INTEGER)) {
     return null;
   }
@@ -142,4 +152,60 @@ export async function holeQuantenWStand(eingabe: string, fetchFn: typeof fetch =
 /** Mikro-AEQ als Text mit vier Nachkommastellen (wie die Seite den Topf zeigt). */
 export function aeqText(mikro: number): string {
   return (mikro / 1_000_000).toFixed(4) + ' AEQ';
+}
+
+// Ueberblick ueber Variante W/S (aequitas: GET /api/quanten-w/stand,
+// quanten_w_stand.go): wie viele leben, wie viele beendet sind und die
+// zuletzt beendeten. Beendete stehen nur gut eine Woche im Register
+// (quantenWToteBehalten); aeltere zaehlt der Knoten nicht mehr.
+const UEBERBLICK_MAX = 16 * 1024;
+const ZULETZT_MAX = 5;
+const ZAHL_MAX = 1 << 24;
+
+export interface QuantenWUeberblick {
+  aktiv: boolean;
+  notenW: number;
+  tokenS: number;
+  beendet: number;
+  eingeloest: number;
+  tot: number;
+  urteilOffen: number;
+  topfMikro: number;
+  zuletzt: { k: string; urteil: 'eingeloest' | 'tot'; ende: number }[];
+  stand: number;
+}
+
+/** Bringt die Antwort in Form; null, wenn etwas nicht passt (nie halb). */
+export function leseQuantenWUeberblick(j: any): QuantenWUeberblick | null {
+  if (!j || typeof j !== 'object' || Array.isArray(j) || !bool(j.aktiv)) return null;
+  for (const f of ['noten_w', 'token_s', 'beendet', 'eingeloest', 'tot', 'urteil_offen']) {
+    if (!ganz(j[f], 0, ZAHL_MAX)) return null;
+  }
+  if (j.eingeloest + j.tot + j.urteil_offen !== j.beendet) return null;
+  if (!ganz(j.topf_mikro, 0, Number.MAX_SAFE_INTEGER) || !ganz(j.stand, 0, Number.MAX_SAFE_INTEGER)) return null;
+  if (!Array.isArray(j.zuletzt) || j.zuletzt.length > ZULETZT_MAX) return null;
+  const zuletzt: QuantenWUeberblick['zuletzt'] = [];
+  for (const e of j.zuletzt) {
+    if (!e || typeof e !== 'object' || typeof e.k !== 'string' || !K_FORM.test(e.k)) return null;
+    if (e.urteil !== 'eingeloest' && e.urteil !== 'tot') return null;
+    if (!ganz(e.ende, 0, Number.MAX_SAFE_INTEGER)) return null;
+    zuletzt.push({ k: e.k, urteil: e.urteil, ende: e.ende });
+  }
+  return {
+    aktiv: j.aktiv, notenW: j.noten_w, tokenS: j.token_s, beendet: j.beendet, eingeloest: j.eingeloest,
+    tot: j.tot, urteilOffen: j.urteil_offen, topfMikro: j.topf_mikro, zuletzt, stand: j.stand,
+  };
+}
+
+/** Holt den Ueberblick; null bei Netzfehler, aelterem Knoten (404) oder unpassender Antwort. */
+export async function holeQuantenWUeberblick(fetchFn: typeof fetch = fetch): Promise<QuantenWUeberblick | null> {
+  try {
+    const r = await fetchFn(`${API_BASE}/quanten-w/stand`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return null;
+    const text = await r.text();
+    if (text.length > UEBERBLICK_MAX) return null;
+    return leseQuantenWUeberblick(JSON.parse(text));
+  } catch {
+    return null;
+  }
 }

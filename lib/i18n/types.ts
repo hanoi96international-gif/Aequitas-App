@@ -633,6 +633,16 @@ export interface Translations {
     qwGeheimnisS: string;
     qwEinValidator: string;
     qwStichprobeV2: string;
+    qwuTitel: string;
+    qwuLebend: string;
+    qwuEingeloest: string;
+    qwuTot: string;
+    qwuTopf: string;
+    qwuZuletzt: string;
+    qwuKeine: string;
+    qwuHinweis: string;
+    qwTotEingeloest: string;
+    qwTotErloschen: string;
     qtOeffnen: string;
     qtTitel: string;
     qtText: string;
