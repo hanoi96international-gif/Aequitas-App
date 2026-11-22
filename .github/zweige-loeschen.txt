@@ -1,0 +1,11 @@
+# Vom Betreiber am 22.11.2026 entschieden: nicht gemergt, aber nicht mehr gebraucht
+# (Durchsicht in Aequitas docs/SITZUNG_UEBERGABE.md). Je Zeile: <spitze> <zweig>.
+# Geloescht wird nur mit genau dieser Spitze, vorher gesichert (Artefakt zweige-sicherung).
+512eaff2247fc9b37289104442ad6232d58d4507 claude/aequitas-fortsetzen-93nmoo
+f4daac27059e204faf77864780762fe98b66265d claude/aktuellen-stand-fhd5bh
+c653cee04a285f6263cc73c30c81f90c7aa8aefb claude/app-neubau
+c0d782f50a6bb29f6423c69462ba07aefd42f62c claude/continue-current-pr-i9in2o
+82e0b7f6072ce651fd408044d3a55323ee7bfb9d claude/eas-build
+05c69fe7d1a1bc8d41d147a1223cb3d590d7149b claude/hier-weitermachen-xfsfqx
+14e7ccf4ee288a0b4229c05a48e1cfeaf4c71703 main
+87faa5af5748d433d4abbf97d9feb3d3eca3671b rescue/uncommitted-tests-2026-08-22
