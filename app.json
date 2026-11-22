@@ -2,7 +2,7 @@
   "expo": {
     "name": "aequitas-app",
     "slug": "aequitas-app",
-    "version": "1.29.0",
+    "version": "1.30.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "aequitasapp",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "digital.aequitas.app",
-      "buildNumber": "65",
+      "buildNumber": "66",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -21,7 +21,7 @@
     },
     "android": {
       "package": "digital.aequitas.app",
-      "versionCode": 65,
+      "versionCode": 66,
       "adaptiveIcon": {
         "backgroundColor": "#6B98F3",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
