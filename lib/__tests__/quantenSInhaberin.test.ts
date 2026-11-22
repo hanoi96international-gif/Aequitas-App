@@ -222,6 +222,15 @@ describe('App als Inhaberin: Missbrauch', () => {
     await expect(einloesen(w.u, V.stelle)).rejects.toThrow('passt nicht zum Geraet');
     w.kette = { ...gut, anmeldung: { b: 0 } };
     await expect(einloesen(w.u, V.stelle)).rejects.toThrow('schon angemeldet');
+    // Nach dem Einloesen nochmal eine Stelle waehlen: so steht der Token wirklich auf der Kette.
+    w.kette = { k: V.k, tot: true, urteil: 'eingeloest' };
+    await expect(einloesen(w.u, V.stelle)).rejects.toThrow('bereits eingeloest');
+    w.kette = { k: V.k, tot: true, urteil: 'tot' };
+    await expect(einloesen(w.u, V.stelle)).rejects.toThrow('Urteil der Kette');
+    w.kette = { k: V.k, tot: true };
+    await expect(einloesen(w.u, V.stelle)).rejects.toThrow('beendet');
+    w.kette = { ...gut, tot: true };
+    await expect(einloesen(w.u, V.stelle)).rejects.toThrow('beendet');
     w.kette = null;
     await expect(einloesen(w.u, V.stelle)).rejects.toThrow('nicht (mehr) auf der Kette');
     expect(w.posts.length).toBe(0);

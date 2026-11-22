@@ -205,6 +205,19 @@ export async function holeJson(u: Umgebung, url: string, max: number): Promise<{
   }
 }
 
+/**
+ * Ein beendeter Token steht nur noch als {k, tot, urteil} auf der Kette
+ * (quantenWNoteAnsicht im Knoten). Vor allen anderen Feldpruefungen klar
+ * melden, dass er schon eingeloest bzw. tot ist -- sonst schlaegt eine
+ * spaetere Pruefung mit irrefuehrender Meldung an. Bricht in jedem Fall ab.
+ */
+export function beendetAbweisen(st: KettenStand): void {
+  if (st.tot !== true) return;
+  if (st.urteil === 'eingeloest') fehler('der Token ist bereits eingeloest -- diese Vorlage gilt nicht mehr');
+  if (st.urteil === 'tot') fehler('der Token ist tot (Urteil der Kette) -- diese Vorlage gilt nicht mehr');
+  fehler('der Token ist beendet (eingeloest oder tot) -- diese Vorlage gilt nicht mehr');
+}
+
 export async function stand(u: Umgebung, K: string): Promise<KettenStand | null> {
   const { status, json } = await holeJson(u, `${u.apiBasis}/quanten-w/note?k=${K}`, STAND_MAX);
   if (status === 404) return null;
@@ -462,8 +475,8 @@ export async function einloesen(u: Umgebung, b: 0 | 1, fortschritt: (schritt: 'b
   let st = await stand(u, K);
   const stellen = st?.stellen as unknown;
   if (!st) fehler('der Token steht nicht (mehr) auf der Kette -- eingeloest oder tot');
+  beendetAbweisen(st);
   if (st.inhaber !== inhaberin || !Array.isArray(stellen) || stellen[b] !== z.stellen[b]) fehler('der Token auf der Kette passt nicht zum Geraet');
-  if (st.tot === true) fehler('der Token ist tot');
   if (st.anmeldung != null) fehler('eine Annahmestelle hat schon angemeldet -- erst ihr Urteil abwarten');
   let zustand = z;
   if (st.gebunden !== true) {
