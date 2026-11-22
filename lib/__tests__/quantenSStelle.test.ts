@@ -19,6 +19,7 @@ import {
   probeV2Pruefen,
   pruefsumme,
   stelleKennung,
+  urteilLesen,
   vorlageLesen,
 } from '../quantenSStelle';
 
@@ -38,6 +39,8 @@ interface Welt {
   vorFinal: number;
   urteil: 'eingeloest' | 'abgewiesen' | 'frist';
   zeit: number;
+  /** Was die Kette nach dem Ende zeigt (Stichtag des eindeutigen Urteils); null = Token weg. */
+  ende: Record<string, any> | null;
 }
 
 function welt(): Welt {
@@ -49,6 +52,7 @@ function welt(): Welt {
     vorFinal: 2,
     urteil: 'eingeloest',
     zeit: 0,
+    ende: null,
     u: undefined as unknown as Umgebung,
   };
   let nachAnmeldung = 0;
@@ -62,7 +66,7 @@ function welt(): Welt {
     if (url === `${API}/quanten-w/note?k=${V.k}`) {
       if (w.kette?.anmeldung && ++nachAnmeldung > 2) {
         // Die Kette urteilt: eingeloest = Token weg, abgewiesen = ein Fehlversuch mehr.
-        if (w.urteil === 'eingeloest') w.kette = null;
+        if (w.urteil === 'eingeloest') w.kette = w.ende;
         else w.kette = { ...w.kette, anmeldung: undefined, fehl: w.urteil === 'abgewiesen' ? 1 : 0 };
       }
       return w.kette ? antwort(200, JSON.stringify(w.kette)) : antwort(404, '');
@@ -189,6 +193,27 @@ describe('Annahmestelle: der ganze Weg', () => {
     ['Oeffnung fuer einen anderen Schluessel', (w) => void (w.oeffnung = V.falsche_oeffnung), 'nicht fuer diesen Schluessel'],
     ['Oeffnung kommt nie (nicht final)', (w) => void (w.vorFinal = 1e9), 'gibt sie nicht heraus'],
   ];
+  it('letzter Versuch mit eindeutigem Urteil der Kette: eingeloest bzw. tot', async () => {
+    for (const urteil of ['eingeloest', 'tot'] as const) {
+      const w = welt();
+      w.kette!.fehl = 2;
+      w.kette!.urteil_eindeutig = true;
+      w.ende = { k: V.k, tot: true, urteil, ende: 123 };
+      const erg = urteil === 'eingeloest' ? await annehmenAlsStelle(w.u, SCHL, vorlageText_(), VALIDATOREN) : null;
+      if (urteil === 'eingeloest') expect(erg!.urteil).toBe('eingeloest');
+      else await expect(annehmenAlsStelle(w.u, SCHL, vorlageText_(), VALIDATOREN)).rejects.toThrow('BEFUND'); // vorab besteht, Kette: tot
+      expect(w.posts).toHaveLength(1);
+    }
+  });
+
+  it('letzter Versuch, Kette nennt kein Urteil: kein behaupteter Erfolg', async () => {
+    const w = welt();
+    w.kette!.fehl = 2;
+    w.kette!.urteil_eindeutig = true;
+    w.ende = { k: V.k, tot: true };
+    await expect(annehmenAlsStelle(w.u, SCHL, vorlageText_(), VALIDATOREN)).rejects.toThrow('kein Urteil');
+  });
+
   it.each(angriffe)('%s: abgewiesen, bevor angemeldet wird', async (_was, machen, meldung) => {
     const w = welt();
     const text = machen(w) ?? vorlageText_();
@@ -275,5 +300,27 @@ describe('stelleSchluesselHolen (Mein Konto eintragen)', () => {
     const { u, speicher } = umgebung([]);
     speicher.set('aequitas.quantenS.stelle.schluessel', 'kaputt');
     await expect(stelleSchluesselHolen(u, { vorhanden: async () => false, entsperren: async () => ({ privateKey: '' }) })).rejects.toThrow('unlesbar');
+  });
+});
+
+describe('Urteil lesen (wie quantenSUrteilLesen im Knoten)', () => {
+  it.each([
+    [null, 0, false, 'eingeloest'],
+    [{ tot: true }, 1, false, 'eingeloest'],
+    [{ tot: true, urteil: 'eingeloest' }, 2, true, 'eingeloest'],
+    [{ tot: true, urteil: 'tot' }, 2, true, 'tot'],
+    [{ tot: true, urteil: 'tot' }, 0, false, 'tot'],
+    [{ fehl: 1 }, 0, false, 'abgewiesen'],
+    [{ fehl: 0 }, 0, false, 'frist'],
+  ] as const)('%j fehl %d letzter %s -> %s', (nach, fehl, letzter, soll) => {
+    expect(urteilLesen(nach as any, fehl, letzter)).toBe(soll);
+  });
+  it.each([
+    [{ tot: true }, 2],
+    [null, 2],
+    [{ tot: true, urteil: 'echt' }, 2],
+    [{ fehl: 5 }, 0],
+  ] as const)('%j fehl %d: kein Urteil behauptet', (nach, fehl) => {
+    expect(() => urteilLesen(nach as any, fehl, fehl + 1 >= 3)).toThrow();
   });
 });
