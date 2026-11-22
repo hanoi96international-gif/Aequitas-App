@@ -120,6 +120,25 @@ function asyncStorage(): { getItem(k: string): Promise<string | null>; setItem(k
   return require('@react-native-async-storage/async-storage').default;
 }
 
+/** expo-crypto liefert hoechstens 1024 Byte je Aufruf (getRandomBytes wirft sonst). */
+export const ZUFALL_STUECK = 1024;
+
+/**
+ * n Byte Zufall aus der Quelle, in Stuecken von hoechstens ZUFALL_STUECK.
+ * Fail-closed: ein Stueck mit falscher Laenge bricht ab, nie wird mit Nullen aufgefuellt.
+ */
+export function zufallInStuecken(n: number, quelle: (m: number) => Uint8Array): Uint8Array {
+  if (!Number.isSafeInteger(n) || n < 0) fehler('Zufall');
+  const aus = new Uint8Array(n);
+  for (let o = 0; o < n; o += ZUFALL_STUECK) {
+    const m = Math.min(ZUFALL_STUECK, n - o);
+    const stueck = quelle(m);
+    if (!stueck || stueck.length !== m) fehler('Zufall');
+    aus.set(stueck, o);
+  }
+  return aus;
+}
+
 export function standardUmgebung(): Umgebung {
   return {
     fetchFn: fetch,
@@ -146,7 +165,7 @@ export function standardUmgebung(): Umgebung {
       schreiben: (key, wert) => asyncStorage().setItem(key, wert),
       loeschen: (key) => asyncStorage().removeItem(key),
     },
-    zufall: (n) => getRandomBytes(n),
+    zufall: (n) => zufallInStuecken(n, getRandomBytes),
     apiBasis: API_BASE,
     warten: (ms) => new Promise((r) => setTimeout(r, ms)),
     jetzt: () => Date.now(),
