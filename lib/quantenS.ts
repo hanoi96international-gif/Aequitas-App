@@ -66,6 +66,11 @@ function sha256Hex(...teile: Uint8Array[]): string {
   return hexOhne(ethers.sha256(ethers.concat(teile)));
 }
 
+/** Toleranz der Note ist ein Schluessel von quantenWKTabelle. */
+export function toleranzBekannt(tol: number): boolean {
+  return Object.prototype.hasOwnProperty.call(K_TABELLE, tol);
+}
+
 /** quantenSAbschnitt: Abschnitt x (1-basiert) von n Stellen bei v Validatoren. */
 export function abschnitt(n: number, v: number, x: number): { von: number; bis: number } | null {
   if (!Number.isInteger(n) || !Number.isInteger(v) || !Number.isInteger(x)) return null;
