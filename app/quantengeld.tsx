@@ -21,6 +21,7 @@ import {
   type QuantenStimmErgebnis,
 } from '@/lib/quantengeld';
 import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, type QuantenWErgebnis, type QuantenWUeberblick } from '@/lib/quantenW';
+import { holeRegister, meinStand, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
 import { withTimeout } from '@/lib/signer';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
@@ -53,11 +54,14 @@ export default function Quantengeld() {
   const [wLaeuft, setWLaeuft] = useState(false);
   // Ueberblick W/S (GET /api/quanten-w/stand); null: Knoten meldet ihn nicht.
   const [ueberblick, setUeberblick] = useState<QuantenWUeberblick | null>(null);
+  // Register der Praeparatoren (Weg B); null: Knoten meldet es nicht.
+  const [register, setRegister] = useState<Register | null>(null);
 
   const laden = useCallback(async () => {
-    const [s, a, r, u] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand(), holeQuantenWUeberblick()]);
+    const [s, a, r, u, reg] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand(), holeQuantenWUeberblick(), holeRegister()]);
     setStand(s);
     setUeberblick(u);
+    setRegister(reg);
     setAbst(a);
     setPruefer(r ? r.pruefer : null);
     setGeladen(true);
@@ -228,6 +232,8 @@ export default function Quantengeld() {
           </View>
         ) : null}
 
+        {register ? <PraepKarte reg={register} signer={signer} t={t} lang={lang} neuLaden={laden} /> : null}
+
         <View style={S.card}>
           <Text style={S.title}>{t('node.qwTitel')}</Text>
           <Text style={S.body}>{t('node.qwText')}</Text>
@@ -278,6 +284,75 @@ export default function Quantengeld() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// Weg B (lib/quantenSPraeparator.ts): sich als Praeparatorin melden oder
+// abmelden -- mit der Menschen-Wallet, erst nach ausdruecklicher Bestaetigung.
+// Solange Weg B im Knoten schlaeft (aktiv = false), nur Anzeige.
+function PraepKarte({ reg, signer, t, lang, neuLaden }: {
+  reg: Register;
+  signer: { address: string; signMessage(m: string): Promise<string> } | null | undefined;
+  t: (k: any) => string;
+  lang: string;
+  neuLaden: () => Promise<void>;
+}) {
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
+  const jetzt = Math.floor(Date.now() / 1000);
+  const mein = signer ? meinStand(reg, signer.address, jetzt) : null;
+  const aktiv = reg.eintraege.filter((e) => e.abgemeldet === undefined).length;
+
+  async function einreichen(art: 'melden' | 'abmelden') {
+    if (!signer) return;
+    setLaeuft(true);
+    setMeldung(null);
+    try {
+      await withTimeout(praepEinreichen(art, signer.address, signer, Math.floor(Date.now() / 1000)), TIMEOUT_MS, t('trade.signTimeout'));
+      setMeldung({ ok: true, text: t('node.qpOk') });
+      await neuLaden();
+    } catch (e: any) {
+      setMeldung({ ok: false, text: t('node.qpFehler').replace('{meldung}', String(e?.message ?? e).slice(0, 200)) });
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
+  function bestaetigen(art: 'melden' | 'abmelden') {
+    Alert.alert(t('node.qpBestaetigenTitel'), t(art === 'melden' ? 'node.qpBestaetigenMelden' : 'node.qpBestaetigenAbmelden'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t(art === 'melden' ? 'node.qpMelden' : 'node.qpAbmelden'), onPress: () => einreichen(art) },
+    ]);
+  }
+
+  let standText = '';
+  if (mein?.art === 'nicht_gemeldet') standText = t('node.qpNicht');
+  else if (mein?.art === 'wartet') standText = t('node.qpWartet').replace('{datum}', datum(mein.imLosAb, lang));
+  else if (mein?.art === 'im_los') standText = t('node.qpImLos');
+  else if (mein?.art === 'abgemeldet') standText = t('node.qpAbgemeldet').replace('{datum}', datum(mein.neuAb, lang));
+  const kannMelden = reg.aktiv && !!signer && mein?.art === 'nicht_gemeldet';
+  const kannAbmelden = reg.aktiv && !!signer && (mein?.art === 'wartet' || mein?.art === 'im_los');
+
+  return (
+    <View style={S.card}>
+      <Text style={S.title}>{t('node.qpTitel')}</Text>
+      <Text style={S.body}>{t('node.qpText')}</Text>
+      {!reg.aktiv ? <Text style={[S.muted, { marginBottom: 8 }]}>{t('node.qpSchlafend')}</Text> : null}
+      <Text style={S.stimmen}>{t('node.qpZahl').replace('{n}', String(aktiv))}</Text>
+      {!signer ? <Text style={S.muted}>{t('node.qpKeineWallet')}</Text> : <Text style={[S.muted, { marginTop: 8 }]}>{standText}</Text>}
+      {meldung ? <Text style={[meldung.ok ? S.ok : S.fehler, { marginTop: 8 }]}>{meldung.text}</Text> : null}
+      {kannMelden || kannAbmelden ? (
+        <TouchableOpacity
+          style={[S.btn, laeuft && { opacity: 0.6 }]}
+          disabled={laeuft}
+          onPress={() => bestaetigen(kannMelden ? 'melden' : 'abmelden')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+        >
+          {laeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t(kannMelden ? 'node.qpMelden' : 'node.qpAbmelden')}</Text>}
+        </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
 
