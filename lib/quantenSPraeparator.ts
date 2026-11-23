@@ -11,10 +11,18 @@
 // Anzahl); eine Unterschrift, die nicht zur eigenen Adresse passt oder nicht
 // kanonisch ist, wird nie eingereicht. Solange Weg B im Knoten schläft,
 // meldet das Register aktiv = false und die App bietet nichts an.
+//
+// Schlüssel (B4b-4b): Jeder Eintrag trägt den öffentlichen secp256k1-Schlüssel
+// der Präparatorin (pub, 04 || X || Y, Hex), den der Knoten aus ihrer
+// EIP-191-Meldung wiederherstellt. Ausgeber und Inhaberin verschlüsseln den
+// Auftrag daran (ECIES). Die App prüft selbst, dass er genau die Adresse des
+// Kontos ergibt -- ein Knoten, der einen fremden Schlüssel einsetzt, würde
+// sonst die geheimen Basen lesen.
 
 import { ethers } from 'ethers';
 import { API_BASE } from './config';
 import { CHAIN_ID, QuantenSFehler, kanonisch, unterschriftVon } from './quantenS';
+import { schluesselPruefen } from './quantenSPraeparieren';
 
 const DOM_K = 'aequitas-quanten-s-praep-k-v1';
 const DOM_MELDEN = 'aequitas-quanten-s-praep-melden-v1';
@@ -25,6 +33,19 @@ export const REGISTER_MAX = 128 * 1024;
 export const EINTRAEGE_MAX = 256;
 const FRIST_MS = 15_000;
 const ADRESSE = /^0x[0-9a-f]{40}$/;
+
+/**
+ * Ergibt pub genau die Adresse konto (schluesselPruefen) UND steht er schon in
+ * der kanonischen Form des Knotens (04…, klein, ohne 0x)? Sonst false.
+ */
+export function pubPasst(pub: unknown, konto: string): pub is string {
+  if (typeof pub !== 'string') return false;
+  try {
+    return schluesselPruefen(pub, konto) === pub;
+  } catch {
+    return false;
+  }
+}
 
 export type Art = 'melden' | 'abmelden';
 
@@ -41,6 +62,8 @@ export function praepNachricht(art: Art, wallet: string, K: string, zeit: number
 
 export interface Eintrag {
   konto: string;
+  /** secp256k1, unkomprimiert, Hex ohne 0x (130 Zeichen). */
+  pub: string;
   gemeldet: number;
   imLosAb: number;
   abgemeldet?: number;
@@ -67,9 +90,9 @@ export function registerLesen(roh: unknown): Register | null {
   for (const e of o.praeparatoren) {
     if (!e || typeof e !== 'object' || Array.isArray(e)) return null;
     const p = e as Record<string, unknown>;
-    if (typeof p.konto !== 'string' || !ADRESSE.test(p.konto) || !ganz(p.gemeldet) || !ganz(p.im_los_ab) || p.im_los_ab < p.gemeldet) return null;
+    if (typeof p.konto !== 'string' || !ADRESSE.test(p.konto) || !pubPasst(p.pub, p.konto) || !ganz(p.gemeldet) || !ganz(p.im_los_ab) || p.im_los_ab < p.gemeldet) return null;
     if (p.abgemeldet !== undefined && (!ganz(p.abgemeldet) || p.abgemeldet < p.gemeldet)) return null;
-    eintraege.push({ konto: p.konto, gemeldet: p.gemeldet, imLosAb: p.im_los_ab, ...(p.abgemeldet !== undefined ? { abgemeldet: p.abgemeldet as number } : {}) });
+    eintraege.push({ konto: p.konto, pub: p.pub as string, gemeldet: p.gemeldet, imLosAb: p.im_los_ab, ...(p.abgemeldet !== undefined ? { abgemeldet: p.abgemeldet as number } : {}) });
   }
   return { aktiv: o.aktiv, vorlauf: o.vorlauf, nachlauf: o.nachlauf, eintraege };
 }

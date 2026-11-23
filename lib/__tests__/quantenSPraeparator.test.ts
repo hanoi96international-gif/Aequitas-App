@@ -12,6 +12,7 @@ import {
   praepEinreichen,
   praepK,
   praepNachricht,
+  pubPasst,
   registerLesen,
   sigNormal,
   type Register,
@@ -42,6 +43,13 @@ describe('Prüfvektor Knoten ↔ App', () => {
     expect(vektor.melden_pfad).toBe('/api/quanten-w/s_praep_melden');
     expect(vektor.register_pfad).toBe('/api/quanten-w/praeparatoren');
     expect(vektor.hoechstens_eintraege).toBe(EINTRAEGE_MAX);
+  });
+
+  it('kennt den Schlüssel, den der Knoten aus der Meldung wiederherstellt (B4b-4a)', () => {
+    const ausSig = ethers.SigningKey.recoverPublicKey(ethers.hashMessage(vektor.melden_nachricht), vektor.melden_sig);
+    expect(ausSig.slice(2)).toBe(vektor.pub);
+    expect(new ethers.SigningKey('0x' + vektor.schluessel_nur_test).publicKey.slice(2)).toBe(vektor.pub);
+    expect(pubPasst(vektor.pub, vektor.konto)).toBe(true);
   });
 
   it('reicht genau den Satz des Vektors ein', async () => {
@@ -103,23 +111,32 @@ describe('Einreichen: fail-closed', () => {
 });
 
 describe('Register lesen', () => {
+  const zweite = new ethers.SigningKey('0x' + '22'.repeat(32));
+  const zweitesKonto = ethers.computeAddress(zweite.publicKey).toLowerCase();
+  const zweitePub = zweite.publicKey.slice(2);
+  const eintrag = (x: Record<string, unknown>) => ({ ...gut, praeparatoren: [{ konto: vektor.konto, pub: vektor.pub, gemeldet: 1, im_los_ab: 2, ...x }] });
   const gut = {
     aktiv: true,
     vorlauf: 86400,
     nachlauf: 695160,
     hoechstens: 256,
     praeparatoren: [
-      { konto: vektor.konto, gemeldet: 1000, im_los_ab: 87400 },
-      { konto: '0x' + '11'.repeat(20), gemeldet: 500, im_los_ab: 86900, abgemeldet: 2000 },
+      { konto: vektor.konto, pub: vektor.pub, gemeldet: 1000, im_los_ab: 87400 },
+      { konto: zweitesKonto, pub: zweitePub, gemeldet: 500, im_los_ab: 86900, abgemeldet: 2000 },
     ],
     bestellungen: [],
   };
+
+  it('der Baustein der Fehlfälle ist selbst gültig', () => {
+    expect(registerLesen(eintrag({}))?.eintraege).toHaveLength(1);
+  });
 
   it('liest eine gültige Antwort', () => {
     const r = registerLesen(gut) as Register;
     expect(r.aktiv).toBe(true);
     expect(r.eintraege).toHaveLength(2);
     expect(r.eintraege[1].abgemeldet).toBe(2000);
+    expect(r.eintraege[0].pub).toBe(vektor.pub);
   });
 
   it.each([
@@ -127,13 +144,22 @@ describe('Register lesen', () => {
     ['aktiv fehlt', { ...gut, aktiv: undefined }],
     ['aktiv als Text', { ...gut, aktiv: 'true' }],
     ['Liste fehlt', { ...gut, praeparatoren: undefined }],
-    ['Konto groß geschrieben', { ...gut, praeparatoren: [{ konto: '0x' + vektor.konto.slice(2).toUpperCase(), gemeldet: 1, im_los_ab: 2 }] }],
-    ['Konto kurz', { ...gut, praeparatoren: [{ konto: '0x1234', gemeldet: 1, im_los_ab: 2 }] }],
-    ['negative Zeit', { ...gut, praeparatoren: [{ konto: vektor.konto, gemeldet: -1, im_los_ab: 2 }] }],
-    ['im Los vor der Meldung', { ...gut, praeparatoren: [{ konto: vektor.konto, gemeldet: 10, im_los_ab: 5 }] }],
-    ['vor der Meldung abgemeldet', { ...gut, praeparatoren: [{ konto: vektor.konto, gemeldet: 10, im_los_ab: 20, abgemeldet: 5 }] }],
-    ['Zeit als Bruch', { ...gut, praeparatoren: [{ konto: vektor.konto, gemeldet: 1.5, im_los_ab: 2 }] }],
-    ['zu viele', { ...gut, praeparatoren: Array.from({ length: EINTRAEGE_MAX + 1 }, () => ({ konto: vektor.konto, gemeldet: 1, im_los_ab: 2 })) }],
+    ['Konto groß geschrieben', eintrag({ konto: '0x' + vektor.konto.slice(2).toUpperCase() })],
+    ['Konto kurz', eintrag({ konto: '0x1234' })],
+    ['negative Zeit', eintrag({ gemeldet: -1 })],
+    ['im Los vor der Meldung', eintrag({ gemeldet: 10, im_los_ab: 5 })],
+    ['vor der Meldung abgemeldet', eintrag({ gemeldet: 10, im_los_ab: 20, abgemeldet: 5 })],
+    ['Zeit als Bruch', eintrag({ gemeldet: 1.5 })],
+    // Schlüssel (B4b-4b): nie ein Eintrag, an den die App nicht sicher
+    // verschlüsseln kann -- ein Knoten könnte sonst einen eigenen einsetzen.
+    ['ohne Schlüssel', eintrag({ pub: undefined })],
+    ['fremder Schlüssel', eintrag({ pub: zweitePub })],
+    ['Schlüssel groß', eintrag({ pub: vektor.pub.toUpperCase() })],
+    ['Schlüssel mit 0x', eintrag({ pub: '0x' + vektor.pub })],
+    ['Schlüssel komprimiert', eintrag({ pub: ethers.SigningKey.computePublicKey('0x' + vektor.pub, true).slice(2) })],
+    ['Schlüssel neben der Kurve', eintrag({ pub: vektor.pub.slice(0, 129) + (vektor.pub.endsWith('0') ? '1' : '0') })],
+    ['Schlüssel als Zahl', eintrag({ pub: 4 })],
+    ['zu viele', { ...gut, praeparatoren: Array.from({ length: EINTRAEGE_MAX + 1 }, () => ({ konto: vektor.konto, pub: vektor.pub, gemeldet: 1, im_los_ab: 2 })) }],
   ])('weist ab: %s', (_name, roh) => {
     expect(registerLesen(roh)).toBeNull();
   });
@@ -152,6 +178,6 @@ describe('Register lesen', () => {
     expect(meinStand(r, '0x' + '22'.repeat(20), 5000)).toEqual({ art: 'nicht_gemeldet' });
     expect(meinStand(r, vektor.konto, 87399)).toEqual({ art: 'wartet', imLosAb: 87400 });
     expect(meinStand(r, vektor.konto, 87400)).toEqual({ art: 'im_los', seit: 87400 });
-    expect(meinStand(r, '0x' + '11'.repeat(20), 9e9)).toEqual({ art: 'abgemeldet', neuAb: 2000 + 695160 });
+    expect(meinStand(r, zweitesKonto, 9e9)).toEqual({ art: 'abgemeldet', neuAb: 2000 + 695160 });
   });
 });
