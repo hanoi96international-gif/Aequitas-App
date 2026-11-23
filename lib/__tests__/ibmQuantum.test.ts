@@ -14,6 +14,10 @@ import {
   einreichen,
   ergebnisRoh,
   ergebnisSchuesse,
+  geraeteListe,
+  geraetWaehlen,
+  instanzenSuchen,
+  SUCHE_URL,
   holeToken,
   npyZeilen,
   status,
@@ -226,5 +230,87 @@ describe('Ergebnis lesen (einfache Form der IBM-Doku)', () => {
     expect(ergebnisSchuesse(nur, [16])).toEqual([['0x0']]);
     expect(() => ergebnisSchuesse(nur, [17])).toThrow('Schaltkreise');
     expect(() => ergebnisSchuesse(nur, [0])).toThrow('Schaltkreise');
+  });
+});
+
+describe('Instanz und Gerät finden (wie qiskit-ibm-runtime least_busy)', () => {
+  const CRN2 = CRN.replace('01234567-89ab', '11111111-89ab');
+  const suche = (items: unknown[]) => () => ({ status: 200, text: JSON.stringify({ items }) });
+  const geraete = (devices: unknown[]) => () => ({ status: 200, text: JSON.stringify({ devices }) });
+  const dev = (name: string, q: number, extra: object = {}) => ({ name, status: { name: 'online' }, queue_length: q, qubits: 156, ...extra });
+
+  it('sucht die Instanzen über Global Search, nur mit dem Token', async () => {
+    const { f, aufrufe } = netz([suche([{ crn: CRN2 }, { crn: CRN }, { crn: CRN }, { crn: 'crn:v1:evil' }, { name: 'ohne' }])]);
+    expect(await instanzenSuchen(TOKEN, f)).toEqual([CRN, CRN2].sort());
+    expect(aufrufe[0].url).toBe(SUCHE_URL);
+    expect(aufrufe[0].init.method).toBe('POST');
+    expect(aufrufe[0].init.redirect).toBe('error');
+    expect(JSON.parse(String(aufrufe[0].init.body))).toEqual({ query: 'service_name:quantum-computing', fields: ['crn', 'name'] });
+    expect((aufrufe[0].init.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it.each([
+    ['HTTP 401', () => ({ status: 401, text: '{}' }), 'HTTP 401'],
+    ['keine Instanz', suche([]), 'keine Quantum-Instanz'],
+    ['nur fremde', suche([{ crn: 'crn:v1:bluemix:public:cloud-object-storage:global:a/0123456789abcdef0123456789abcdef:01234567-89ab-cdef-0123-456789abcdef::' }]), 'keine Quantum-Instanz'],
+    ['zu viele', suche(Array(101).fill({ crn: CRN })), 'Antwort'],
+    ['keine Liste', () => ({ status: 200, text: '{"items":{}}' }), 'Antwort'],
+  ])('Suche scheitert: %s', async (_n, antwort, fehler) => {
+    const { f } = netz([antwort]);
+    await expect(instanzenSuchen(TOKEN, f)).rejects.toThrow(fehler);
+  });
+
+  it('höchstens 8 Instanzen', async () => {
+    const viele = Array.from({ length: 20 }, (_, i) => ({ crn: CRN.replace('01234567-89ab', `${String(i).padStart(8, '0')}-89ab`) }));
+    const { f } = netz([suche(viele)]);
+    expect(await instanzenSuchen(TOKEN, f)).toHaveLength(8);
+  });
+
+  it('Geräte: nur frei und echt, kürzeste Schlange zuerst', async () => {
+    const { f, aufrufe } = netz([
+      geraete([
+        dev('ibm_b', 5),
+        dev('ibm_a', 5),
+        dev('ibm_c', 1, { status: { name: 'paused' } }),
+        dev('ibm_d', 0, { class: 'mock' }),
+        dev('ibm/../x', 0),
+        dev('ibm_e', -1),
+        dev('ibm_f', 3),
+        { name: 'ibm_g' },
+      ]),
+    ]);
+    expect((await geraeteListe(TOKEN, CRN, f)).map((g) => g.name)).toEqual(['ibm_f', 'ibm_a', 'ibm_b']);
+    expect(aufrufe[0].url).toBe(`${API_BASIS}/backends`);
+    expect((aufrufe[0].init.headers as Record<string, string>)['Service-CRN']).toBe(CRN);
+    await expect(geraeteListe(TOKEN, 'crn:v1:evil', f)).rejects.toThrow('CRN');
+  });
+
+  it('Geräte: zu lange Liste abgewiesen', async () => {
+    const { f } = netz([geraete(Array(257).fill(dev('ibm_a', 1)))]);
+    await expect(geraeteListe(TOKEN, CRN, f)).rejects.toThrow('Antwort');
+  });
+
+  it('wählt über alle Instanzen das Gerät mit der kürzesten Schlange und genug Qubits', async () => {
+    const { f } = netz([
+      suche([{ crn: CRN }, { crn: CRN2 }]),
+      geraete([dev('ibm_klein', 0, { qubits: 5 }), dev('ibm_x', 7)]),
+      geraete([dev('ibm_y', 2)]),
+    ]);
+    expect(await geraetWaehlen(TOKEN, 16, f)).toEqual({ crn: CRN2, geraet: { name: 'ibm_y', schlange: 2, qubits: 156 } });
+    const umgekehrt = netz([suche([{ crn: CRN }, { crn: CRN2 }]), geraete([dev('ibm_y', 2)]), geraete([dev('ibm_x', 7)])]);
+    expect((await geraetWaehlen(TOKEN, 16, umgekehrt.f)).geraet.name).toBe('ibm_y');
+  });
+
+  it('überspringt eine Instanz ohne Zugang, nicht aber andere Fehler', async () => {
+    const a = netz([suche([{ crn: CRN }, { crn: CRN2 }]), () => ({ status: 403, text: '{}' }), geraete([dev('ibm_y', 2)])]);
+    expect((await geraetWaehlen(TOKEN, 16, a.f)).crn).toBe(CRN2);
+    const b = netz([suche([{ crn: CRN }, { crn: CRN2 }]), () => ({ status: 500, text: '{}' }), geraete([dev('ibm_y', 2)])]);
+    await expect(geraetWaehlen(TOKEN, 16, b.f)).rejects.toThrow('HTTP 500');
+  });
+
+  it('kein freies Gerät oder unsinnige Qubitzahl: Fehler', async () => {
+    const { f } = netz([suche([{ crn: CRN }]), geraete([dev('ibm_klein', 0, { qubits: 5 })])]);
+    await expect(geraetWaehlen(TOKEN, 16, f)).rejects.toThrow('kein freies Gerät');
+    await expect(geraetWaehlen(TOKEN, 17, netz([]).f)).rejects.toThrow('Qubits');
   });
 });
