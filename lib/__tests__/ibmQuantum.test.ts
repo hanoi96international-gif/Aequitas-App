@@ -6,7 +6,10 @@ import ergebnisVektor from './vektoren/ibm_ergebnis_vektor.json';
 import einfachVektor from './vektoren/ibm_ergebnis_einfach_vektor.json';
 import auftragVektor from './vektoren/ibm_auftrag_vektor.json';
 import {
+  API_BASEN,
   API_BASIS,
+  apiBasis,
+  regionVon,
   API_VERSION,
   IAM_URL,
   IbmFehler,
@@ -312,5 +315,54 @@ describe('Instanz und Gerät finden (wie qiskit-ibm-runtime least_busy)', () => 
     const { f } = netz([suche([{ crn: CRN }]), geraete([dev('ibm_klein', 0, { qubits: 5 })])]);
     await expect(geraetWaehlen(TOKEN, 16, f)).rejects.toThrow('kein freies Gerät');
     await expect(geraetWaehlen(TOKEN, 17, netz([]).f)).rejects.toThrow('Qubits');
+  });
+});
+
+describe('Region der Instanz bestimmt die Adresse (wie qiskit-ibm-runtime)', () => {
+  const EU = CRN.replace(':us-east:', ':eu-de:');
+  const FREMD = CRN.replace(':us-east:', ':jp-tok:');
+  const dev = { name: 'ibm_y', status: { name: 'online' }, queue_length: 2, qubits: 156 };
+
+  it('feste Tabelle: us-east ohne Vorsilbe, eu-de mit', () => {
+    expect(apiBasis(CRN)).toBe('https://quantum.cloud.ibm.com/api/v1');
+    expect(apiBasis(EU)).toBe('https://eu-de.quantum.cloud.ibm.com/api/v1');
+    expect(Object.keys(API_BASEN).sort()).toEqual(['eu-de', 'us-east']);
+    expect(regionVon(EU)).toBe('eu-de');
+  });
+
+  it('unbekannte Region wird abgewiesen, nie als Hostname benutzt', async () => {
+    expect(() => apiBasis(FREMD)).toThrow('Region');
+    expect(() => zugangPruefen({ apiKey: KEY, crn: FREMD })).toThrow('Region');
+    const { f, aufrufe } = netz([]);
+    await expect(einreichen(TOKEN, FREMD, '{}', f)).rejects.toThrow('Region');
+    await expect(status(TOKEN, FREMD, 'd1abcdef0123456789', f)).rejects.toThrow('Region');
+    await expect(geraeteListe(TOKEN, FREMD, f)).rejects.toThrow('Region');
+    expect(aufrufe).toHaveLength(0);
+  });
+
+  it('Aufträge, Status, Ergebnis und Geräte einer eu-de-Instanz gehen an eu-de', async () => {
+    const { f, aufrufe } = netz([
+      () => ({ status: 200, text: '{"id":"d1abcdef0123456789"}' }),
+      () => ({ status: 200, text: '{"state":{"status":"Running"}}' }),
+      () => ({ status: 200, text: '{}' }),
+      () => ({ status: 200, text: JSON.stringify({ devices: [dev] }) }),
+    ]);
+    const id = await einreichen(TOKEN, EU, auftragVektor.koerper, f);
+    await status(TOKEN, EU, id, f);
+    await ergebnisRoh(TOKEN, EU, id, f);
+    await geraeteListe(TOKEN, EU, f);
+    const eu = 'https://eu-de.quantum.cloud.ibm.com/api/v1';
+    expect(aufrufe.map((a) => a.url)).toEqual([`${eu}/jobs`, `${eu}/jobs/${id}`, `${eu}/jobs/${id}/results`, `${eu}/backends`]);
+  });
+
+  it('Suche: Instanzen unbekannter Regionen werden übergangen; Wahl über Regionen hinweg', async () => {
+    const { f, aufrufe } = netz([
+      () => ({ status: 200, text: JSON.stringify({ items: [{ crn: FREMD }, { crn: EU }, { crn: CRN }] }) }),
+      () => ({ status: 200, text: JSON.stringify({ devices: [{ ...dev, name: 'ibm_eu', queue_length: 1 }] }) }),
+      () => ({ status: 200, text: JSON.stringify({ devices: [{ ...dev, name: 'ibm_us', queue_length: 9 }] }) }),
+    ]);
+    const w = await geraetWaehlen(TOKEN, 16, f);
+    expect(w).toEqual({ crn: EU, geraet: { name: 'ibm_eu', schlange: 1, qubits: 156 } });
+    expect(aufrufe.slice(1).map((a) => a.url)).toEqual(['https://eu-de.quantum.cloud.ibm.com/api/v1/backends', `${API_BASIS}/backends`]);
   });
 });

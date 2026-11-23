@@ -40,6 +40,14 @@ import { unzlibSync } from 'fflate';
 
 export const IAM_URL = 'https://iam.cloud.ibm.com/identity/token';
 export const API_BASIS = 'https://quantum.cloud.ibm.com/api/v1';
+// Die Adresse hängt von der Region der Instanz ab (qiskit-ibm-runtime
+// api/utils.py default_runtime_url_resolver: us-east ohne Vorsilbe, sonst
+// "<region>.quantum.cloud.ibm.com"). Fest hinterlegt nur die Regionen, die der
+// Client nennt (us-east, eu-de) -- nie ein Hostname aus der CRN zusammengesetzt.
+export const API_BASEN: Readonly<Record<string, string>> = Object.freeze({
+  'us-east': API_BASIS,
+  'eu-de': 'https://eu-de.quantum.cloud.ibm.com/api/v1',
+});
 export const API_VERSION = '2026-04-15';
 export const SUCHE_URL = 'https://api.global-search-tagging.cloud.ibm.com/v3/resources/search?limit=100';
 export const INSTANZEN_MAX = 8;
@@ -56,6 +64,19 @@ const JOB_ID = /^[a-z0-9]{8,64}$/;
 
 export class IbmFehler extends Error {}
 
+/** Region der Instanz (6. Feld der CRN), nur wenn sie bekannt ist. */
+export function regionVon(crn: string): string {
+  if (!CRN.test(crn)) throw new IbmFehler('Instanz (CRN): Form');
+  const r = crn.split(':')[5];
+  if (!Object.prototype.hasOwnProperty.call(API_BASEN, r)) throw new IbmFehler('Instanz: Region unbekannt');
+  return r;
+}
+
+/** Die API-Adresse für die Instanz (feste Tabelle). */
+export function apiBasis(crn: string): string {
+  return API_BASEN[regionVon(crn)];
+}
+
 export interface IbmZugang {
   apiKey: string;
   crn: string;
@@ -65,7 +86,7 @@ export function zugangPruefen(z: IbmZugang): IbmZugang {
   const apiKey = z.apiKey.trim();
   const crn = z.crn.trim();
   if (!/^[A-Za-z0-9_-]{20,128}$/.test(apiKey)) throw new IbmFehler('API-Schlüssel: Form');
-  if (!CRN.test(crn)) throw new IbmFehler('Instanz (CRN): Form');
+  regionVon(crn);
   return { apiKey, crn };
 }
 
@@ -126,7 +147,7 @@ export function auftragKoerper(backend: string, kreiseQasm: string[], schuesse: 
 }
 
 export async function einreichen(token: string, crn: string, koerper: string, fetchFn: typeof fetch = fetch): Promise<string> {
-  const r = await anfrage(fetchFn, `${API_BASIS}/jobs`, { method: 'POST', headers: kopf(token, crn, true), body: koerper });
+  const r = await anfrage(fetchFn, `${apiBasis(crn)}/jobs`, { method: 'POST', headers: kopf(token, crn, true), body: koerper });
   if (r.status !== 200 && r.status !== 201) throw new IbmFehler(`Auftrag: HTTP ${r.status} ${fehlerText(r.text)}`);
   const id = json(r.text, 'Auftrag')?.id;
   if (typeof id !== 'string' || !JOB_ID.test(id)) throw new IbmFehler('Auftrag: keine Kennung');
@@ -149,7 +170,7 @@ export type IbmStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELL
 
 export async function status(token: string, crn: string, id: string, fetchFn: typeof fetch = fetch): Promise<IbmStatus> {
   if (!JOB_ID.test(id)) throw new IbmFehler('Kennung: Form');
-  const r = await anfrage(fetchFn, `${API_BASIS}/jobs/${id}`, { method: 'GET', headers: kopf(token, crn, false) });
+  const r = await anfrage(fetchFn, `${apiBasis(crn)}/jobs/${id}`, { method: 'GET', headers: kopf(token, crn, false) });
   if (r.status !== 200) throw new IbmFehler(`Status: HTTP ${r.status}`);
   const s = String(json(r.text, 'Status')?.state?.status ?? '').toUpperCase();
   if (!['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(s)) throw new IbmFehler('Status: unbekannt');
@@ -158,7 +179,7 @@ export async function status(token: string, crn: string, id: string, fetchFn: ty
 
 export async function ergebnisRoh(token: string, crn: string, id: string, fetchFn: typeof fetch = fetch): Promise<unknown> {
   if (!JOB_ID.test(id)) throw new IbmFehler('Kennung: Form');
-  const r = await anfrage(fetchFn, `${API_BASIS}/jobs/${id}/results`, { method: 'GET', headers: kopf(token, crn, false) });
+  const r = await anfrage(fetchFn, `${apiBasis(crn)}/jobs/${id}/results`, { method: 'GET', headers: kopf(token, crn, false) });
   if (r.status !== 200) throw new IbmFehler(`Ergebnis: HTTP ${r.status}`);
   return json(r.text, 'Ergebnis');
 }
@@ -178,7 +199,7 @@ export async function instanzenSuchen(token: string, fetchFn: typeof fetch = fet
   if (r.status !== 200) throw new IbmFehler(`Instanzen: HTTP ${r.status}`);
   const items = json(r.text, 'Instanzen')?.items;
   if (!Array.isArray(items) || items.length > 100) throw new IbmFehler('Instanzen: Antwort');
-  const crns = [...new Set(items.map((i: any) => i?.crn).filter((c: unknown): c is string => typeof c === 'string' && CRN.test(c)))].sort();
+  const crns = [...new Set(items.map((i: any) => i?.crn).filter((c: unknown): c is string => typeof c === 'string' && CRN.test(c) && Object.prototype.hasOwnProperty.call(API_BASEN, c.split(':')[5])))].sort();
   if (!crns.length) throw new IbmFehler('Instanzen: keine Quantum-Instanz im Konto');
   return crns.slice(0, INSTANZEN_MAX);
 }
@@ -191,8 +212,7 @@ export interface Geraet {
 
 /** Die freien Geräte einer Instanz (online, keine Attrappe), kürzeste Schlange zuerst. */
 export async function geraeteListe(token: string, crn: string, fetchFn: typeof fetch = fetch): Promise<Geraet[]> {
-  if (!CRN.test(crn)) throw new IbmFehler('Instanz (CRN): Form');
-  const r = await anfrage(fetchFn, `${API_BASIS}/backends`, { method: 'GET', headers: kopf(token, crn, false) });
+  const r = await anfrage(fetchFn, `${apiBasis(crn)}/backends`, { method: 'GET', headers: kopf(token, crn, false) });
   if (r.status !== 200) throw new IbmFehler(`Geräte: HTTP ${r.status}`);
   const devices = json(r.text, 'Geräte')?.devices;
   if (!Array.isArray(devices) || devices.length > GERAETE_MAX) throw new IbmFehler('Geräte: Antwort');
