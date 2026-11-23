@@ -1,0 +1,905 @@
+{
+ "hinweis": "Schaltkreise eines Abschnitts aus lib/quantenSSchaltkreis.ts (Qubits 0..n-1). Mit qiskit 2.6.2 geprueft: vor dem Messen als Operator gleich wiesner_hardware.note (Aequitas forschung/quantengeld/app_schaltkreis_pruefen.py), jedes Messbit misst Qubit i.",
+ "faelle": [
+  {
+   "u": [
+    0
+   ],
+   "t": [
+    0
+   ],
+   "y": [
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[1] c;\nbarrier $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nc[0] = measure $0;\n"
+  },
+  {
+   "u": [
+    1,
+    0
+   ],
+   "t": [
+    0,
+    0
+   ],
+   "y": [
+    1,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[2] c;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nbarrier $0, $1;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    1
+   ],
+   "t": [
+    0,
+    0,
+    1
+   ],
+   "y": [
+    1,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[3] c;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nbarrier $0, $1, $2;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    0,
+    1
+   ],
+   "t": [
+    0,
+    1,
+    0,
+    0
+   ],
+   "y": [
+    0,
+    1,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[4] c;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nbarrier $0, $1, $2, $3;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    1,
+    1,
+    0
+   ],
+   "t": [
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "y": [
+    1,
+    0,
+    0,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[5] c;\nx $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nbarrier $0, $1, $2, $3, $4;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    0
+   ],
+   "t": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    1
+   ],
+   "y": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[6] c;\nx $0;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nx $4;\nx $5;\nbarrier $0, $1, $2, $3, $4, $5;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0
+   ],
+   "t": [
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    0
+   ],
+   "y": [
+    0,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[7] c;\nx $0;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nx $3;\nx $4;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nx $5;\nbarrier $0, $1, $2, $3, $4, $5, $6;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0
+   ],
+   "t": [
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0
+   ],
+   "y": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[8] c;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nx $3;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nx $4;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nx $5;\nrz(pi/2) $6;\nsx $6;\nrz(pi/2) $6;\nbarrier $0, $1, $2, $3, $4, $5, $6, $7;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nrz(pi/2) $6;\nsx $6;\nrz(pi/2) $6;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\nc[7] = measure $7;\n"
+  },
+  {
+   "u": [
+    0
+   ],
+   "t": [
+    0
+   ],
+   "y": [
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[1] c;\nbarrier $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nc[0] = measure $0;\n"
+  },
+  {
+   "u": [
+    0,
+    1
+   ],
+   "t": [
+    1,
+    1
+   ],
+   "y": [
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[2] c;\nx $0;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nbarrier $0, $1;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nc[0] = measure $0;\nc[1] = measure $1;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    1
+   ],
+   "t": [
+    1,
+    1,
+    1
+   ],
+   "y": [
+    0,
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[3] c;\nx $0;\nx $1;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nbarrier $0, $1, $2;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    1,
+    0
+   ],
+   "t": [
+    0,
+    1,
+    1,
+    0
+   ],
+   "y": [
+    0,
+    1,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[4] c;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nbarrier $0, $1, $2, $3;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    0,
+    1,
+    1
+   ],
+   "t": [
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "y": [
+    1,
+    1,
+    0,
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[5] c;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nx $4;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nbarrier $0, $1, $2, $3, $4;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    1,
+    1,
+    0,
+    0
+   ],
+   "t": [
+    0,
+    0,
+    0,
+    0,
+    1,
+    1
+   ],
+   "y": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[6] c;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nx $4;\nx $5;\nbarrier $0, $1, $2, $3, $4, $5;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\n"
+  },
+  {
+   "u": [
+    1,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0
+   ],
+   "t": [
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "y": [
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[7] c;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nx $3;\nx $4;\nx $5;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nx $6;\nbarrier $0, $1, $2, $3, $4, $5, $6;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0
+   ],
+   "t": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    0
+   ],
+   "y": [
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[8] c;\nx $0;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nx $3;\nx $4;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nx $6;\nrz(pi/2) $6;\nsx $6;\nrz(pi/2) $6;\nbarrier $0, $1, $2, $3, $4, $5, $6, $7;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nrz(pi/2) $6;\nsx $6;\nrz(pi/2) $6;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\nc[7] = measure $7;\n"
+  },
+  {
+   "u": [
+    0
+   ],
+   "t": [
+    0
+   ],
+   "y": [
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[1] c;\nbarrier $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nc[0] = measure $0;\n"
+  },
+  {
+   "u": [
+    0,
+    0
+   ],
+   "t": [
+    0,
+    1
+   ],
+   "y": [
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[2] c;\nx $1;\nbarrier $0, $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    0
+   ],
+   "t": [
+    1,
+    0,
+    1
+   ],
+   "y": [
+    1,
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[3] c;\nx $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nx $2;\nbarrier $0, $1, $2;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    1,
+    0
+   ],
+   "t": [
+    1,
+    0,
+    1,
+    1
+   ],
+   "y": [
+    1,
+    1,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[4] c;\nx $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nx $3;\nbarrier $0, $1, $2, $3;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    1,
+    1,
+    0
+   ],
+   "t": [
+    1,
+    0,
+    1,
+    0,
+    0
+   ],
+   "y": [
+    0,
+    1,
+    1,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[5] c;\nx $0;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nbarrier $0, $1, $2, $3, $4;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0
+   ],
+   "t": [
+    1,
+    1,
+    1,
+    1,
+    0,
+    0
+   ],
+   "y": [
+    1,
+    0,
+    1,
+    0,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[6] c;\nx $0;\nx $1;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nx $3;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nbarrier $0, $1, $2, $3, $4, $5;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0
+   ],
+   "t": [
+    0,
+    1,
+    1,
+    1,
+    0,
+    1,
+    0
+   ],
+   "y": [
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[7] c;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nx $3;\nx $5;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nbarrier $0, $1, $2, $3, $4, $5, $6;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nrz(pi/2) $6;\nsx $6;\nrz(pi/2) $6;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ],
+   "t": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0
+   ],
+   "y": [
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[8] c;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $3;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nx $6;\nrz(pi/2) $7;\nsx $7;\nrz(pi/2) $7;\nbarrier $0, $1, $2, $3, $4, $5, $6, $7;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\nc[7] = measure $7;\n"
+  },
+  {
+   "u": [
+    1
+   ],
+   "t": [
+    1
+   ],
+   "y": [
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[1] c;\nx $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nbarrier $0;\nc[0] = measure $0;\n"
+  },
+  {
+   "u": [
+    1,
+    1
+   ],
+   "t": [
+    1,
+    0
+   ],
+   "y": [
+    1,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[2] c;\nx $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nbarrier $0, $1;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    0
+   ],
+   "t": [
+    0,
+    1,
+    1
+   ],
+   "y": [
+    0,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[3] c;\nx $1;\nx $2;\nbarrier $0, $1, $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "t": [
+    0,
+    1,
+    1,
+    1
+   ],
+   "y": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[4] c;\nx $1;\nx $2;\nx $3;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nbarrier $0, $1, $2, $3;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    1,
+    1,
+    1
+   ],
+   "t": [
+    0,
+    0,
+    1,
+    0,
+    1
+   ],
+   "y": [
+    1,
+    1,
+    1,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[5] c;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nx $4;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nbarrier $0, $1, $2, $3, $4;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    1,
+    1,
+    0,
+    0
+   ],
+   "t": [
+    0,
+    1,
+    0,
+    0,
+    1,
+    0
+   ],
+   "y": [
+    1,
+    1,
+    0,
+    1,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[6] c;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nx $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nx $4;\nbarrier $0, $1, $2, $3, $4, $5;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1
+   ],
+   "t": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    0
+   ],
+   "y": [
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[7] c;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nx $3;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nrz(pi/2) $6;\nsx $6;\nrz(pi/2) $6;\nbarrier $0, $1, $2, $3, $4, $5, $6;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "t": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0
+   ],
+   "y": [
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[8] c;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nx $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nx $4;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nx $5;\nbarrier $0, $1, $2, $3, $4, $5, $6, $7;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nrz(pi/2) $6;\nsx $6;\nrz(pi/2) $6;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\nc[7] = measure $7;\n"
+  },
+  {
+   "u": [
+    0
+   ],
+   "t": [
+    0
+   ],
+   "y": [
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[1] c;\nbarrier $0;\nc[0] = measure $0;\n"
+  },
+  {
+   "u": [
+    0,
+    1
+   ],
+   "t": [
+    1,
+    1
+   ],
+   "y": [
+    1,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[2] c;\nx $0;\nx $1;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nbarrier $0, $1;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nc[0] = measure $0;\nc[1] = measure $1;\n"
+  },
+  {
+   "u": [
+    0,
+    1,
+    0
+   ],
+   "t": [
+    0,
+    0,
+    0
+   ],
+   "y": [
+    0,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[3] c;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nbarrier $0, $1, $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    0,
+    1
+   ],
+   "t": [
+    0,
+    1,
+    1,
+    1
+   ],
+   "y": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[4] c;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nx $1;\nx $2;\nx $3;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nbarrier $0, $1, $2, $3;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\n"
+  },
+  {
+   "u": [
+    0,
+    0,
+    1,
+    0,
+    0
+   ],
+   "t": [
+    1,
+    0,
+    1,
+    0,
+    0
+   ],
+   "y": [
+    1,
+    0,
+    1,
+    1,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[5] c;\nx $0;\nx $2;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nbarrier $0, $1, $2, $3, $4;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    0,
+    0,
+    1,
+    0
+   ],
+   "t": [
+    0,
+    0,
+    1,
+    0,
+    1,
+    1
+   ],
+   "y": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[6] c;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nx $2;\nx $4;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nx $5;\nbarrier $0, $1, $2, $3, $4, $5;\nrz(pi/2) $1;\nsx $1;\nrz(pi/2) $1;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0
+   ],
+   "t": [
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1
+   ],
+   "y": [
+    1,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[7] c;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nx $1;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nx $3;\nx $4;\nrz(pi/2) $4;\nsx $4;\nrz(pi/2) $4;\nrz(pi/2) $5;\nsx $5;\nrz(pi/2) $5;\nx $6;\nbarrier $0, $1, $2, $3, $4, $5, $6;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\n"
+  },
+  {
+   "u": [
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1
+   ],
+   "t": [
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0
+   ],
+   "y": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "qasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nbit[8] c;\nx $0;\nrz(pi/2) $0;\nsx $0;\nrz(pi/2) $0;\nx $1;\nx $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nx $4;\nx $5;\nrz(pi/2) $7;\nsx $7;\nrz(pi/2) $7;\nbarrier $0, $1, $2, $3, $4, $5, $6, $7;\nrz(pi/2) $2;\nsx $2;\nrz(pi/2) $2;\nrz(pi/2) $3;\nsx $3;\nrz(pi/2) $3;\nc[0] = measure $0;\nc[1] = measure $1;\nc[2] = measure $2;\nc[3] = measure $3;\nc[4] = measure $4;\nc[5] = measure $5;\nc[6] = measure $6;\nc[7] = measure $7;\n"
+  }
+ ]
+}
