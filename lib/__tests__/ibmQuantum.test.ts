@@ -7,6 +7,7 @@ import einfachVektor from './vektoren/ibm_ergebnis_einfach_vektor.json';
 import auftragVektor from './vektoren/ibm_auftrag_vektor.json';
 import {
   API_BASIS,
+  apiBasis,
   API_VERSION,
   IAM_URL,
   IbmFehler,
@@ -283,6 +284,32 @@ describe('Instanz und Gerät finden (wie qiskit-ibm-runtime least_busy)', () => 
     expect(aufrufe[0].url).toBe(`${API_BASIS}/backends`);
     expect((aufrufe[0].init.headers as Record<string, string>)['Service-CRN']).toBe(CRN);
     await expect(geraeteListe(TOKEN, 'crn:v1:evil', f)).rejects.toThrow('CRN');
+  });
+
+  it('Host folgt der Region im CRN (wie qiskit), unbekannte Region abgewiesen', async () => {
+    const eu = CRN.replace(':us-east:', ':eu-de:');
+    expect(apiBasis(CRN)).toBe('https://quantum.cloud.ibm.com/api/v1');
+    expect(apiBasis(eu)).toBe('https://eu-de.quantum.cloud.ibm.com/api/v1');
+    for (const falsch of [CRN.replace(':us-east:', ':jp-tok:'), CRN.replace(':us-east:', ':constructor:'), CRN.replace(':us-east:', ':__proto__:'), 'crn:v1:evil']) {
+      expect(() => apiBasis(falsch)).toThrow(IbmFehler);
+    }
+    const { f, aufrufe } = netz([geraete([dev('ibm_a', 1)])]);
+    await geraeteListe(TOKEN, eu, f);
+    expect(aufrufe[0].url).toBe('https://eu-de.quantum.cloud.ibm.com/api/v1/backends');
+    const id = 'd1abcdef12345678';
+    const j = netz([() => ({ status: 200, text: JSON.stringify({ id }) }), () => ({ status: 200, text: '{"state":{"status":"Queued"}}' })]);
+    await einreichen(TOKEN, eu, '{}', j.f);
+    await status(TOKEN, eu, id, j.f);
+    expect(j.aufrufe.map((a) => a.url)).toEqual(['https://eu-de.quantum.cloud.ibm.com/api/v1/jobs', `https://eu-de.quantum.cloud.ibm.com/api/v1/jobs/${id}`]);
+    await expect(geraeteListe(TOKEN, CRN.replace(':us-east:', ':jp-tok:'), netz([]).f)).rejects.toThrow('Region');
+  });
+
+  it('Suche: Instanzen in unbekannter Region werden übergangen', async () => {
+    const eu = CRN.replace(':us-east:', ':eu-de:');
+    const { f } = netz([suche([{ crn: CRN.replace(':us-east:', ':jp-tok:') }, { crn: eu }, { crn: CRN }])]);
+    expect(await instanzenSuchen(TOKEN, f)).toEqual([eu, CRN]);
+    const nur = netz([suche([{ crn: CRN.replace(':us-east:', ':jp-tok:') }])]);
+    await expect(instanzenSuchen(TOKEN, nur.f)).rejects.toThrow('keine Quantum-Instanz');
   });
 
   it('Geräte: zu lange Liste abgewiesen', async () => {
