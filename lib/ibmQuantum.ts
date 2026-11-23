@@ -48,6 +48,11 @@ export const API_BASIS_JE_REGION: Readonly<Record<string, string>> = Object.free
   'eu-de': 'https://eu-de.quantum.cloud.ibm.com/api/v1',
 });
 export const API_VERSION = '2026-04-15';
+// Feste eigene Kennung bei jeder IBM-Anfrage. Belegt (Aequitas, IBM-REST-Probe
+// Lauf 4 gegen 5): quantum.cloud.ibm.com weist "Python-urllib/x" mit HTTP 403 ab
+// und nimmt eine eigene Kennung an; die Standardkennung der Plattform
+// (okhttp / CFNetwork) ist dort ungeprüft.
+export const USER_AGENT = 'aequitas-app-ibm/1';
 export const SUCHE_URL = 'https://api.global-search-tagging.cloud.ibm.com/v3/resources/search?limit=100';
 export const INSTANZEN_MAX = 8;
 const GERAETE_MAX = 256;
@@ -80,7 +85,8 @@ async function anfrage(fetchFn: typeof fetch, url: string, init: RequestInit): P
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FRIST_MS);
   try {
-    const r = await fetchFn(url, { ...init, signal: ctrl.signal, redirect: 'error' } as RequestInit);
+    const headers = { ...((init.headers as Record<string, string>) ?? {}), 'User-Agent': USER_AGENT };
+    const r = await fetchFn(url, { ...init, headers, signal: ctrl.signal, redirect: 'error' } as RequestInit);
     const text = await r.text();
     if (text.length > ANTWORT_MAX) throw new IbmFehler('Antwort zu groß');
     return { status: r.status, text };
