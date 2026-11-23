@@ -10,13 +10,18 @@ jest.mock('../config', () => ({ API_BASE: 'https://knoten.test/api' }));
 import * as fs from 'fs';
 import * as path from 'path';
 import { ethers } from 'ethers';
-import { abschnitt, adresseVon, eciesOeffnen, pubVon, unterschriftVon } from '../quantenS';
+import { abschnitt, adresseVon, eciesOeffnen, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, unterschriftVon } from '../quantenS';
 import { probeTeilHash, pruefsumme, zusammensetzen } from '../quantenSStelle';
 import {
   P,
   abschnittWerte,
   anteilOeffnungPakete,
   antwortUnterschreiben,
+  bestaetigen,
+  sAuftragNachricht,
+  sBestaetigungNachricht,
+  type BestaetigenAnfrage,
+  type EigenerAbschnitt,
   fuerInhaberin,
   oeffnungFuerStelle,
   probeV2,
@@ -285,5 +290,138 @@ describe('B4b-3b: Abweisungen', () => {
     expect(antwortUnterschreiben(SCHL[0], basis).validator).toBe(adresseVon(SCHL[0]));
     expect(() => antwortUnterschreiben(SCHL[0], { ...basis, buendel: ['x', 'cd'] })).toThrow('selbst');
     expect(() => antwortUnterschreiben(SCHL[0], { ...basis, teile: ['a', 'b'] })).toThrow('zusammen');
+  });
+});
+
+// ------------------------------------------------------------ B4b-3c: Bestaetigen
+
+const PFAD_BEST = path.join(__dirname, 'vektoren', 'quanten_s_praep_bestaetigen_vektor.json');
+const PRAEGER_SCHL = '41'.repeat(32); // NUR fuer Tests
+const K3 = ethers.sha256(ethers.toUtf8Bytes('aequitas-b4b3c')).slice(2);
+const TOL = 4;
+const ZEIT = 1795000000;
+
+/** Drei Praeparatoren (alle mit dem Code der App), Ausgabe mit Stichprobe v2; Validator 1 bestaetigt. */
+function bestaetigenSzene(saat: string) {
+  const z = festerZufall(saat);
+  const stellen: [Empfaenger, Empfaenger] = [0, 1].map((b) => ({ adresse: adresseVon(STELLEN_SCHL[b]), pub: pubVon(STELLEN_SCHL[b]) })) as [Empfaenger, Empfaenger];
+  const validatoren = SCHL.map(adresseVon);
+  const ab: { von: number; bis: number; werte: bigint[]; koeff: bigint[][]; probe: ReturnType<typeof probeV2> }[] = [];
+  for (let x = 1; x <= V; x++) {
+    const { von, bis } = abschnitt(N2, V, x)!;
+    const n = bis - von;
+    const u = Array.from({ length: n }, (_, i) => (i * 7 + x) % 2);
+    const t = Array.from({ length: n }, (_, i) => (i * 5 + x) % 2);
+    const werte = abschnittWerte(u, t, z);
+    const koeff = werte.map((w) => koeffizienten(w, T, V, z));
+    ab.push({ von, bis, werte, koeff, probe: probeV2(K3, x, von, u, u, t, t, werte, z) });
+  }
+  const bl = ab.flatMap((a) => blaetter(K3, a.von, a.werte));
+  const wurzel = merkleWurzel(bl);
+  const proben = [0, 1].map((b) => probeHashV2(K3, b, ab.map((a) => a.probe.teile[b])));
+  // buendel[von][an]: vom Praeparator an den Empfaenger
+  const buendel: { chiffrat: string; sig: string }[][] = ab.map((a, i) => validatoren.map((_, j) => {
+    if (i === j) return { chiffrat: '', sig: '' };
+    const oeffnung = anteilOeffnungPakete(K3, i + 1, j + 1, a.von, a.bis, a.werte, a.koeff, a.probe.salze, stellen, z);
+    return buendelVersiegeln(SCHL[i], pubVon(SCHL[j]), { K: K3, von: a.von, bis: a.bis, praeparator: i + 1, empfaenger: j + 1, anteile: a.koeff.map((k) => anteilAus(k, j + 1)), oeffnung }, z);
+  }));
+  const praeger = adresseVon(PRAEGER_SCHL);
+  const anfrage = (x: number): BestaetigenAnfrage => {
+    const b = validatoren.map((_, i) => buendel[i][x - 1].chiffrat);
+    const bs = validatoren.map((_, i) => buendel[i][x - 1].sig);
+    return {
+      art: 's', anteile: [], k: K3, n: N2, t: T, tol: TOL, x, wurzel, validatoren, zeit: ZEIT, blaetter: bl, praeger,
+      praeger_sig: unterschreiben(PRAEGER_SCHL, sAuftragNachricht(praeger, K3, N2, T, TOL, x, wurzel, validatoren, proben, ZEIT, hashListe(b))),
+      proben, buendel: b, buendel_sig: bs,
+    };
+  };
+  const eigen = (x: number): EigenerAbschnitt => ({
+    schluessel: SCHL[x - 1], k: K3, n: N2, t: T, tol: TOL, x, zeit: ZEIT, praeger, validatoren,
+    werte: ab[x - 1].werte, koeff: ab[x - 1].koeff, probeV2: true,
+  });
+  return { ab, anfrage, eigen, validatoren };
+}
+
+describe('B4b-3c: Bestaetigen', () => {
+  const s = bestaetigenSzene('aequitas-b4b3c-vektor');
+  const q1 = s.anfrage(1);
+  const neu = {
+    hinweis: 'B4b-3c: Validator 1 (App) bestaetigt eine S-Ausgabe in Abschnitten (lib/quantenSPraeparieren.ts bestaetigen). Schluessel NUR fuer Tests.',
+    schluessel_nur_test: SCHL,
+    praeger_schluessel_nur_test: PRAEGER_SCHL,
+    anfrage: q1,
+    werte: s.ab[0].werte.map((w) => w.toString(16)),
+    koeff: s.ab[0].koeff.map((k) => k.map((c) => c.toString(16))),
+    bestaetigung: bestaetigen(q1, s.eigen(1)),
+  };
+  if (process.env.AEQUITAS_VEKTOR_SCHREIBEN === '1') fs.writeFileSync(PFAD_BEST, JSON.stringify(neu, null, 1) + '\n');
+  const alt = JSON.parse(fs.readFileSync(PFAD_BEST, 'utf8'));
+
+  test('mit festem Zufall Byte fuer Byte wie im Vektor (der Knoten prueft genau diese Bestaetigung)', () => {
+    expect(neu).toEqual(alt);
+  });
+
+  test('jeder Validator bestaetigt; seine Anteile ergeben mit einem zweiten die Werte; Pakete je anderem Praeparator', () => {
+    const best = [1, 2, 3].map((x) => bestaetigen(s.anfrage(x), s.eigen(x)));
+    for (const [i, b] of best.entries()) {
+      expect(unterschriftVon(sBestaetigungNachricht(K3, q1.wurzel, N2, T, s.validatoren, i + 1, [q1.proben[0], q1.proben[1]], ZEIT, TOL), b.sig, s.validatoren[i])).toBe(true);
+      expect(Object.keys(b.oeffnungen!).sort()).toEqual([1, 2, 3].filter((x) => x !== i + 1).map(String));
+    }
+    s.ab.forEach((a) => a.werte.forEach((w, i) => {
+      const st = a.von + i;
+      expect(zusammensetzen([{ x: 1, y: BigInt('0x' + best[0].anteile[st]) }, { x: 3, y: BigInt('0x' + best[2].anteile[st]) }])).toBe(w);
+    }));
+  });
+
+  test('Missbrauch: fremder Auftrag, falsche Wurzel, getauschtes Buendel, eigenes Blatt anders, fehlende Pakete', () => {
+    const e = s.eigen(1);
+    const q = s.anfrage(1);
+    expect(() => bestaetigen({ ...q, praeger_sig: unterschreiben(SCHL[0], 'x') }, e)).toThrow('beauftragt');
+    expect(() => bestaetigen({ ...q, tol: 5 }, e)).toThrow('passt nicht');
+    expect(() => bestaetigen({ ...q, art: 'w' }, e)).toThrow('Art');
+    expect(() => bestaetigen({ ...q, anteile: ['1'] }, e)).toThrow('Anteile');
+    // Wurzel/Blaetter: der Ausgeber muesste neu unterschreiben -- auch dann faellt es auf.
+    const bl = [...q.blaetter];
+    bl[20] = '00'.repeat(32);
+    expect(() => bestaetigen({ ...q, blaetter: bl }, e)).toThrow('Wurzel');
+    const blEigen = [...q.blaetter];
+    blEigen[0] = bl[20];
+    const wurzelEigen = merkleWurzel(blEigen);
+    const umgeschrieben = (qq: BestaetigenAnfrage): BestaetigenAnfrage => ({
+      ...qq, praeger_sig: unterschreiben(PRAEGER_SCHL, sAuftragNachricht(qq.praeger, K3, N2, T, TOL, 1, qq.wurzel, qq.validatoren, qq.proben, ZEIT, hashListe(qq.buendel))),
+    });
+    expect(() => bestaetigen(umgeschrieben({ ...q, blaetter: blEigen, wurzel: wurzelEigen }), e)).toThrow('eigenes Blatt');
+    // Buendel von 2 und 3 vertauscht: nicht vom jeweiligen Praeparator.
+    const b = [...q.buendel];
+    const bs = [...q.buendel_sig];
+    [b[1], b[2]] = [b[2], b[1]];
+    [bs[1], bs[2]] = [bs[2], bs[1]];
+    expect(() => bestaetigen(umgeschrieben({ ...q, buendel: b, buendel_sig: bs }), e)).toThrow('Praeparator');
+    // Buendel an Validator 2 statt an mich.
+    const q2 = s.anfrage(2);
+    const fremd = [...q.buendel];
+    const fremdSig = [...q.buendel_sig];
+    fremd[2] = q2.buendel[2];
+    fremdSig[2] = q2.buendel_sig[2];
+    expect(() => bestaetigen(umgeschrieben({ ...q, buendel: fremd, buendel_sig: fremdSig }), e)).toThrow();
+    // An sich selbst.
+    const selbst = [...q.buendel];
+    selbst[0] = q.buendel[1];
+    expect(() => bestaetigen(umgeschrieben({ ...q, buendel: selbst }), e)).toThrow('selbst');
+  });
+
+  test('Stichprobe v2: Buendel ohne Pakete wird nicht bestaetigt', () => {
+    const z = festerZufall('ohne');
+    const q = s.anfrage(1);
+    const a = s.ab[1];
+    const ohne = buendelVersiegeln(SCHL[1], pubVon(SCHL[0]), { K: K3, von: a.von, bis: a.bis, praeparator: 2, empfaenger: 1, anteile: a.koeff.map((k) => anteilAus(k, 1)) }, z);
+    const b = [...q.buendel];
+    const bs = [...q.buendel_sig];
+    b[1] = ohne.chiffrat;
+    bs[1] = ohne.sig;
+    const qq = { ...q, buendel: b, buendel_sig: bs };
+    qq.praeger_sig = unterschreiben(PRAEGER_SCHL, sAuftragNachricht(qq.praeger, K3, N2, T, TOL, 1, qq.wurzel, qq.validatoren, qq.proben, ZEIT, hashListe(b)));
+    expect(() => bestaetigen(qq, s.eigen(1))).toThrow('Stichprobe v2');
+    expect(bestaetigen(qq, { ...s.eigen(1), probeV2: false }).oeffnungen).toBeNull();
   });
 });

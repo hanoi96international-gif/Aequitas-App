@@ -21,7 +21,22 @@
 // oeffnet das Buendel der App in quanten_s_praep_buendel_vektor_test.go).
 // Nichts hier haelt einen Schluessel fest.
 import { ethers } from 'ethers';
-import { adresseVon, antwortNachricht, CHAIN_ID, eciesVerschluesseln, hashListe, N_MAX, QuantenSFehler, unterschreiben, V_MAX } from './quantenS';
+import {
+  abschnitt,
+  adresseVon,
+  antwortNachricht,
+  CHAIN_ID,
+  eciesOeffnen,
+  eciesVerschluesseln,
+  hashListe,
+  merkleWurzel,
+  N_MAX,
+  QuantenSFehler,
+  toleranzBekannt,
+  unterschreiben,
+  unterschriftVon,
+  V_MAX,
+} from './quantenS';
 import { probeTeilHash, pruefsumme } from './quantenSStelle';
 
 export const DOM_BUENDEL = 'aequitas-quanten-s-buendel-v1';
@@ -308,4 +323,160 @@ export function antwortUnterschreiben(schluessel: string, a: Omit<Antwort, 'vali
   const m = antwortNachricht(a.k, a.x, a.von, a.bis, hashListe(a.blaetter), a.fuer_inhaberin, hashListe(a.buendel), hashListe(a.buendel_sig),
     a.teile ?? null, a.zaehlung ?? null, a.basen_hash ?? '');
   return { ...a, validator: adresseVon(schluessel), sig: unterschreiben(schluessel, m) };
+}
+
+// ------------------------------------------------------------ Bestaetigen (B4b-3c, bestaetigenAbschnitt)
+
+const DOM_S_AUFTRAG = 'aequitas-quanten-s-auftrag-v1';
+const DOM_S_BEST = 'aequitas-quanten-s-anteile-v1';
+const T_MAX = 16; // quantenWTMax
+const HEX64 = /^[0-9a-f]{64}$/;
+const KLEIN_HEX = /^[0-9a-f]+$/;
+/** quantenSAnteilOeffnungHoechstens / quantenSBuendelMitOeffnungHoechstens (Hex-Zeichen). */
+export const PAKET_MAX = 2 * (N_MAX * 44 + 4096);
+export const BUENDEL_MAX = 2 * (N_MAX * 36 + 2 * PAKET_MAX + 2 * 4096);
+
+/** quantenWSAuftragNachricht: was der Ausgeber einem Validator unterschreibt. */
+export function sAuftragNachricht(praeger: string, K: string, n: number, t: number, tol: number, x: number, wurzel: string, validatoren: string[], proben: string[], zeit: number, anteileHash: string): string {
+  return `${DOM_S_AUFTRAG}|chain:${CHAIN_ID}|${praeger.toLowerCase()}|${K}|${n}|${t}|${tol}|${x}|${wurzel}|${validatoren.join(',')}|${proben.join(',')}|${zeit}|${anteileHash}`;
+}
+
+/** quantenWSBestaetigungNachricht: was ein Validator ueber die S-Ausgabe unterschreibt. */
+export function sBestaetigungNachricht(K: string, wurzel: string, n: number, t: number, validatoren: string[], x: number, proben: [string, string], zeit: number, tol: number): string {
+  return `${DOM_S_BEST}|chain:${CHAIN_ID}|${K}|${wurzel}|${n}|${t}|${validatoren.join(',')}|${x}|${proben[0]},${proben[1]}|${zeit}|${tol}`;
+}
+
+/**
+ * quantenSBuendelOeffnenPakete: Unterschrift des Praeparators pruefen,
+ * entschluesseln, streng lesen (nur die Felder des Knotens). Gibt die Anteile
+ * und die Pakete fuer die Annahmestellen (leer oder genau zwei, nur Form geprueft).
+ */
+export function buendelOeffnen(
+  schluessel: string, chiffrat: string, sig: string, praepAdresse: string,
+  K: string, praeparator: number, empfaenger: number, von: number, bis: number,
+): { anteile: bigint[]; pakete: string[] } {
+  if (!chiffrat || chiffrat.length > BUENDEL_MAX || !KLEIN_HEX.test(chiffrat)) fehler('Buendel: Form oder Groesse');
+  if (!unterschriftVon(buendelNachricht(K, praeparator, empfaenger, chiffrat), sig, praepAdresse.toLowerCase())) fehler(`Buendel: nicht vom Praeparator ${praeparator} unterschrieben`);
+  let roh: Record<string, unknown>;
+  try {
+    roh = JSON.parse(ethers.toUtf8String(eciesOeffnen(schluessel, chiffrat)));
+  } catch (e) {
+    if (e instanceof QuantenSFehler) fehler('Buendel: nicht fuer diesen Validator');
+    return fehler('Buendel: Inhalt unlesbar');
+  }
+  const erlaubt = ['dom', 'k', 'von', 'bis', 'praeparator', 'empfaenger', 'anteile', 'oeffnung'];
+  if (!roh || typeof roh !== 'object' || Array.isArray(roh) || Object.keys(roh).some((k) => !erlaubt.includes(k))) fehler('Buendel: Inhalt unlesbar');
+  const an = roh.anteile;
+  if (roh.dom !== DOM_BUENDEL || roh.k !== K || roh.von !== von || roh.bis !== bis || roh.praeparator !== praeparator ||
+    roh.empfaenger !== empfaenger || !Array.isArray(an) || an.length !== bis - von) {
+    fehler('Buendel: passt nicht zu K, Abschnitt oder Empfaenger');
+  }
+  const anteile = (an as unknown[]).map((y, i) => {
+    if (typeof y !== 'string' || !y || y.length > 32 || !KLEIN_HEX.test(y)) fehler(`Buendel: Anteil ${i}`);
+    const v = BigInt('0x' + y);
+    if (v >= P) fehler(`Buendel: Anteil ${i}`);
+    return v;
+  });
+  const oe = roh.oeffnung ?? [];
+  if (!Array.isArray(oe) || (oe.length !== 0 && oe.length !== 2)) fehler('Buendel: Pakete fuer die Annahmestellen');
+  for (const c of oe) {
+    if (typeof c !== 'string' || !c || c.length > PAKET_MAX || !KLEIN_HEX.test(c)) fehler('Buendel: Paket fuer eine Annahmestelle (Form oder Groesse)');
+  }
+  return { anteile, pakete: oe as string[] };
+}
+
+/** QuantenWBestaetigenAnfrage (Art "s", Ausgabe in Abschnitten). */
+export interface BestaetigenAnfrage {
+  /** Variante S: immer "s"; Anteile bleiben bei Abschnitten leer. */
+  art: string;
+  anteile?: string[];
+  k: string;
+  n: number;
+  t: number;
+  tol: number;
+  x: number;
+  wurzel: string;
+  validatoren: string[];
+  zeit: number;
+  blaetter: string[];
+  praeger: string;
+  praeger_sig: string;
+  proben: string[];
+  buendel: string[];
+  buendel_sig: string[];
+}
+
+/** Was die Praeparatorin zu ihrem Abschnitt haelt (wie quantenSAbschnittStand). */
+export interface EigenerAbschnitt {
+  schluessel: string;
+  k: string;
+  n: number;
+  t: number;
+  tol: number;
+  x: number;
+  zeit: number;
+  praeger: string;
+  validatoren: string[];
+  werte: bigint[];
+  koeff: bigint[][];
+  /** Stichprobe v2: ohne die Pakete der anderen kein Bestaetigen. */
+  probeV2: boolean;
+}
+
+export interface Bestaetigung {
+  sig: string;
+  /** alle n Anteile dieses Validators (hex), fuer den Tresor im Geraet */
+  anteile: string[];
+  /** je anderem Praeparator (dezimal) die zwei Pakete fuer die Annahmestellen; nur bei Stichprobe v2 */
+  oeffnungen: Record<string, string[]> | null;
+}
+
+/**
+ * bestaetigenAbschnitt: der Auftrag muss zum eigenen Abschnitt passen und vom
+ * Ausgeber unterschrieben sein (ueber den Hash der Buendel), die Blaetter
+ * ergeben die Wurzel, die eigenen Blaetter sind unveraendert, jedes Buendel
+ * kommt vom jeweiligen Praeparator und ist fuer mich; dann die Bestaetigung
+ * der S-Ausgabe. Fail-closed bei jeder Abweichung.
+ */
+export function bestaetigen(q: BestaetigenAnfrage, e: EigenerAbschnitt): Bestaetigung {
+  const K = q.k.trim().toLowerCase();
+  if (!HEX64.test(K) || K !== e.k || q.art !== 's' || (q.anteile ?? []).length !== 0) fehler('Bestaetigen: K, Art oder Anteile');
+  const v = e.validatoren.length;
+  const praeger = q.praeger.trim().toLowerCase();
+  if (q.n !== e.n || q.t !== e.t || q.tol !== e.tol || q.x !== e.x || q.zeit !== e.zeit || praeger !== e.praeger.toLowerCase() ||
+    q.validatoren.length !== v || q.validatoren.some((a, i) => a !== e.validatoren[i]) ||
+    q.buendel.length !== v || q.buendel_sig.length !== v || q.blaetter.length !== q.n) {
+    fehler('Bestaetigen: passt nicht zum Auftrag');
+  }
+  if (q.n < 2 || q.n > N_MAX || q.t < 1 || q.t > T_MAX || v < q.t || v > V_MAX || !toleranzBekannt(q.tol)) fehler('Bestaetigen: Groessen');
+  if (q.proben.length !== 2 || !q.proben.every((h) => HEX64.test(h)) || !HEX64.test(q.wurzel)) fehler('Bestaetigen: Stichproben-Bindungen oder Wurzel');
+  const auftrag = sAuftragNachricht(praeger, K, q.n, q.t, q.tol, q.x, q.wurzel, q.validatoren, q.proben, q.zeit, hashListe(q.buendel));
+  if (!unterschriftVon(auftrag, q.praeger_sig, praeger)) fehler('Bestaetigen: nicht vom Ausgeber beauftragt');
+  if (!q.blaetter.every((h) => HEX64.test(h)) || merkleWurzel(q.blaetter) !== q.wurzel) fehler('Bestaetigen: Blaetter ergeben nicht die Wurzel');
+  const eigen = abschnitt(q.n, v, e.x);
+  if (!eigen || e.werte.length !== eigen.bis - eigen.von || e.koeff.length !== e.werte.length) fehler('Bestaetigen: eigener Abschnitt');
+  const anteile: string[] = new Array(q.n).fill('');
+  e.werte.forEach((w, i) => {
+    if (pruefsumme(K, eigen.von + i, w) !== q.blaetter[eigen.von + i]) fehler(`Bestaetigen: eigenes Blatt ${eigen.von + i} anders`);
+    anteile[eigen.von + i] = anteilAus(e.koeff[i], e.x).toString(16);
+  });
+  let oeffnungen: Record<string, string[]> | null = null;
+  for (let xv = 1; xv <= v; xv++) {
+    if (xv === e.x) {
+      if (q.buendel[xv - 1] !== '' || q.buendel_sig[xv - 1] !== '') fehler('Bestaetigen: Buendel an sich selbst');
+      continue;
+    }
+    const ab = abschnitt(q.n, v, xv)!;
+    const { anteile: an, pakete } = buendelOeffnen(e.schluessel, q.buendel[xv - 1], q.buendel_sig[xv - 1], e.validatoren[xv - 1], K, xv, e.x, ab.von, ab.bis);
+    if (e.probeV2) {
+      if (pakete.length !== 2) fehler(`Bestaetigen: Buendel von ${xv} ohne Pakete fuer die Annahmestellen (Stichprobe v2)`);
+      (oeffnungen ??= {})[String(xv)] = pakete;
+    }
+    an.forEach((y, i) => {
+      anteile[ab.von + i] = y.toString(16);
+    });
+  }
+  if (anteile.some((y) => y === '')) fehler('Bestaetigen: Anteil fehlt');
+  const sig = unterschreiben(e.schluessel, sBestaetigungNachricht(K, q.wurzel, q.n, q.t, q.validatoren, q.x, [q.proben[0], q.proben[1]], q.zeit, q.tol));
+  return { sig, anteile, oeffnungen };
 }
