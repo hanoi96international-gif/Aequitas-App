@@ -21,10 +21,13 @@
 // oeffnet das Buendel der App in quanten_s_praep_buendel_vektor_test.go).
 // Nichts hier haelt einen Schluessel fest.
 import { ethers } from 'ethers';
-import { CHAIN_ID, eciesVerschluesseln, N_MAX, QuantenSFehler, unterschreiben, V_MAX } from './quantenS';
-import { pruefsumme } from './quantenSStelle';
+import { adresseVon, antwortNachricht, CHAIN_ID, eciesVerschluesseln, hashListe, N_MAX, QuantenSFehler, unterschreiben, V_MAX } from './quantenS';
+import { probeTeilHash, pruefsumme } from './quantenSStelle';
 
 export const DOM_BUENDEL = 'aequitas-quanten-s-buendel-v1';
+export const DOM_ANTEIL_OEFFNUNG = 'aequitas-quanten-s-anteil-oeffnung-v1';
+export const DOM_FUER_INHABERIN = 'aequitas-quanten-s-fuer-inhaberin-v1';
+export const DOM_OEFFNUNG = 'aequitas-quanten-s-oeffnung-v1';
 /** quantenWP */
 export const P = (1n << 127n) - 1n;
 /** quantenWSalzBits: das Salz hat ein Bit weniger (das unterste traegt das Stellen-Bit). */
@@ -128,16 +131,20 @@ export interface BuendelInhalt {
   praeparator: number;
   empfaenger: number;
   anteile: bigint[];
+  /** Stichprobe v2: je Annahmestelle b ein Paket (anteilOeffnungPakete); sonst leer. */
+  oeffnung?: string[];
 }
 
 /**
  * Inhalt als JSON in der Feldreihenfolge von quantenSBuendelInhalt (Go liest
  * streng: keine fremden Felder). Anteile als Hex ohne fuehrende Nullen wie
- * big.Int.Text(16). Pakete fuer die Annahmestellen (Stichprobe v2) folgen.
+ * big.Int.Text(16). oeffnung nur, wenn vorhanden (omitempty), dann genau zwei.
  */
 export function buendelJson(b: BuendelInhalt): string {
   if (b.anteile.length !== b.bis - b.von || b.anteile.some((y) => y < 0n || y >= P)) fehler('Buendel: Anteile');
   if (b.praeparator === b.empfaenger) fehler('Buendel: an sich selbst');
+  const oe = b.oeffnung ?? [];
+  if (oe.length !== 0 && (oe.length !== 2 || oe.some((c) => !/^[0-9a-f]+$/.test(c)))) fehler('Buendel: Pakete fuer die Annahmestellen');
   return JSON.stringify({
     dom: DOM_BUENDEL,
     k: b.K,
@@ -146,6 +153,7 @@ export function buendelJson(b: BuendelInhalt): string {
     praeparator: b.praeparator,
     empfaenger: b.empfaenger,
     anteile: b.anteile.map((y) => y.toString(16)),
+    ...(oe.length ? { oeffnung: oe } : {}),
   });
 }
 
@@ -153,4 +161,151 @@ export function buendelJson(b: BuendelInhalt): string {
 export function buendelVersiegeln(praepSchluessel: string, empfPub: string, b: BuendelInhalt, zufall: Zufall): { chiffrat: string; sig: string } {
   const chiffrat = eciesVerschluesseln(empfPub, ethers.toUtf8Bytes(buendelJson(b)), zufall);
   return { chiffrat, sig: unterschreiben(praepSchluessel, buendelNachricht(b.K, b.praeparator, b.empfaenger, chiffrat)) };
+}
+
+// ------------------------------------------------------------ Schluessel
+
+/** quantenSSchluesselPruefen: unkomprimierter Schluessel (65 Byte) muss zur Adresse gehoeren. */
+export function schluesselPruefen(pubHex: string, adresse: string): string {
+  const pub = pubHex.trim().replace(/^0x/, '').toLowerCase();
+  if (!/^04[0-9a-f]{128}$/.test(pub)) fehler('Schluessel: Form');
+  let a: string;
+  try {
+    a = ethers.computeAddress('0x' + pub).toLowerCase();
+  } catch {
+    return fehler('Schluessel: kein Punkt der Kurve');
+  }
+  if (a !== adresse.trim().toLowerCase()) fehler('Schluessel gehoert nicht zur Adresse');
+  return pub;
+}
+
+export interface Empfaenger {
+  adresse: string;
+  pub: string;
+}
+
+// ------------------------------------------------------------ Stichprobe v2 (quanten_s_probe_v2.go)
+
+export interface ProbeV2 {
+  /** je Annahmestelle b das Salz (hex, 32 Byte) -- geheim bis zur Oeffnung */
+  salze: string[];
+  /** je b der Teil-Hash ueber die Stellen mit Stellen-Bit b */
+  teile: string[];
+  /** je b (Treffer, Fehler): Treffer, wo y = u; Fehler, wo dort x != t */
+  zaehlung: [number, number][];
+}
+
+/** quantenSAbschnittStand.probeV2: Salz, Teil-Hash und Zaehlung je Annahmestelle. */
+export function probeV2(K: string, x: number, von: number, y: number[], u: number[], t: number[], xm: number[], werte: bigint[], zufall: Zufall): ProbeV2 {
+  const n = werte.length;
+  if (n === 0 || y.length !== n || u.length !== n || t.length !== n || xm.length !== n) fehler('Stichprobe v2: Laengen');
+  for (const [a, name] of [[y, 'y'], [u, 'u'], [t, 't'], [xm, 'x']] as [number[], string][]) bit01(a, name);
+  const out: ProbeV2 = { salze: [], teile: [], zaehlung: [] };
+  for (let b = 0; b < 2; b++) {
+    const salz = zufall(32);
+    if (salz.length !== 32) fehler('Zufall');
+    const salzHex = ethers.hexlify(salz).slice(2);
+    const stellen: number[] = [];
+    let tr = 0, fe = 0;
+    werte.forEach((w, i) => {
+      if (stellenBit(w) !== b) return;
+      stellen.push(von + i);
+      if (y[i] === u[i]) {
+        tr++;
+        if (xm[i] !== t[i]) fe++;
+      }
+    });
+    out.salze.push(salzHex);
+    out.teile.push(probeTeilHash(K, b, x, salzHex, stellen));
+    out.zaehlung.push([tr, fe]);
+  }
+  return out;
+}
+
+/**
+ * quantenSAbschnittStand.anteilOeffnungPakete (R9): fuer Validator empfaenger
+ * je Annahmestelle b seine Anteile an GENAU den Stellen mit Stellen-Bit b und
+ * das Salz von b, verschluesselt an b. empfaenger kann es nicht lesen.
+ */
+export function anteilOeffnungPakete(
+  K: string,
+  praeparator: number,
+  empfaenger: number,
+  von: number,
+  bis: number,
+  werte: bigint[],
+  koeff: bigint[][],
+  salze: string[],
+  stellen: [Empfaenger, Empfaenger],
+  zufall: Zufall,
+): string[] {
+  if (werte.length !== bis - von || koeff.length !== werte.length || salze.length !== 2 || stellen.length !== 2) fehler('Pakete: Laengen');
+  if (salze.some((h) => !/^[0-9a-f]{64}$/.test(h))) fehler('Pakete: Salz');
+  return [0, 1].map((b) => {
+    const pub = schluesselPruefen(stellen[b].pub, stellen[b].adresse);
+    const anteile: Record<string, string> = {};
+    werte.forEach((w, i) => {
+      if (stellenBit(w) === b) anteile[String(von + i)] = anteilAus(koeff[i], empfaenger).toString(16);
+    });
+    const roh = JSON.stringify({ dom: DOM_ANTEIL_OEFFNUNG, k: K, b, praeparator, empfaenger, von, bis, anteile, salz: salze[b] });
+    return eciesVerschluesseln(pub, ethers.toUtf8Bytes(roh), zufall);
+  });
+}
+
+// ------------------------------------------------------------ Inhaberin, Oeffnung, Antwort
+
+/** fuer_inhaberin: x des Abschnitts, verschluesselt an die Inhaberin (abschnittAntwort). */
+export function fuerInhaberin(inhaberin: Empfaenger, K: string, von: number, bis: number, xm: number[], zufall: Zufall): string {
+  if (xm.length !== bis - von) fehler('fuer die Inhaberin: x');
+  bit01(xm, 'x');
+  const pub = schluesselPruefen(inhaberin.pub, inhaberin.adresse);
+  const roh = JSON.stringify({ dom: DOM_FUER_INHABERIN, k: K, von, bis, x: xm.join('') });
+  return eciesVerschluesseln(pub, ethers.toUtf8Bytes(roh), zufall);
+}
+
+/**
+ * oeffnungFuerStelle: die Werte des eigenen Abschnitts mit Stellen-Bit b,
+ * verschluesselt an die Annahmestelle b; bei Stichprobe v2 mit dem Salz von b.
+ * Herausgeben erst, wenn Bindung und Wahl auf der Kette final sind -- das
+ * prueft der Aufrufer (Ablauf, B4b-4), wie der Knoten in oeffnungFuerStelle.
+ */
+export function oeffnungFuerStelle(stelle: Empfaenger, K: string, b: number, x: number, von: number, bis: number, werte: bigint[], salz: string | null, zufall: Zufall): string {
+  if (b !== 0 && b !== 1) fehler('Stelle 0 oder 1');
+  if (werte.length !== bis - von) fehler('Oeffnung: Werte');
+  if (salz !== null && !/^[0-9a-f]{64}$/.test(salz)) fehler('Oeffnung: Salz');
+  const pub = schluesselPruefen(stelle.pub, stelle.adresse);
+  const w: Record<string, string> = {};
+  werte.forEach((v, i) => {
+    if (stellenBit(v) === b) w[String(von + i)] = v.toString(16);
+  });
+  const inhalt: Record<string, unknown> = { dom: DOM_OEFFNUNG, k: K, b, x, von, bis, werte: w };
+  if (salz !== null) inhalt.salz = salz;
+  return eciesVerschluesseln(pub, ethers.toUtf8Bytes(JSON.stringify(inhalt)), zufall);
+}
+
+/** QuantenSAbschnittAntwort: was die Praeparatorin dem Ausgeber zurueckgibt. */
+export interface Antwort {
+  k: string;
+  x: number;
+  von: number;
+  bis: number;
+  blaetter: string[];
+  fuer_inhaberin: string;
+  buendel: string[];
+  buendel_sig: string[];
+  validator: string;
+  sig: string;
+  teile?: string[];
+  zaehlung?: [number, number][];
+  basen_hash?: string;
+}
+
+/** abschnittAntwort: unterschrieben ueber quantenSAbschnittAntwortNachricht. */
+export function antwortUnterschreiben(schluessel: string, a: Omit<Antwort, 'validator' | 'sig'>): Antwort {
+  if (a.blaetter.length !== a.bis - a.von || a.buendel.length !== a.buendel_sig.length) fehler('Antwort: Laengen');
+  if (a.buendel[a.x - 1] !== '' || a.buendel_sig[a.x - 1] !== '') fehler('Antwort: Buendel an sich selbst');
+  if ((a.teile == null) !== (a.zaehlung == null)) fehler('Antwort: Teile und Zaehlung nur zusammen');
+  const m = antwortNachricht(a.k, a.x, a.von, a.bis, hashListe(a.blaetter), a.fuer_inhaberin, hashListe(a.buendel), hashListe(a.buendel_sig),
+    a.teile ?? null, a.zaehlung ?? null, a.basen_hash ?? '');
+  return { ...a, validator: adresseVon(schluessel), sig: unterschreiben(schluessel, m) };
 }
