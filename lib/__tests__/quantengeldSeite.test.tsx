@@ -36,6 +36,15 @@ jest.mock('@/lib/quantenW', () => ({
   holeQuantenWUeberblick: async () => mockUeberblick,
 }));
 
+// Weg B (lib/quantenSPraeparator.ts): Register als Attrappe, Einreichen gezaehlt.
+let mockRegister: any = null;
+const mockEinreichen = jest.fn(async () => {});
+jest.mock('@/lib/quantenSPraeparator', () => ({
+  ...jest.requireActual('@/lib/quantenSPraeparator'),
+  holeRegister: async () => mockRegister,
+  praepEinreichen: (...a: any[]) => (mockEinreichen as any)(...a),
+}));
+
 import Quantengeld from '../../app/quantengeld';
 const RN = require('react-native');
 
@@ -118,5 +127,51 @@ describe('Quantengeld-Seite', () => {
     expect(t).not.toContain('node.qwuKeine');
     act(() => r.unmount());
     mockUeberblick = null;
+  });
+
+  it('Weg B: no card without a register, no button while asleep, register only after confirming', async () => {
+    mockPruefer = [];
+    mockRegister = null;
+    let r = await rendern();
+    expect(texte(r)).not.toContain('node.qpTitel');
+    act(() => r.unmount());
+
+    mockRegister = { aktiv: false, vorlauf: 86400, nachlauf: 695160, eintraege: [] };
+    r = await rendern();
+    let t = texte(r);
+    expect(t).toContain('node.qpTitel');
+    expect(t).toContain('node.qpSchlafend');
+    expect(t).not.toContain('node.qpMelden');
+    act(() => r.unmount());
+
+    mockEinreichen.mockClear();
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [] };
+    const alert = jest.spyOn(RN.Alert, 'alert').mockImplementation(() => {});
+    r = await rendern();
+    t = texte(r);
+    expect(t).toContain('node.qpNicht');
+    const knopf = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qpMelden'));
+    expect(knopf).toBeTruthy();
+    await act(async () => { knopf.props.onPress(); });
+    expect(mockEinreichen).not.toHaveBeenCalled();
+    const [titel, text, knoepfe] = alert.mock.calls[0] as any[];
+    expect(titel).toBe('node.qpBestaetigenTitel');
+    expect(text).toBe('node.qpBestaetigenMelden');
+    await act(async () => { knoepfe[1].onPress(); });
+    expect(mockEinreichen).toHaveBeenCalledTimes(1);
+    expect((mockEinreichen.mock.calls[0] as any[])[0]).toBe('melden');
+    expect((mockEinreichen.mock.calls[0] as any[])[1]).toBe(mockIch);
+    alert.mockRestore();
+    act(() => r.unmount());
+
+    // Gemeldet und im Los: nur Abmelden wird angeboten.
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [{ konto: mockIch, gemeldet: 1000, imLosAb: 87400 }] };
+    r = await rendern();
+    t = texte(r);
+    expect(t).toContain('node.qpImLos');
+    expect(t).toContain('node.qpAbmelden');
+    expect(t).not.toContain('node.qpMelden');
+    act(() => r.unmount());
+    mockRegister = null;
   });
 });
