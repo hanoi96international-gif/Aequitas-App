@@ -19,6 +19,7 @@ import {
   geraetWaehlen,
   instanzenSuchen,
   SUCHE_URL,
+  USER_AGENT,
   holeToken,
   npyZeilen,
   status,
@@ -57,6 +58,7 @@ describe('Zugang und Token', () => {
     expect(aufrufe[0].url).toBe(IAM_URL);
     expect(aufrufe[0].init.method).toBe('POST');
     expect(aufrufe[0].init.redirect).toBe('error');
+    expect((aufrufe[0].init.headers as Record<string, string>)['User-Agent']).toBe(USER_AGENT);
     expect(aufrufe[0].init.body).toBe(`grant_type=urn%3Aibm%3Aparams%3Aoauth%3Agrant-type%3Aapikey&apikey=${KEY}`);
   });
 
@@ -112,6 +114,7 @@ describe('Auftrag, Status, Ergebnis', () => {
     expect(h['Service-CRN']).toBe(CRN);
     expect(h['IBM-API-Version']).toBe(API_VERSION);
     expect(aufrufe.every((a) => a.init.redirect === 'error')).toBe(true);
+    expect(aufrufe.every((a) => (a.init.headers as Record<string, string>)['User-Agent'] === USER_AGENT)).toBe(true);
     expect(ergebnisSchuesse(roh, [16, 16, 8, 3])).toEqual(ergebnisVektor.erwartet.map((e) => e.schuesse_hex));
   });
 
