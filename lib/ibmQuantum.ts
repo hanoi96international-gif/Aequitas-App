@@ -19,6 +19,13 @@
 //     "support_qiskit": true und bekommt dann die kodierte Form mit
 //     __type__-Hüllen (PrimitiveResult → SamplerPubResult → DataBin → BitArray,
 //     ndarray als base64(zlib(.npy))). Die App schickt den Schalter nicht.
+//     Ohne Angabe sucht der Client die Instanzen über IBM Cloud Global Search
+//     (accounts/account.py: POST api.global-search-tagging.cloud.ibm.com
+//     /v3/resources/search, query "service_name:quantum-computing") und die
+//     Geräte über GET {basis}/backends ("devices": name, status.name,
+//     queue_length, qubits); least_busy nimmt das freie ("online", keine
+//     Attrappe) mit der kürzesten Schlange. instanzenSuchen/geraetWaehlen tun
+//     dasselbe, damit die Präparatorin nur ihren Schlüssel eingeben muss.
 // Die App liest BEIDE Formen, jede streng (ergebnisSchuesse). Die Probe auf
 // echter Hardware (Aequitas .github/workflows/quanten-s-rest-probe.yml) prüft
 // GENAU den Körper aus auftragKoerper (Prüfvektor ibm_auftrag_vektor.json)
@@ -34,6 +41,9 @@ import { unzlibSync } from 'fflate';
 export const IAM_URL = 'https://iam.cloud.ibm.com/identity/token';
 export const API_BASIS = 'https://quantum.cloud.ibm.com/api/v1';
 export const API_VERSION = '2026-04-15';
+export const SUCHE_URL = 'https://api.global-search-tagging.cloud.ibm.com/v3/resources/search?limit=100';
+export const INSTANZEN_MAX = 8;
+const GERAETE_MAX = 256;
 
 const FRIST_MS = 30_000;
 export const ANTWORT_MAX = 8 * 1024 * 1024;
@@ -151,6 +161,73 @@ export async function ergebnisRoh(token: string, crn: string, id: string, fetchF
   const r = await anfrage(fetchFn, `${API_BASIS}/jobs/${id}/results`, { method: 'GET', headers: kopf(token, crn, false) });
   if (r.status !== 200) throw new IbmFehler(`Ergebnis: HTTP ${r.status}`);
   return json(r.text, 'Ergebnis');
+}
+
+// ------------------------------------------------------------ Instanz und Gerät finden
+
+/**
+ * Die Quantum-Instanzen (CRN) des Kontos, höchstens INSTANZEN_MAX, sortiert.
+ * Nur, was die strenge CRN-Form erfüllt; alles andere wird übergangen.
+ */
+export async function instanzenSuchen(token: string, fetchFn: typeof fetch = fetch): Promise<string[]> {
+  const r = await anfrage(fetchFn, SUCHE_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ query: 'service_name:quantum-computing', fields: ['crn', 'name'] }),
+  });
+  if (r.status !== 200) throw new IbmFehler(`Instanzen: HTTP ${r.status}`);
+  const items = json(r.text, 'Instanzen')?.items;
+  if (!Array.isArray(items) || items.length > 100) throw new IbmFehler('Instanzen: Antwort');
+  const crns = [...new Set(items.map((i: any) => i?.crn).filter((c: unknown): c is string => typeof c === 'string' && CRN.test(c)))].sort();
+  if (!crns.length) throw new IbmFehler('Instanzen: keine Quantum-Instanz im Konto');
+  return crns.slice(0, INSTANZEN_MAX);
+}
+
+export interface Geraet {
+  name: string;
+  schlange: number;
+  qubits: number;
+}
+
+/** Die freien Geräte einer Instanz (online, keine Attrappe), kürzeste Schlange zuerst. */
+export async function geraeteListe(token: string, crn: string, fetchFn: typeof fetch = fetch): Promise<Geraet[]> {
+  if (!CRN.test(crn)) throw new IbmFehler('Instanz (CRN): Form');
+  const r = await anfrage(fetchFn, `${API_BASIS}/backends`, { method: 'GET', headers: kopf(token, crn, false) });
+  if (r.status !== 200) throw new IbmFehler(`Geräte: HTTP ${r.status}`);
+  const devices = json(r.text, 'Geräte')?.devices;
+  if (!Array.isArray(devices) || devices.length > GERAETE_MAX) throw new IbmFehler('Geräte: Antwort');
+  const frei: Geraet[] = [];
+  for (const d of devices) {
+    if (d?.status?.name !== 'online' || d?.class === 'mock') continue;
+    if (typeof d?.name !== 'string' || !BACKEND.test(d.name)) continue;
+    if (!Number.isSafeInteger(d?.queue_length) || d.queue_length < 0 || !Number.isSafeInteger(d?.qubits) || d.qubits < 1) continue;
+    frei.push({ name: d.name, schlange: d.queue_length, qubits: d.qubits });
+  }
+  return frei.sort((a, b) => a.schlange - b.schlange || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/**
+ * Instanz und Gerät für einen Abschnitt: über alle Instanzen (höchstens
+ * INSTANZEN_MAX) das freie Gerät mit der kürzesten Schlange und genug Qubits
+ * (die Schaltkreise nutzen die physischen Qubits 0..minQubits-1).
+ */
+export async function geraetWaehlen(token: string, minQubits: number, fetchFn: typeof fetch = fetch): Promise<{ crn: string; geraet: Geraet }> {
+  if (!Number.isInteger(minQubits) || minQubits < 1 || minQubits > 16) throw new IbmFehler('Qubits');
+  let best: { crn: string; geraet: Geraet } | null = null;
+  for (const crn of await instanzenSuchen(token, fetchFn)) {
+    let liste: Geraet[];
+    try {
+      liste = await geraeteListe(token, crn, fetchFn);
+    } catch (e) {
+      // Eine Instanz ohne Zugang (z. B. ohne Geräte-Zuteilung) überspringen wie der Client.
+      if (e instanceof IbmFehler && /^Geräte: HTTP 40[13]$/.test(e.message)) continue;
+      throw e;
+    }
+    const g = liste.find((x) => x.qubits >= minQubits);
+    if (g && (!best || g.schlange < best.geraet.schlange)) best = { crn, geraet: g };
+  }
+  if (!best) throw new IbmFehler('Geräte: kein freies Gerät');
+  return best;
 }
 
 // ------------------------------------------------------------ Ergebnis lesen
