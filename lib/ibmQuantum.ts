@@ -5,21 +5,24 @@
 // ihres Abschnitts (lib/quantenSSchaltkreis.ts, OpenQASM 3 in nativen Gattern)
 // selbst als Sampler-Auftrag ein. Kein Dritter sieht Schlüssel oder Messwerte.
 //
-// QUELLE: qiskit-ibm-runtime 0.52.1 (api/auth.py, api/rest/runtime.py,
-// api/rest/program_job.py, runtime_job_v2.py, json.py) -- daraus belegt:
-//   - Token: IBM Cloud IAM (iam.cloud.ibm.com) aus dem API key;
-//   - Aufträge: POST {basis}/jobs {program_id, backend, params}, Kopfzeilen
-//     Authorization: Bearer, Service-CRN, IBM-API-Version 2026-04-15;
-//   - Status: GET {basis}/jobs/{id}, Feld state.status (QUEUED, RUNNING,
-//     COMPLETED, FAILED, CANCELLED); Ergebnis: GET {basis}/jobs/{id}/results;
-//   - Ergebnis-JSON mit __type__-Hüllen: PrimitiveResult → pub_results →
-//     SamplerPubResult → data (DataBin) → fields → c (BitArray) mit array
-//     (ndarray: base64 von zlib von .npy) und num_bits.
-// NICHT belegt (die Doku ist aus der Entwicklung nicht lesbar): dass der
-// Server OpenQASM-Text in pubs annimmt (der Python-Client schickt QPY) und die
-// Form pubs/version. Das prüft die Probe auf echter Hardware
-// (Aequitas .github/workflows/quanten-s-rest-probe.yml) mit GENAU dem Körper,
-// den auftragKoerper erzeugt (Prüfvektor ibm_auftrag_vektor.json).
+// QUELLEN:
+//   - IBM-Doku "Sampler with the REST API" (quantum.cloud.ibm.com/docs/en/
+//     guides/sampler-rest-api, über die Websuche gelesen): Schaltkreise gehen
+//     als OpenQASM-3-Text in pubs, program_id "sampler", Kopfzeilen
+//     Service-CRN und IBM-API-Version; das Ergebnis liest die Doku als
+//     results[i].data.c.samples (je Schuss ein Hex-Wert).
+//   - qiskit-ibm-runtime 0.52.1 (api/auth.py, api/rest/runtime.py,
+//     api/rest/program_job.py, runtime_job_v2.py, json.py, options.py):
+//     Token aus IBM Cloud IAM; POST {basis}/jobs; GET {basis}/jobs/{id}
+//     (state.status: QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED) und
+//     {basis}/jobs/{id}/results. Der Python-Client schickt immer
+//     "support_qiskit": true und bekommt dann die kodierte Form mit
+//     __type__-Hüllen (PrimitiveResult → SamplerPubResult → DataBin → BitArray,
+//     ndarray als base64(zlib(.npy))). Die App schickt den Schalter nicht.
+// Die App liest BEIDE Formen, jede streng (ergebnisSchuesse). Die Probe auf
+// echter Hardware (Aequitas .github/workflows/quanten-s-rest-probe.yml) prüft
+// GENAU den Körper aus auftragKoerper (Prüfvektor ibm_auftrag_vektor.json)
+// und hält fest, welche Form IBM zurückgibt.
 //
 // Fail-closed: feste Adressen (kein Ziel aus Eingaben), Zeitgrenzen,
 // redirect: 'error', Größengrenzen, strenges Lesen; nichts Geheimes in
@@ -208,12 +211,13 @@ function ndarrayZeilen(nd: unknown): Uint8Array[] {
   throw new IbmFehler('ndarray: Form');
 }
 
-/**
- * Die Schüsse je Schaltkreis als Hex (Bit i = klassisches Bit i, Bit 0 rechts),
- * aus dem Ergebnis-JSON. BitArray packt big-endian: das letzte Byte trägt die
- * niedrigsten Bits. Register "c" wie in lib/quantenSSchaltkreis.ts.
- */
-export function ergebnisSchuesse(roh: unknown, kreiseN: number[]): string[][] {
+function hexSchuss(v: bigint, n: number): string {
+  if (v >> BigInt(n) !== 0n) throw new IbmFehler('Ergebnis: Bits über n');
+  return '0x' + v.toString(16);
+}
+
+/** Kodierte Form (qiskit-ibm-runtime, RuntimeEncoder). */
+function kodierteSchuesse(roh: unknown, kreiseN: number[]): string[][] {
   const pr = huelle(roh, 'PrimitiveResult');
   const pubs = pr?.pub_results;
   if (!Array.isArray(pubs) || pubs.length !== kreiseN.length) throw new IbmFehler('Ergebnis: Zahl der Schaltkreise');
@@ -226,8 +230,43 @@ export function ergebnisSchuesse(roh: unknown, kreiseN: number[]): string[][] {
       if (z.length !== breite) throw new IbmFehler('Ergebnis: Breite');
       let v = 0n;
       for (const b of z) v = (v << 8n) | BigInt(b);
-      if (v >> BigInt(kreiseN[j]) !== 0n) throw new IbmFehler('Ergebnis: Bits über n');
-      return '0x' + v.toString(16);
+      return hexSchuss(v, kreiseN[j]);
     });
   });
+}
+
+const HEX_SCHUSS = /^0x[0-9a-fA-F]{1,4}$/;
+
+/** Einfache Form (IBM-Doku): results[i].data.c.samples, je Schuss ein Hex-Wert. */
+function einfacheSchuesse(roh: any, kreiseN: number[]): string[][] {
+  const res = roh.results;
+  if (!Array.isArray(res) || res.length !== kreiseN.length) throw new IbmFehler('Ergebnis: Zahl der Schaltkreise');
+  return res.map((r: any, j: number) => {
+    const data = r?.data;
+    // Nur das eine Register c der App-Schaltkreise; alles andere ist ein fremder Schaltkreis.
+    if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).join() !== 'c') throw new IbmFehler('Ergebnis: Register');
+    const c = data.c;
+    if (c?.num_bits !== undefined && c.num_bits !== kreiseN[j]) throw new IbmFehler('Ergebnis: Zahl der Bits');
+    const s = c?.samples;
+    if (!Array.isArray(s) || s.length < 1 || s.length > SCHUESSE_MAX) throw new IbmFehler('Ergebnis: Schüsse');
+    return s.map((h: unknown) => {
+      if (typeof h !== 'string' || !HEX_SCHUSS.test(h)) throw new IbmFehler('Ergebnis: Schuss');
+      return hexSchuss(BigInt(h), kreiseN[j]);
+    });
+  });
+}
+
+/**
+ * Die Schüsse je Schaltkreis als Hex (Bit i = klassisches Bit i, Bit 0 rechts),
+ * aus dem Ergebnis-JSON in einer der beiden Formen. BitArray packt big-endian:
+ * das letzte Byte trägt die niedrigsten Bits. Register "c" wie in
+ * lib/quantenSSchaltkreis.ts. Fail-closed bei allem anderen.
+ */
+export function ergebnisSchuesse(roh: unknown, kreiseN: number[]): string[][] {
+  if (!kreiseN.length || kreiseN.length > KREISE_MAX || !kreiseN.every((n) => Number.isInteger(n) && n >= 1 && n <= 16)) throw new IbmFehler('Ergebnis: Schaltkreise');
+  if (!roh || typeof roh !== 'object' || Array.isArray(roh)) throw new IbmFehler('Ergebnis: Form');
+  const o = roh as any;
+  if ('__type__' in o) return kodierteSchuesse(o, kreiseN);
+  if ('results' in o) return einfacheSchuesse(o, kreiseN);
+  throw new IbmFehler('Ergebnis: Form');
 }

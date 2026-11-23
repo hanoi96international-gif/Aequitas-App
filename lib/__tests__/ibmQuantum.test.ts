@@ -3,6 +3,7 @@
 import { zlibSync } from 'fflate';
 import { ethers } from 'ethers';
 import ergebnisVektor from './vektoren/ibm_ergebnis_vektor.json';
+import einfachVektor from './vektoren/ibm_ergebnis_einfach_vektor.json';
 import auftragVektor from './vektoren/ibm_auftrag_vektor.json';
 import {
   API_BASIS,
@@ -173,5 +174,57 @@ describe('Ergebnis lesen (wie qiskit-ibm-runtime kodiert)', () => {
     const n = npy("{'descr': '|u1', 'fortran_order': False, 'shape': (5, 1), }", [8, 0, 0, 0, 0]);
     r.__value__.pub_results[3].__value__.data.__value__.fields.c.__value__.array.__value__ = ethers.encodeBase64(zlibSync(n));
     expect(() => ergebnisSchuesse(r, [16, 16, 8, 3])).toThrow('Bits über n');
+  });
+});
+
+describe('Ergebnis lesen (einfache Form der IBM-Doku)', () => {
+  const N = [16, 16, 8, 3];
+  it('liest results[i].data.c.samples genau wie die kodierte Form', () => {
+    expect(ergebnisSchuesse(einfachVektor.ergebnis, N)).toEqual(ergebnisSchuesse(ergebnisVektor.ergebnis, N));
+    expect(ergebnisSchuesse(einfachVektor.ergebnis, N)).toEqual(einfachVektor.erwartet.map((e) => e.schuesse_hex));
+  });
+
+  it('ohne num_bits und mit Großbuchstaben/führenden Nullen: gleich gelesen', () => {
+    const r = JSON.parse(JSON.stringify(einfachVektor.ergebnis));
+    delete r.results[2].data.c.num_bits;
+    r.results[0].data.c.samples[0] = '0x' + r.results[0].data.c.samples[0].slice(2).toUpperCase().padStart(4, '0');
+    expect(ergebnisSchuesse(r, N)).toEqual(einfachVektor.erwartet.map((e) => e.schuesse_hex));
+  });
+
+  const roh = () => JSON.parse(JSON.stringify(einfachVektor.ergebnis));
+  it.each([
+    ['ein Schaltkreis zu wenig', (r: any) => { r.results.pop(); }],
+    ['ein Schaltkreis zu viel', (r: any) => { r.results.push(r.results[0]); }],
+    ['falsche Bitzahl', (r: any) => { r.results[0].data.c.num_bits = 15; }],
+    ['Bits über n', (r: any) => { r.results[3].data.c.samples[0] = '0x8'; }],
+    ['kein Hex', (r: any) => { r.results[0].data.c.samples[0] = '17'; }],
+    ['Zahl statt Text', (r: any) => { r.results[0].data.c.samples[0] = 17; }],
+    ['zu lang', (r: any) => { r.results[0].data.c.samples[0] = '0x00001'; }],
+    ['zu viele Schüsse', (r: any) => { r.results[0].data.c.samples = Array(16).fill('0x1'); }],
+    ['keine Schüsse', (r: any) => { r.results[0].data.c.samples = []; }],
+    ['anderes Register', (r: any) => { r.results[0].data.meas = r.results[0].data.c; delete r.results[0].data.c; }],
+    ['zusätzliches Register', (r: any) => { r.results[0].data.d = r.results[0].data.c; }],
+    ['results kein Feld', (r: any) => { r.results = {}; }],
+  ])('weist ab: %s', (_n, aendern) => {
+    const r = roh();
+    aendern(r);
+    expect(() => ergebnisSchuesse(r, N)).toThrow(IbmFehler);
+  });
+
+  it.each([
+    ['null', null],
+    ['Liste', []],
+    ['ohne Form', { ergebnis: 1 }],
+  ])('weist ab: Hülle %s', (_n, r) => {
+    expect(() => ergebnisSchuesse(r, N)).toThrow(IbmFehler);
+  });
+
+  it('weist eine unsinnige Erwartung ab', () => {
+    expect(() => ergebnisSchuesse(einfachVektor.ergebnis, [])).toThrow(IbmFehler);
+    expect(() => ergebnisSchuesse(einfachVektor.ergebnis, [17, 16, 8, 3])).toThrow(IbmFehler);
+    const nur = { results: [{ data: { c: { samples: ['0x0'] } } }] };
+    expect(ergebnisSchuesse(nur, [16])).toEqual([['0x0']]);
+    expect(() => ergebnisSchuesse(nur, [17])).toThrow('Schaltkreise');
+    expect(() => ergebnisSchuesse(nur, [0])).toThrow('Schaltkreise');
   });
 });
