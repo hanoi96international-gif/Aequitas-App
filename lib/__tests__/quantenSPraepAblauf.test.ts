@@ -6,7 +6,8 @@ jest.mock('expo-crypto', () => ({ getRandomBytes: () => new Uint8Array(0) }));
 jest.mock('../config', () => ({ API_BASE: 'https://knoten.test/api' }));
 import { ethers } from 'ethers';
 import vektor from './vektoren/quanten_s_praep_auftrag_vektor.json';
-import { adresseVon, antwortNachricht, hashListe, pubVon, unterschriftVon } from '../quantenS';
+import { abschnitt, adresseVon, antwortNachricht, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, unterschriftVon } from '../quantenS';
+import { antwortBauen, sAuftragNachricht, sBestaetigungNachricht, type Antwort } from '../quantenSPraeparieren';
 import { Zusammensetzer, einpacken, oeffnen } from '../quantenSHuelle';
 import type { Speicher } from '../quantenSInhaberin';
 import { runde, type Messer, type PraepUmgebung } from '../quantenSPraepAblauf';
@@ -166,5 +167,124 @@ describe('runde der Präparatorin', () => {
     expect(r.abgelehnt[0].grund).toContain('Messung');
     expect(await new PraepTresor(u.geheim, u.ablage, u.zufall).laden(vektor.auftrag.k)).toBeNull();
     expect(k.kasten.filter((x) => x.an === vektor.auftrag.praeger)).toHaveLength(0);
+  });
+});
+
+/** Die Bestätigungs-Anfrage des Ausgebers für Präparatorin 2: Antworten von 1 und 3 mit ihren Testschlüsseln gebaut. */
+function anfrageBauen(meine: Antwort, x: { proben?: string[] } = {}) {
+  const q = vektor.auftrag;
+  const n = q.n, v = 3;
+  const stellen = [0, 1].map((b) => ({ adresse: q.stellen[b], pub: q.stellen_schluessel[b] })) as [{ adresse: string; pub: string }, { adresse: string; pub: string }];
+  const antw: Antwort[] = [];
+  for (let e = 1; e <= v; e++) {
+    if (e === q.x) { antw.push(meine); continue; }
+    const a = abschnitt(n, v, e)!;
+    const len = a.bis - a.von;
+    const bits = (s: number) => Array.from({ length: len }, (_, i) => (i * s + e) % 2);
+    antw.push(antwortBauen(vektor.praeparatoren_schluessel_nur_test[e - 1], {
+      K: q.k, x: e, t: q.t, von: a.von, bis: a.bis, schluessel: q.schluessel, stellen, inhaberin: { adresse: q.inhaberin, pub: q.inhaberin_schluessel },
+    }, { y: bits(1), u: bits(3), t: bits(5), x: bits(7) }, drbg(String(e).repeat(64))).antwort);
+  }
+  const blaetter = antw.flatMap((a) => a.blaetter);
+  const wurzel = merkleWurzel(blaetter);
+  const proben = x.proben ?? [0, 1].map((b) => probeHashV2(q.k, b, antw.map((a) => a.teile![b])));
+  const buendel = antw.map((a) => a.buendel[q.x - 1]);
+  const buendel_sig = antw.map((a) => a.buendel_sig[q.x - 1]);
+  const praeger_sig = unterschreiben(AUSGEBER, sAuftragNachricht(q.praeger, q.k, n, q.t, q.tol, q.x, wurzel, q.validatoren, proben, q.zeit, hashListe(buendel)));
+  return { art: 's', k: q.k, n, t: q.t, tol: q.tol, x: q.x, wurzel, validatoren: q.validatoren, zeit: q.zeit, blaetter, praeger: q.praeger, praeger_sig, proben, buendel, buendel_sig };
+}
+
+function anfrageSenden(k: ReturnType<typeof knoten>, anfrage: unknown, absender = AUSGEBER, saat = 'c') {
+  for (const b of einpacken(absender, { adresse: adresseVon(ICH), pub: pubVon(ICH) }, 'bestaetigung', ethers.toUtf8Bytes(JSON.stringify(anfrage)), ZEIT, drbg(saat.padEnd(64, '0').replace(/[^0-9a-f]/g, '0')))) {
+    k.einwerfen(adresseVon(absender), adresseVon(ICH), b);
+  }
+}
+
+/** Alle Nachrichten an den Ausgeber, nach Art. */
+function anAusgeber(k: ReturnType<typeof knoten>, art: string) {
+  const zs = new Zusammensetzer();
+  const out = [];
+  for (const b of k.kasten.filter((x) => x.an === vektor.auftrag.praeger)) {
+    const m = zs.hinzu(oeffnen(AUSGEBER, b.inhalt, ZEIT), ZEIT);
+    if (m && m.art === art) out.push(JSON.parse(ethers.toUtf8String(m.nutzlast)));
+  }
+  return out;
+}
+
+describe('Bestätigung (B4b-4c-1f)', () => {
+  async function beantwortet() {
+    const k = knoten();
+    auftragSenden(k);
+    const u = umgebung(k.f);
+    await runde(u, wallet, ideal);
+    const meine = anAusgeber(k, 'antwort')[0] as Antwort;
+    return { k, u, meine };
+  }
+
+  it('bestätigt die Ausgabe: Unterschrift an den Ausgeber, Anteile und Pakete im Tresor', async () => {
+    const { k, u, meine } = await beantwortet();
+    const anfrage = anfrageBauen(meine);
+    anfrageSenden(k, anfrage);
+    const r = await runde(u, wallet, ideal);
+    expect(r.bestaetigt).toEqual([vektor.auftrag.k]);
+    const [b] = anAusgeber(k, 'bestaetigung');
+    expect(b.x).toBe(vektor.auftrag.x);
+    const m = sBestaetigungNachricht(vektor.auftrag.k, anfrage.wurzel, anfrage.n, anfrage.t, anfrage.validatoren, anfrage.x, [anfrage.proben[0], anfrage.proben[1]], anfrage.zeit, anfrage.tol);
+    expect(unterschriftVon(m, b.sig, adresseVon(ICH))).toBe(true);
+    const f = await new PraepTresor(u.geheim, u.ablage, u.zufall).laden(vektor.auftrag.k);
+    expect(f?.stand).toBe('bestaetigt');
+    expect(f?.bestaetigung?.anteile).toHaveLength(vektor.auftrag.n);
+    expect(Object.keys(f?.bestaetigung?.oeffnungen ?? {}).sort()).toEqual(['1', '3']);
+  });
+
+  it('dieselbe Anfrage noch einmal: dieselbe Unterschrift', async () => {
+    const { k, u, meine } = await beantwortet();
+    const anfrage = anfrageBauen(meine);
+    anfrageSenden(k, anfrage, AUSGEBER, 'c');
+    await runde(u, wallet, ideal);
+    anfrageSenden(k, anfrage, AUSGEBER, 'd');
+    const r = await runde(u, wallet, ideal);
+    expect(r.wiederholt).toEqual([vektor.auftrag.k]);
+    const b = anAusgeber(k, 'bestaetigung');
+    expect(b).toHaveLength(2);
+    expect(b[1].sig).toBe(b[0].sig);
+  });
+
+  it('bestätigt zu einem K nie eine zweite, andere Ausgabe', async () => {
+    const { k, u, meine } = await beantwortet();
+    anfrageSenden(k, anfrageBauen(meine), AUSGEBER, 'c');
+    await runde(u, wallet, ideal);
+    anfrageSenden(k, anfrageBauen(meine, { proben: ['11'.repeat(32), '22'.repeat(32)] }), AUSGEBER, 'e');
+    const r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('andere Ausgabe');
+    expect(anAusgeber(k, 'bestaetigung')).toHaveLength(1);
+  });
+
+  it('weist eine Anfrage ab, die nicht vom Ausgeber kommt oder zu keinem Auftrag gehört', async () => {
+    const { k, u, meine } = await beantwortet();
+    anfrageSenden(k, anfrageBauen(meine), FREMD, 'f');
+    const r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('nicht vom Ausgeber');
+    const k2 = knoten();
+    anfrageSenden(k2, anfrageBauen(meine));
+    const r2 = await runde(umgebung(k2.f), wallet, ideal);
+    expect(r2.abgelehnt[0].grund).toContain('kein Auftrag');
+    expect(anAusgeber(k2, 'bestaetigung')).toHaveLength(0);
+  });
+
+  it('weist eine veränderte Anfrage ab (Wurzel passt nicht zu den Blättern)', async () => {
+    const { k, u, meine } = await beantwortet();
+    const a = anfrageBauen(meine);
+    anfrageSenden(k, { ...a, blaetter: [...a.blaetter.slice(1), a.blaetter[0]] });
+    const r = await runde(u, wallet, ideal);
+    expect(r.bestaetigt).toEqual([]);
+    expect(r.abgelehnt).toHaveLength(1);
+  });
+
+  it('weist eine Anfrage mit fremden Feldern ab', async () => {
+    const { k, u, meine } = await beantwortet();
+    anfrageSenden(k, { ...anfrageBauen(meine), extra: 1 });
+    const r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('Felder');
   });
 });

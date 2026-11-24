@@ -82,12 +82,42 @@ export interface Fall {
   stand: Stand;
   /** Zeit der Annahme (Sekunden) */
   zeit: number;
+  /** nach der Bestätigung: Unterschrift, alle n eigenen Anteile, je anderer Präparatorin die zwei Pakete */
+  bestaetigung?: GespeicherteBestaetigung;
+}
+
+export interface GespeicherteBestaetigung {
+  sig: string;
+  anteile: string[];
+  oeffnungen: Record<string, string[]>;
+}
+
+const SIG = /^0x[0-9a-f]{130}$/;
+const ANTEIL = /^[0-9a-f]{1,64}$/;
+const PAKET = /^[0-9a-f]+$/;
+
+function bestaetigungPruefen(b: unknown, n: number, v: number): GespeicherteBestaetigung {
+  if (!b || typeof b !== 'object' || Array.isArray(b)) fehler('Tresor: Bestätigung');
+  const o = b as Record<string, unknown>;
+  if (Object.keys(o).sort().join(',') !== 'anteile,oeffnungen,sig') fehler('Tresor: Bestätigung, Felder');
+  if (typeof o.sig !== 'string' || !SIG.test(o.sig)) fehler('Tresor: Bestätigung, Unterschrift');
+  if (!Array.isArray(o.anteile) || o.anteile.length !== n || !o.anteile.every((a) => typeof a === 'string' && ANTEIL.test(a))) fehler('Tresor: Bestätigung, Anteile');
+  const oe = o.oeffnungen;
+  if (!oe || typeof oe !== 'object' || Array.isArray(oe)) fehler('Tresor: Bestätigung, Pakete');
+  for (const [k, p] of Object.entries(oe as Record<string, unknown>)) {
+    const x = Number(k);
+    if (!/^[1-9][0-9]?$/.test(k) || x > v || !Array.isArray(p) || p.length !== 2 || !p.every((h) => typeof h === 'string' && h.length % 2 === 0 && PAKET.test(h))) {
+      fehler('Tresor: Bestätigung, Pakete');
+    }
+  }
+  return { sig: o.sig, anteile: o.anteile as string[], oeffnungen: oe as Record<string, string[]> };
 }
 
 function fallPruefen(f: unknown): Fall {
   if (!f || typeof f !== 'object' || Array.isArray(f)) fehler('Tresor: Form');
   const o = f as Record<string, unknown>;
-  if (Object.keys(o).sort().join(',') !== 'auftrag,k,seed,stand,t,u,x,zeit') fehler('Tresor: Felder');
+  const felder = Object.keys(o).sort().join(',');
+  if (felder !== 'auftrag,k,seed,stand,t,u,x,zeit' && felder !== 'auftrag,bestaetigung,k,seed,stand,t,u,x,zeit') fehler('Tresor: Felder');
   if (typeof o.k !== 'string' || !HEX64.test(o.k) || typeof o.seed !== 'string' || !HEX64.test(o.seed)) fehler('Tresor: K oder Seed');
   for (const b of ['u', 't', 'x'] as const) if (typeof o[b] !== 'string' || !BITS.test(o[b] as string)) fehler(`Tresor: ${b}`);
   if ((o.u as string).length !== (o.t as string).length || (o.u as string).length !== (o.x as string).length) fehler('Tresor: Längen');
@@ -95,7 +125,12 @@ function fallPruefen(f: unknown): Fall {
   if (typeof o.zeit !== 'number' || !Number.isSafeInteger(o.zeit) || o.zeit <= 0) fehler('Tresor: Zeit');
   const auftrag = auftragLesen(ethers.toUtf8Bytes(JSON.stringify(o.auftrag)));
   if (auftrag.k !== o.k) fehler('Tresor: Auftrag zu anderem K');
-  return { k: o.k, auftrag, seed: o.seed, u: o.u as string, t: o.t as string, x: o.x as string, stand: o.stand as Stand, zeit: o.zeit };
+  const fall: Fall = { k: o.k, auftrag, seed: o.seed, u: o.u as string, t: o.t as string, x: o.x as string, stand: o.stand as Stand, zeit: o.zeit };
+  // Bestätigt oder geöffnet genau dann, wenn die Bestätigung gespeichert ist.
+  const mitB = fall.stand === 'bestaetigt' || fall.stand === 'geoeffnet';
+  if (mitB !== ('bestaetigung' in o)) fehler('Tresor: Stand und Bestätigung passen nicht');
+  if (mitB) fall.bestaetigung = bestaetigungPruefen(o.bestaetigung, auftrag.n, auftrag.validatoren.length);
+  return fall;
 }
 
 export class PraepTresor {

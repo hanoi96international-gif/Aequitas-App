@@ -25,12 +25,12 @@
 
 import { ethers } from 'ethers';
 import { abholen, ablegen, quittieren, type Brief } from './briefkasten';
-import { QuantenSFehler, adresseVon, unterschreiben } from './quantenS';
+import { QuantenSFehler, abschnitt, adresseVon, unterschreiben } from './quantenS';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from './quantenSHuelle';
 import type { Speicher } from './quantenSInhaberin';
-import { antwortAufAuftrag, auftragLesen, auftragPruefen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
+import { antwortAufAuftrag, auftragLesen, auftragNachricht, auftragPruefen, basenOeffnen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
 import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
-import type { Antwort, Zufall } from './quantenSPraeparieren';
+import { bestaetigen, type AbschnittTresor, type Antwort, type BestaetigenAnfrage, type Zufall } from './quantenSPraeparieren';
 import { PraepTresor, drbg, type Fall } from './quantenSPraepTresor';
 
 const NACH = 'aequitas.quantenS.praep.nach';
@@ -69,6 +69,7 @@ export interface RundenBericht {
   briefe: number;
   abgewiesen: { id: number; grund: string }[];
   beantwortet: string[];
+  bestaetigt: string[];
   wiederholt: string[];
   abgelehnt: { k: string; grund: string }[];
   /** unfertige Nachrichten (ihre Briefe bleiben im Kasten) */
@@ -117,13 +118,77 @@ async function gesehenLesen(s: Speicher): Promise<[string, number][]> {
   }
 }
 
-/** Antwort zu einem Fall (wieder)herstellen: derselbe Seed, derselbe Auftrag -> dieselbe Antwort. */
-export function antwortAusFall(schluessel: string, f: Fall, g: GepruefterAuftrag): Antwort {
+/** Antwort und Werte zu einem Fall (wieder)herstellen: derselbe Seed, derselbe Auftrag -> dasselbe Ergebnis. */
+export function antwortAusFall(schluessel: string, f: Fall, g: GepruefterAuftrag): { antwort: Antwort; tresor: AbschnittTresor } {
   const z = drbg(f.seed);
   const n = g.bis - g.von;
   const { u, t } = messbitsZiehen(n, z);
   if (u.join('') !== f.u || t.join('') !== f.t) fehler('Tresor: u oder t passt nicht zum Seed');
-  return antwortAufAuftrag(schluessel, f.auftrag, g, { y: g.y.split('').map(Number), u, t, x: f.x.split('').map(Number) }, z).antwort;
+  return antwortAufAuftrag(schluessel, f.auftrag, g, { y: g.y.split('').map(Number), u, t, x: f.x.split('').map(Number) }, z);
+}
+
+/** Der geprüfte Auftrag eines Falls ohne Netz: Abschnitt und Basen aus dem gespeicherten Auftrag. */
+export function gepruefterAuftragAusFall(schluessel: string, f: Fall): GepruefterAuftrag {
+  const q = f.auftrag;
+  const a = abschnitt(q.n, q.validatoren.length, q.x);
+  if (!a || !q.basen_verschluesselt) fehler('Tresor: Auftrag');
+  const y = basenOeffnen(schluessel, q.basen_verschluesselt, q.n, q.validatoren, q.x, q.inhaberin);
+  return { von: a.von, bis: a.bis, y, auftragHash: ethers.sha256(ethers.toUtf8Bytes(auftragNachricht(q))).slice(2) };
+}
+
+const ANFRAGE_FELDER = ['art', 'blaetter', 'buendel', 'buendel_sig', 'k', 'n', 'praeger', 'praeger_sig', 'proben', 't', 'tol', 'validatoren', 'wurzel', 'x', 'zeit'];
+
+/** Die Bestätigungs-Anfrage des Ausgebers aus der Nutzlast einer Hülle, streng (genau diese Felder). */
+export function bestaetigenAnfrageLesen(nutzlast: Uint8Array): BestaetigenAnfrage {
+  let o: unknown;
+  try {
+    o = JSON.parse(ethers.toUtf8String(nutzlast));
+  } catch {
+    return fehler('Bestätigungs-Anfrage: kein JSON');
+  }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) fehler('Bestätigungs-Anfrage: Form');
+  const a = o as Record<string, unknown>;
+  if (Object.keys(a).sort().join(',') !== ANFRAGE_FELDER.join(',')) fehler('Bestätigungs-Anfrage: Felder');
+  for (const k of ['art', 'k', 'praeger', 'praeger_sig', 'wurzel']) if (typeof a[k] !== 'string') fehler(`Bestätigungs-Anfrage: ${k}`);
+  for (const k of ['n', 't', 'tol', 'x', 'zeit']) if (typeof a[k] !== 'number' || !Number.isSafeInteger(a[k])) fehler(`Bestätigungs-Anfrage: ${k}`);
+  for (const k of ['blaetter', 'buendel', 'buendel_sig', 'proben', 'validatoren']) {
+    if (!Array.isArray(a[k]) || !(a[k] as unknown[]).every((x) => typeof x === 'string')) fehler(`Bestätigungs-Anfrage: ${k}`);
+  }
+  return a as unknown as BestaetigenAnfrage;
+}
+
+/**
+ * Eine Bestätigungs-Anfrage beantworten. Zu einem K bestätigt die
+ * Präparatorin nur EINE Ausgabe: ergibt eine spätere Anfrage eine andere
+ * Unterschrift (andere Wurzel oder Stichproben), wird sie abgewiesen.
+ */
+export async function bestaetigungBeantworten(u: PraepUmgebung, schluessel: string, tresor: PraepTresor, m: Nachricht): Promise<{ k: string; art: 'neu' | 'wiederholt' }> {
+  const q = bestaetigenAnfrageLesen(m.nutzlast);
+  const f = await tresor.laden(q.k);
+  if (!f) fehler('kein Auftrag zu diesem K');
+  // Die Hülle muss vom Ausgeber des gespeicherten Auftrags sein; dass die Anfrage
+  // denselben Ausgeber nennt, prüft bestaetigen (praeger gegen den Auftrag).
+  if (f.auftrag.praeger !== m.von) fehler('Hülle nicht vom Ausgeber des Auftrags');
+  const g = gepruefterAuftragAusFall(schluessel, f);
+  const { tresor: t } = antwortAusFall(schluessel, f, g);
+  const a = f.auftrag;
+  const b = bestaetigen(q, {
+    schluessel, k: a.k, n: a.n, t: a.t, tol: a.tol, x: a.x, zeit: a.zeit, praeger: a.praeger, validatoren: a.validatoren,
+    werte: t.werte, koeff: t.koeff, probeV2: a.probe_art === 2,
+  });
+  if (f.bestaetigung && f.bestaetigung.sig !== b.sig) fehler('schon eine andere Ausgabe zu diesem K bestätigt');
+  const art = f.bestaetigung ? 'wiederholt' : 'neu';
+  if (!f.bestaetigung) {
+    await tresor.speichern({ ...f, stand: 'bestaetigt', bestaetigung: { sig: b.sig, anteile: b.anteile, oeffnungen: b.oeffnungen ?? {} } });
+  }
+  const jetzt = Math.floor(u.jetzt() / 1000);
+  const ich = adresseVon(schluessel);
+  const signer = { signMessage: async (n: string) => unterschreiben(schluessel, n) };
+  const inhalt = ethers.toUtf8Bytes(JSON.stringify({ k: a.k, x: a.x, sig: b.sig }));
+  for (const brief of einpacken(schluessel, { adresse: m.von, pub: m.pub }, 'bestaetigung', inhalt, jetzt, u.zufall)) {
+    await ablegen(ich, m.von, brief, signer, jetzt, u.fetchFn, u.apiBasis);
+  }
+  return { k: a.k, art };
 }
 
 /**
@@ -147,7 +212,7 @@ export async function auftragBeantworten(
   let art: 'neu' | 'wiederholt';
   if (alt) {
     if (JSON.stringify(alt.auftrag) !== JSON.stringify(q)) fehler('schon ein anderer Auftrag für dieses K');
-    antwort = antwortAusFall(schluessel, alt, g);
+    antwort = antwortAusFall(schluessel, alt, g).antwort;
     art = 'wiederholt';
   } else {
     const seed = tresor.neuerSeed();
@@ -182,7 +247,7 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   const zs = new Zusammensetzer(await gesehenLesen(u.ablage));
   const jetzt = () => Math.floor(u.jetzt() / 1000);
   zs.aufraeumen(jetzt());
-  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], wiederholt: [], abgelehnt: [], offen: 0, quittiertBis: 0 };
+  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], bestaetigt: [], wiederholt: [], abgelehnt: [], offen: 0, quittiertBis: 0 };
 
   // 2. + 3. Abholen und öffnen. Je Brief: zu welcher Nachricht (von|id) er gehört.
   const nachStart = await zahlLesen(u.ablage, NACH);
@@ -224,6 +289,16 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   let bestCache: ReturnType<typeof bestellungenLesen> & object | null = null;
   const bestellungen = async () => (bestCache ??= await bestellungenHolen(u));
   for (const m of fertig) {
+    if (m.art === 'bestaetigung') {
+      try {
+        const r = await bestaetigungBeantworten(u, schluessel, tresor, m);
+        if (r.art === 'neu') bericht.bestaetigt.push(r.k);
+        else bericht.wiederholt.push(r.k);
+      } catch (e) {
+        bericht.abgelehnt.push({ k: '?', grund: (e as Error).message.slice(0, 200) });
+      }
+      continue;
+    }
     if (m.art !== 'auftrag') continue;
     try {
       const r = await auftragBeantworten(u, schluessel, tresor, m, messer, bestellungen);
