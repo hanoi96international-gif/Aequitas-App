@@ -325,6 +325,72 @@ export function antwortUnterschreiben(schluessel: string, a: Omit<Antwort, 'vali
   return { ...a, validator: adresseVon(schluessel), sig: unterschreiben(schluessel, m) };
 }
 
+// ------------------------------------------------------------ Antwort zusammensetzen (B4b-4c-1b)
+
+/** Die Messung eines Abschnitts: Basen y der Inhaberin, u und t der Präparatorin, x = Ergebnis. */
+export interface Messung {
+  y: number[];
+  u: number[];
+  t: number[];
+  x: number[];
+}
+
+/** Was die Präparatorin nach der Antwort geheim behält (für Öffnung und Bestätigung). */
+export interface AbschnittTresor {
+  werte: bigint[];
+  koeff: bigint[][];
+  salze: string[];
+}
+
+/** Rahmen des Abschnitts aus dem geprüften Auftrag. */
+export interface AbschnittRahmen {
+  K: string;
+  x: number;
+  t: number;
+  von: number;
+  bis: number;
+  /** öffentliche Schlüssel aller v Präparatorinnen (geprüft), in Losreihenfolge */
+  schluessel: string[];
+  stellen: [Empfaenger, Empfaenger];
+  inhaberin: Empfaenger;
+  /** SHA-256 des Basen-Chiffrats (Weg B: immer) */
+  basenHash?: string;
+}
+
+/**
+ * abschnittPraeparieren + abschnittAntwort des Dienstes, Schritt für Schritt
+ * in derselben Reihenfolge: Werte, Koeffizienten, Stichprobe v2, je anderer
+ * Präparatorin Pakete und Bündel, x für die Inhaberin, Unterschrift.
+ */
+export function antwortBauen(schluessel: string, r: AbschnittRahmen, m: Messung, zufall: Zufall): { antwort: Antwort; tresor: AbschnittTresor } {
+  const n = r.bis - r.von;
+  const v = r.schluessel.length;
+  if (n < 1 || m.y.length !== n || m.u.length !== n || m.t.length !== n || m.x.length !== n) fehler('Messung: Längen');
+  if (!Number.isInteger(r.x) || r.x < 1 || r.x > v) fehler('Nummer');
+  const werte = abschnittWerte(m.u, m.t, zufall);
+  const koeff = werte.map((w) => koeffizienten(w, r.t, v, zufall));
+  const probe = probeV2(r.K, r.x, r.von, m.y, m.u, m.t, m.x, werte, zufall);
+  const buendel: string[] = [];
+  const buendelSig: string[] = [];
+  for (let e = 1; e <= v; e++) {
+    if (e === r.x) {
+      buendel.push('');
+      buendelSig.push('');
+      continue;
+    }
+    const oeffnung = anteilOeffnungPakete(r.K, r.x, e, r.von, r.bis, werte, koeff, probe.salze, r.stellen, zufall);
+    const b = buendelVersiegeln(schluessel, r.schluessel[e - 1], { K: r.K, von: r.von, bis: r.bis, praeparator: r.x, empfaenger: e, anteile: koeff.map((k) => anteilAus(k, e)), oeffnung }, zufall);
+    buendel.push(b.chiffrat);
+    buendelSig.push(b.sig);
+  }
+  const fi = fuerInhaberin(r.inhaberin, r.K, r.von, r.bis, m.x, zufall);
+  const antwort = antwortUnterschreiben(schluessel, {
+    k: r.K, x: r.x, von: r.von, bis: r.bis, blaetter: blaetter(r.K, r.von, werte), fuer_inhaberin: fi, buendel, buendel_sig: buendelSig,
+    teile: probe.teile, zaehlung: probe.zaehlung, ...(r.basenHash ? { basen_hash: r.basenHash } : {}),
+  });
+  return { antwort, tresor: { werte, koeff, salze: probe.salze } };
+}
+
 // ------------------------------------------------------------ Bestaetigen (B4b-3c, bestaetigenAbschnitt)
 
 const DOM_S_AUFTRAG = 'aequitas-quanten-s-auftrag-v1';

@@ -35,6 +35,7 @@ import {
   V_MAX,
   abschnitt,
   adresseVon,
+  basenHash,
   eciesOeffnen,
   kNote,
   kanonisch,
@@ -42,7 +43,7 @@ import {
   unterschriftVon,
   validatorenHash,
 } from './quantenS';
-import { schluesselPruefen } from './quantenSPraeparieren';
+import { antwortBauen, schluesselPruefen, type Antwort, type AbschnittTresor, type Messung, type Zufall } from './quantenSPraeparieren';
 
 const DOM_AUFTRAG = 'aequitas-quanten-s-abschnitt-auftrag-v1';
 const DOM_BASEN = 'aequitas-quanten-s-basen-v1';
@@ -255,4 +256,39 @@ export function auftragPruefen(q: AbschnittAuftrag, schluessel: string, bestellu
   // Erst jetzt öffnen.
   const y = basenOeffnen(schluessel, q.basen_verschluesselt, q.n, q.validatoren, q.x, q.inhaberin);
   return { von: eigen.von, bis: eigen.bis, y, auftragHash: ethers.sha256(ethers.toUtf8Bytes(nachricht)).slice(2) };
+}
+
+/**
+ * u und t der Präparatorin für n Stellen: je Bit aus einem eigenen Zufallsbyte
+ * (gleichverteilt). Beide bleiben im Gerät; nur die Messung braucht sie.
+ */
+export function messbitsZiehen(n: number, zufall: Zufall): { u: number[]; t: number[] } {
+  if (!Number.isInteger(n) || n < 1 || n > N_MAX) fehler('Stellen');
+  const r = zufall(2 * n);
+  if (r.length !== 2 * n) fehler('Zufall');
+  const u = Array.from(r.slice(0, n), (b) => b & 1);
+  const t = Array.from(r.slice(n), (b) => b & 1);
+  return { u, t };
+}
+
+/**
+ * Die Antwort auf einen geprüften Auftrag (auftragPruefen) aus der eigenen
+ * Messung. y der Messung muss genau das y des Auftrags sein.
+ */
+export function antwortAufAuftrag(
+  schluessel: string,
+  q: AbschnittAuftrag,
+  g: GepruefterAuftrag,
+  m: Messung,
+  zufall: Zufall,
+): { antwort: Antwort; tresor: AbschnittTresor } {
+  if (adresseVon(schluessel) !== q.validatoren[q.x - 1]) fehler('Antwort: nicht meine Nummer');
+  if (m.y.join('') !== g.y) fehler('Messung mit anderen Basen als im Auftrag');
+  if (!q.basen_verschluesselt) fehler('Basen nur verschlüsselt');
+  return antwortBauen(schluessel, {
+    K: q.k, x: q.x, t: q.t, von: g.von, bis: g.bis, schluessel: q.schluessel,
+    stellen: [{ adresse: q.stellen[0], pub: q.stellen_schluessel[0] }, { adresse: q.stellen[1], pub: q.stellen_schluessel[1] }],
+    inhaberin: { adresse: q.inhaberin, pub: q.inhaberin_schluessel },
+    basenHash: basenHash(q.basen_verschluesselt),
+  }, m, zufall);
 }

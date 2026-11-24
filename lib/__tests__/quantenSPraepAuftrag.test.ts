@@ -3,15 +3,18 @@
 // x/humanity/keeper/quanten_s_praep_auftrag_vektor_test.go).
 import { ethers } from 'ethers';
 import vektor from './vektoren/quanten_s_praep_auftrag_vektor.json';
-import { CHAIN_ID, abschnitt, basenVerschluesseln, unterschreiben } from '../quantenS';
+import { CHAIN_ID, abschnitt, antwortNachricht, basenHash, basenVerschluesseln, fuerInhaberinOeffnen, hashListe, unterschreiben, unterschriftVon } from '../quantenS';
+import { buendelOeffnen } from '../quantenSPraeparieren';
 import {
   AUFTRAG_ALT,
   AUFTRAG_MAX,
+  antwortAufAuftrag,
   auftragLesen,
   auftragNachricht,
   auftragPruefen,
   basenOeffnen,
   bestellungenLesen,
+  messbitsZiehen,
   type AbschnittAuftrag,
   type Bestellung,
 } from '../quantenSPraepAuftrag';
@@ -133,5 +136,56 @@ describe('bestellungenLesen', () => {
     ['Ausgeber groß', { ...gut.bestellungen[0], ausgeber: vektor.auftrag.praeger.toUpperCase() }],
   ])('weist ab: %s', (_n, b) => {
     expect(bestellungenLesen({ bestellungen: [b] })).toBeNull();
+  });
+});
+
+describe('Antwort auf den Auftrag (B4b-4c-1b)', () => {
+  const q = auftrag();
+  const g = auftragPruefen(q, ICH, [bestellung()], JETZT);
+  const n = g.bis - g.von;
+  const y = g.y.split('').map(Number);
+  const { u, t } = messbitsZiehen(n, festerZufall('mess'));
+  // Ideale Hardware: passt die Basis, kommt t heraus; sonst ein Zufallsbit.
+  const rausch = festerZufall('rausch')(n);
+  const x = u.map((ui, i) => (ui === y[i] ? t[i] : rausch[i] & 1));
+  const { antwort: a, tresor } = antwortAufAuftrag(ICH, q, g, { y, u, t, x }, festerZufall('antwort'));
+
+  it('besteht die Prüfungen des Ausgebers (wie quanten_s_ausgabe_abschnitte.go)', () => {
+    expect([a.k, a.x, a.von, a.bis]).toEqual([q.k, q.x, g.von, g.bis]);
+    expect(a.blaetter).toHaveLength(n);
+    expect(a.buendel).toHaveLength(3);
+    expect(a.buendel[q.x - 1]).toBe('');
+    expect(a.basen_hash).toBe(basenHash(q.basen_verschluesselt!));
+    expect(a.validator).toBe(q.validatoren[q.x - 1]);
+    const m = antwortNachricht(a.k, a.x, a.von, a.bis, hashListe(a.blaetter), a.fuer_inhaberin, hashListe(a.buendel), hashListe(a.buendel_sig), a.teile!, a.zaehlung!, a.basen_hash!);
+    expect(unterschriftVon(m, a.sig, a.validator)).toBe(true);
+    expect(tresor.werte).toHaveLength(n);
+  });
+
+  it('die Inhaberin liest x, jede andere Präparatorin ihr Bündel', () => {
+    expect(fuerInhaberinOeffnen(vektor.inhaberin_schluessel_nur_test, a.fuer_inhaberin, q.k, g.von, g.bis)).toBe(x.join(''));
+    for (const e of [1, 3]) {
+      const b = buendelOeffnen(vektor.praeparatoren_schluessel_nur_test[e - 1], a.buendel[e - 1], a.buendel_sig[e - 1], a.validator, q.k, q.x, e, g.von, g.bis);
+      expect(b.anteile).toHaveLength(n);
+      expect(b.pakete).toHaveLength(2);
+    }
+    // Ein Bündel an 1 kann 3 nicht öffnen.
+    expect(() => buendelOeffnen(vektor.praeparatoren_schluessel_nur_test[2], a.buendel[0], a.buendel_sig[0], a.validator, q.k, q.x, 1, g.von, g.bis)).toThrow();
+  });
+
+  it('weist ab: fremder Schlüssel, andere Basen, falsche Längen', () => {
+    expect(() => antwortAufAuftrag(ANDERE, q, g, { y, u, t, x }, festerZufall('a'))).toThrow('nicht meine Nummer');
+    const anders = [...y];
+    anders[0] ^= 1;
+    expect(() => antwortAufAuftrag(ICH, q, g, { y: anders, u, t, x }, festerZufall('a'))).toThrow('anderen Basen');
+    expect(() => antwortAufAuftrag(ICH, q, g, { y, u: u.slice(1), t, x }, festerZufall('a'))).toThrow('Längen');
+    expect(() => antwortAufAuftrag(ICH, { ...q, basen_verschluesselt: undefined }, g, { y, u, t, x }, festerZufall('a'))).toThrow('verschlüsselt');
+  });
+
+  it('zieht u und t aus eigenem Zufall und bricht bei schlechtem ab', () => {
+    expect(u).toHaveLength(n);
+    expect(u.every((b) => b === 0 || b === 1) && t.every((b) => b === 0 || b === 1)).toBe(true);
+    expect(() => messbitsZiehen(n, () => new Uint8Array(3))).toThrow('Zufall');
+    expect(() => messbitsZiehen(0, festerZufall('z'))).toThrow('Stellen');
   });
 });
