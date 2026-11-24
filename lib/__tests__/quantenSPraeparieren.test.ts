@@ -16,6 +16,7 @@ import {
   P,
   abschnittWerte,
   anteilOeffnungPakete,
+  antwortBauen,
   antwortUnterschreiben,
   bestaetigen,
   sAuftragNachricht,
@@ -184,28 +185,14 @@ const XM2 = [1, 0, 0, 1, 1, 1, 1, 0]; // Messung der Inhaberin: an Stelle 4 (y =
 function antwortVektorBauen() {
   const z = festerZufall('aequitas-b4b3b-vektor');
   const { von, bis } = abschnitt(N2, V, X)!;
-  const werte = abschnittWerte(U2, T2, z);
-  const koeff = werte.map((w) => koeffizienten(w, T, V, z));
   const stellen: [Empfaenger, Empfaenger] = [0, 1].map((b) => ({ adresse: adresseVon(STELLEN_SCHL[b]), pub: pubVon(STELLEN_SCHL[b]) })) as [Empfaenger, Empfaenger];
-  const probe = probeV2(K, X, von, Y2, U2, T2, XM2, werte, z);
-  const buendel: string[] = [];
-  const buendelSig: string[] = [];
-  for (let e = 1; e <= V; e++) {
-    if (e === X) {
-      buendel.push('');
-      buendelSig.push('');
-      continue;
-    }
-    const oeffnung = anteilOeffnungPakete(K, X, e, von, bis, werte, koeff, probe.salze, stellen, z);
-    const s = buendelVersiegeln(SCHL[X - 1], pubVon(SCHL[e - 1]), { K, von, bis, praeparator: X, empfaenger: e, anteile: koeff.map((k) => anteilAus(k, e)), oeffnung }, z);
-    buendel.push(s.chiffrat);
-    buendelSig.push(s.sig);
-  }
-  const fi = fuerInhaberin({ adresse: adresseVon(INH_SCHL), pub: pubVon(INH_SCHL) }, K, von, bis, XM2, z);
-  const antwort = antwortUnterschreiben(SCHL[X - 1], {
-    k: K, x: X, von, bis, blaetter: blaetter(K, von, werte), fuer_inhaberin: fi, buendel, buendel_sig: buendelSig,
-    teile: probe.teile, zaehlung: probe.zaehlung,
-  });
+  // Seit B4b-4c-1b baut die Bibliothek die Antwort (antwortBauen); der Vektor
+  // muss dabei Byte für Byte gleich bleiben -- der Knoten prüft genau ihn.
+  const { antwort, tresor } = antwortBauen(SCHL[X - 1], {
+    K, x: X, t: T, von, bis, schluessel: SCHL.map(pubVon), stellen, inhaberin: { adresse: adresseVon(INH_SCHL), pub: pubVon(INH_SCHL) },
+  }, { y: Y2, u: U2, t: T2, x: XM2 }, z);
+  const { werte, koeff } = tresor;
+  const probe = { salze: tresor.salze };
   const oeffnungen = [0, 1].map((b) => oeffnungFuerStelle(stellen[b], K, b, X, von, bis, werte, probe.salze[b], z));
   return {
     hinweis: 'B4b-3b: Antwort der App als Praeparatorin mit Stichprobe v2 (lib/quantenSPraeparieren.ts). Schluessel NUR fuer Tests.',
