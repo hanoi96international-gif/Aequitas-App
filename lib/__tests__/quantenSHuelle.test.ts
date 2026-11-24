@@ -64,6 +64,7 @@ describe('einpacken und öffnen', () => {
     expect(briefe).toHaveLength(1);
     const t = oeffnen(B, briefe[0], JETZT + 10);
     expect(t.von).toBe(adresseVon(A));
+    expect(t.pub).toBe(pubVon(A));
     const z = new Zusammensetzer();
     const m = z.hinzu(t, JETZT + 10);
     expect(m && ethers.hexlify(m.nutzlast)).toBe(ethers.hexlify(n));
@@ -147,7 +148,7 @@ function handHuelleMitTausch(neu: Uint8Array) {
 describe('Zusammensetzer', () => {
   const teil = (x: Partial<Teil> = {}): Teil => {
     const stueck = x.stueck ?? new Uint8Array([1, 2, 3]);
-    return { art: 'antwort', von: adresseVon(A), id: 'ef'.repeat(16), zeit: JETZT, teil: 0, teile: 1, gesamt: sha(stueck), stueck, ...x };
+    return { art: 'antwort', von: adresseVon(A), pub: pubVon(A), id: 'ef'.repeat(16), zeit: JETZT, teil: 0, teile: 1, gesamt: sha(stueck), stueck, ...x };
   };
 
   it('weist eine Wiederholung ab, auch nach einem Neustart', () => {
