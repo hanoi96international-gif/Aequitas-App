@@ -46,6 +46,8 @@ import {
   type KettenStand,
   type PaketAbschnitt,
 } from './quantenS';
+import { bestellungenLesen } from './quantenSPraepAuftrag';
+import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
 
 const SCHLUESSEL = 'aequitas.quantenS.inhaberin.schluessel';
 /** Schluessel der Annahmestelle, wenn das Geraet keine eigene Wallet hat (quantenSStelle.ts). */
@@ -96,6 +98,8 @@ export interface Zustand {
   /** R8: Hashes der Chiffrate je Abschnitt und die Validatoren, an die verschluesselt ist. */
   basenHash?: string[];
   verschluesseltAn?: string[];
+  /** Weg B: K der Bestellung, fuer deren Gelosten die Basen verschluesselt sind (4c-2b). */
+  wegB?: string;
 }
 
 export interface Speicher {
@@ -327,8 +331,26 @@ export function stelleSchluesselPruefen(s: Stelle): Stelle {
  * wird nicht ueberschrieben (er waere sonst verloren).
  */
 export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, Stelle], verschluesseln?: ValidatorAngabe[]): Promise<Bestellung> {
+  return neuMit(u, n, v, stellen, verschluesseln?.map((x) => x.adresse), verschluesseln && ((x) => validatorSchluessel(u, verschluesseln[x - 1].api)));
+}
+
+/**
+ * Gemeinsamer Teil von neu (Weg A, Schluessel vom Validator-Dienst) und
+ * neuWegB (Schluessel aus dem Register): an = Adressen je Abschnitt,
+ * pubFuer(x) = oeffentlicher Schluessel fuer Abschnitt x (basenVerschluesseln
+ * prueft ihn gegen die Adresse).
+ */
+async function neuMit(
+  u: Umgebung,
+  n: number,
+  v: number,
+  stellen: [Stelle, Stelle],
+  verschluesseln: string[] | undefined,
+  pubFuer: ((x: number) => Promise<string>) | undefined,
+  wegB?: string,
+): Promise<Bestellung> {
   if (!Number.isInteger(n) || !Number.isInteger(v) || n < 2 || n > N_MAX || v < 1 || v > V_MAX || !abschnitt(n, v, v)) fehler('n oder v');
-  const an = verschluesseln?.map((x) => x.adresse.trim().toLowerCase());
+  const an = verschluesseln?.map((x) => x.trim().toLowerCase());
   if (verschluesseln && !u.ablage) fehler('keine Ablage fuer die Chiffrate');
   if (verschluesseln && verschluesseln.length !== v) fehler(`v = ${v}, aber ${verschluesseln.length} Validatoren zum Verschluesseln`);
   if (an && (an.some((a) => !ADRESSE.test(a)) || new Set(an).size !== an.length)) fehler('Validatoren: Adresse');
@@ -345,6 +367,7 @@ export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, S
   const groesst: Zustand = {
     n, v, y: '0'.repeat(hexLaenge), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel],
     k: '0'.repeat(64), x: '0'.repeat(hexLaenge), z: 1, validatoren: Array(v).fill('0x' + '0'.repeat(40)),
+    ...(wegB ? { wegB } : {}),
     ...(an ? { basenHash: Array(v).fill('0'.repeat(64)), verschluesseltAn: an } : {}),
   };
   if (JSON.stringify(groesst).length > 2048) fehler('n zu gross fuer den Speicher dieses Geraets');
@@ -365,13 +388,15 @@ export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, S
     const a = abschnitt(n, v, x)!;
     basen.push(y.slice(a.von, a.bis));
   }
-  const zustand: Zustand = { n, v, y: bitsZuHex(y), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel] };
-  if (verschluesseln && an) {
+  const zustand: Zustand = {
+    n, v, y: bitsZuHex(y), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel], ...(wegB ? { wegB } : {}),
+  };
+  if (pubFuer && an) {
     // Erst alle Schluessel holen und verschluesseln, dann schreiben: ein
     // Fehler hier hinterlaesst keine halbe Bestellung.
     const chiffrate: string[] = [];
     for (let x = 1; x <= v; x++) {
-      const pub = await validatorSchluessel(u, verschluesseln[x - 1].api);
+      const pub = await pubFuer(x);
       chiffrate.push(basenVerschluesseln(pub, an, n, x, inhaberin, basen[x - 1], u.zufall));
     }
     zustand.basenHash = chiffrate.map(basenHash);
@@ -381,6 +406,38 @@ export async function neu(u: Umgebung, n: number, v: number, stellen: [Stelle, S
   await u.speicher.schreiben(SCHLUESSEL, schl, true);
   await zustandSchreiben(u, zustand);
   return bestellungAus(u, zustand, schl);
+}
+
+/**
+ * neuWegB (B4b-4c-2b): die Bestellung der Inhaberin fuer eine Ausgabe in Weg B.
+ * Der Ausgeber hat K bestellt und das Los steht; die Inhaberin verschluesselt
+ * y je Abschnitt an den Schluessel der Gelosten aus dem Register (in
+ * Losreihenfolge). Sie prueft selbst: Weg B aktiv, K genau einmal bestellt,
+ * gelost, nicht verfallen; jeder Geloste steht im Register, und sein Schluessel
+ * ergibt genau seine Adresse (registerLesen/pubPasst -- ein Knoten, der einen
+ * fremden Schluessel einsetzt, laese sonst y). basenVerschluesseln prueft das
+ * noch einmal. v = Zahl der Gelosten.
+ */
+export async function neuWegB(u: Umgebung, n: number, Kroh: string, stellen: [Stelle, Stelle]): Promise<Bestellung> {
+  const K = Kroh.trim().toLowerCase();
+  if (!K_FORM.test(K)) fehler('K: 64 Hex-Zeichen');
+  const { status, json } = await holeJson(u, `${u.apiBasis}/quanten-w/praeparatoren`, REGISTER_MAX);
+  if (status === 404) fehler('Register: keine Antwort');
+  const reg = registerLesen(json);
+  const best = bestellungenLesen(json);
+  if (!reg || !best) fehler('Register: Form');
+  if (!reg.aktiv) fehler('Weg B ist im Knoten nicht aktiv');
+  const b = best.filter((x) => x.k === K);
+  if (b.length !== 1) fehler('K ist nicht bestellt');
+  const los = b[0].los;
+  if (los.length === 0) fehler('noch nicht gelost');
+  if (Math.floor(u.jetzt() / 1000) > b[0].frist) fehler('Bestellung verfallen');
+  const pubs = los.map((konto) => {
+    const e = reg.eintraege.filter((x) => x.konto === konto);
+    if (e.length !== 1) fehler(`Geloste ${konto} nicht (eindeutig) im Register`);
+    return e[0].pub;
+  });
+  return neuMit(u, n, los.length, stellen, los, async (x) => pubs[x - 1], K);
 }
 
 async function bestellungAus(u: Umgebung, z: Zustand, schl: string): Promise<Bestellung> {
