@@ -104,6 +104,8 @@ export function einpacken(schluessel: string, an: Empfaenger, art: Art, nutzlast
 export interface Teil {
   art: Art;
   von: string;
+  /** öffentlicher Schlüssel des Absenders, aus seiner Unterschrift wiederhergestellt (04…, ohne 0x) */
+  pub: string;
   id: string;
   zeit: number;
   teil: number;
@@ -148,15 +150,18 @@ export function oeffnen(schluessel: string, inhaltHex: string, jetztSek: number)
   if (typeof h.sig !== 'string' || !SIG.test(h.sig)) fehler('Hülle: sig');
   const stueck = ethers.getBytes('0x' + h.nutzlast);
   const art = h.art as Art;
-  if (!unterschriftVon(huelleNachricht(art, h.von, ich, h.id, h.zeit, h.teil, h.teile, h.gesamt, sha(stueck)), h.sig, h.von)) {
-    fehler('Hülle: Unterschrift passt nicht zum Absender');
-  }
-  return { art, von: h.von, id: h.id, zeit: h.zeit, teil: h.teil, teile: h.teile, gesamt: h.gesamt, stueck };
+  const nachricht = huelleNachricht(art, h.von, ich, h.id, h.zeit, h.teil, h.teile, h.gesamt, sha(stueck));
+  if (!unterschriftVon(nachricht, h.sig, h.von)) fehler('Hülle: Unterschrift passt nicht zum Absender');
+  // Der Schlüssel des Absenders (für eine Antwort an ihn), aus derselben Unterschrift.
+  const pub = ethers.SigningKey.recoverPublicKey(ethers.hashMessage(nachricht), h.sig).slice(2).toLowerCase();
+  if (ethers.computeAddress('0x' + pub).toLowerCase() !== h.von) fehler('Hülle: Schlüssel des Absenders');
+  return { art, von: h.von, pub, id: h.id, zeit: h.zeit, teil: h.teil, teile: h.teile, gesamt: h.gesamt, stueck };
 }
 
 export interface Nachricht {
   art: Art;
   von: string;
+  pub: string;
   id: string;
   zeit: number;
   nutzlast: Uint8Array;
@@ -165,6 +170,7 @@ export interface Nachricht {
 interface Offen {
   art: Art;
   von: string;
+  pub: string;
   zeit: number;
   teile: number;
   gesamt: string;
@@ -219,7 +225,7 @@ export class Zusammensetzer {
       if (this.offen.size >= OFFEN_MAX) fehler('zu viele unfertige Nachrichten');
       // Platz für die fertige Kennung muss schon jetzt da sein (unfertige mitgezählt).
       if (this.gesehen.size + this.offen.size >= GESEHEN_MAX) fehler('zu viele erledigte Nachrichten');
-      o = { art: t.art, von: t.von, zeit: t.zeit, teile: t.teile, gesamt: t.gesamt, stuecke: new Array(t.teile).fill(undefined), bytes: 0 };
+      o = { art: t.art, von: t.von, pub: t.pub, zeit: t.zeit, teile: t.teile, gesamt: t.gesamt, stuecke: new Array(t.teile).fill(undefined), bytes: 0 };
       this.offen.set(k, o);
     } else if (o.art !== t.art || o.zeit !== t.zeit || o.teile !== t.teile || o.gesamt !== t.gesamt) {
       fehler('Hülle: Teil passt nicht zu den anderen');
@@ -236,7 +242,7 @@ export class Zusammensetzer {
     const nutzlast = ethers.getBytes(ethers.concat(o.stuecke as Uint8Array[]));
     if (sha(nutzlast) !== o.gesamt) fehler('Hülle: Gesamt-Hash passt nicht');
     this.gesehen.set(k, o.zeit);
-    return { art: o.art, von: o.von, id: t.id, zeit: o.zeit, nutzlast };
+    return { art: o.art, von: o.von, pub: o.pub, id: t.id, zeit: o.zeit, nutzlast };
   }
 
   /** Für Tests und Anzeige: unfertige Nachrichten und ihre Byte. */
