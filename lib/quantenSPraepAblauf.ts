@@ -25,12 +25,12 @@
 
 import { ethers } from 'ethers';
 import { abholen, ablegen, quittieren, type Brief } from './briefkasten';
-import { QuantenSFehler, abschnitt, adresseVon, unterschreiben } from './quantenS';
+import { QuantenSFehler, abschnitt, adresseVon, unterschreiben, unterschriftVon } from './quantenS';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from './quantenSHuelle';
 import type { Speicher } from './quantenSInhaberin';
 import { antwortAufAuftrag, auftragLesen, auftragNachricht, auftragPruefen, basenOeffnen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
 import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
-import { bestaetigen, type AbschnittTresor, type Antwort, type BestaetigenAnfrage, type Zufall } from './quantenSPraeparieren';
+import { bestaetigen, oeffnungFuerStelle, sBestaetigungNachricht, type AbschnittTresor, type Antwort, type BestaetigenAnfrage, type Zufall } from './quantenSPraeparieren';
 import { PraepTresor, drbg, type Fall } from './quantenSPraepTresor';
 
 const NACH = 'aequitas.quantenS.praep.nach';
@@ -70,6 +70,7 @@ export interface RundenBericht {
   abgewiesen: { id: number; grund: string }[];
   beantwortet: string[];
   bestaetigt: string[];
+  geoeffnet: string[];
   wiederholt: string[];
   abgelehnt: { k: string; grund: string }[];
   /** unfertige Nachrichten (ihre Briefe bleiben im Kasten) */
@@ -237,8 +238,132 @@ export async function auftragBeantworten(
   return { k: q.k, art };
 }
 
+// ------------------------------------------------------------ Öffnung (B4b-4c-1g)
+
+const STAND_MAX = 1024 * 1024;
+
+async function jsonHolen(u: PraepUmgebung, url: string, max: number, fehlt = 'Knoten: HTTP 404'): Promise<Record<string, unknown>> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), FRIST_MS);
+  try {
+    const r = await u.fetchFn(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal, redirect: 'error' } as RequestInit);
+    if (r.status === 404) fehler(fehlt);
+    if (!r.ok) fehler(`Knoten: HTTP ${r.status}`);
+    const text = await r.text();
+    if (text.length > max) fehler('Knoten: Antwort zu groß');
+    const o = JSON.parse(text) as unknown;
+    if (!o || typeof o !== 'object' || Array.isArray(o)) fehler('Knoten: Form');
+    return o as Record<string, unknown>;
+  } catch (e) {
+    if (e instanceof QuantenSFehler) throw e;
+    return fehler('Knoten: Netz');
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+interface TokenSicht {
+  d: string;
+  c: number;
+  wurzel: string;
+  proben: [string, string];
+}
+
+/** Bindung, Wahl, Wurzel und Proben eines Tokens bei einem Knoten; wirft, solange nicht gebunden und gewählt. */
+async function tokenSicht(u: PraepUmgebung, api: string, K: string): Promise<TokenSicht> {
+  const o = await jsonHolen(u, `${api}/quanten-w/note?k=${K}`, STAND_MAX, 'erst, wenn Bindung und Wahl auf der Kette stehen (Token noch nicht auf der Kette)');
+  if (o.k !== K || o.art !== 's') fehler('Token: fremdes K oder keine S-Ausgabe');
+  if (o.probe_art !== 2) fehler('Token: nicht mit Stichprobe v2 ausgegeben');
+  if (o.gebunden !== true || o.gewaehlt !== true) fehler('erst, wenn Bindung und Wahl auf der Kette stehen');
+  const proben = o.proben;
+  if (typeof o.d !== 'string' || !/^[01]+$/.test(o.d) || (o.c !== 0 && o.c !== 1) || typeof o.wurzel !== 'string' || !/^[0-9a-f]{64}$/.test(o.wurzel) ||
+    !Array.isArray(proben) || proben.length !== 2 || !proben.every((p) => typeof p === 'string' && /^[0-9a-f]{64}$/.test(p))) {
+    fehler('Token: Form');
+  }
+  return { d: o.d, c: o.c, wurzel: o.wurzel, proben: [proben[0] as string, proben[1] as string] };
+}
+
+/** Höhe und finalisierte Höhe eines Knotens. */
+async function hoehen(u: PraepUmgebung, api: string): Promise<{ hoehe: number; final: number }> {
+  const st = await jsonHolen(u, `${api}/status`, STAND_MAX);
+  const ge = await jsonHolen(u, `${api}/health/combined`, STAND_MAX);
+  const sd = ge.sync_diagnostics as Record<string, unknown> | undefined;
+  const hoehe = st.height;
+  const final = sd?.finalized_height;
+  if (typeof hoehe !== 'number' || !Number.isSafeInteger(hoehe) || hoehe < 0 || typeof final !== 'number' || !Number.isSafeInteger(final) || final < 0) {
+    fehler('Knoten: Höhen');
+  }
+  return { hoehe, final };
+}
+
+/**
+ * Die Öffnung für Annahmestelle b herausgeben -- wie oeffnungFuerStelle des
+ * Dienstes, aber das Handy hat keine eigene Kette und fragt die Knoten:
+ *   - die Anfrage kommt von Stelle b selbst (Absender der Hülle), die Antwort
+ *     geht nur an sie;
+ *   - der Token auf der Kette ist GENAU die Ausgabe, die diese Präparatorin
+ *     bestätigt hat (eigene Unterschrift gegen Wurzel und Proben der Kette);
+ *   - Bindung und Wahl stehen, und zwar final: beim ersten Sehen wird die Höhe
+ *     gemerkt (Sichtung), herausgegeben wird erst, wenn die finalisierte Höhe
+ *     sie erreicht hat (Befund 5i: nichts vor der Finalität);
+ *   - alle befragten Knoten sind sich einig (mehr Knoten = weniger Vertrauen).
+ * Vor der Finalität wirft sie; die Stelle fragt später noch einmal.
+ */
+export async function oeffnungBeantworten(u: PraepUmgebung, schluessel: string, tresor: PraepTresor, m: Nachricht, knoten: string[]): Promise<{ k: string; art: 'neu' | 'wiederholt' }> {
+  let o: unknown;
+  try {
+    o = JSON.parse(ethers.toUtf8String(m.nutzlast));
+  } catch {
+    return fehler('Öffnungs-Anfrage: kein JSON');
+  }
+  if (!o || typeof o !== 'object' || Array.isArray(o) || Object.keys(o).sort().join(',') !== 'b,k') fehler('Öffnungs-Anfrage: Felder');
+  const q = o as { k: unknown; b: unknown };
+  if (typeof q.k !== 'string' || !/^[0-9a-f]{64}$/.test(q.k) || (q.b !== 0 && q.b !== 1)) fehler('Öffnungs-Anfrage: k, b');
+  const K = q.k;
+  const b = q.b as 0 | 1;
+  const f = await tresor.laden(K);
+  // Eine gespeicherte Bestätigung gibt es nur mit Stand bestaetigt/geoeffnet (der Tresor prüft das).
+  if (!f || !f.bestaetigung) fehler('keine bestätigte Ausgabe zu diesem K');
+  const a = f.auftrag;
+  if (m.von !== a.stellen[b]) fehler('Anfrage nicht von dieser Annahmestelle');
+  if (knoten.length < 1 || knoten.length > 8) fehler('Knoten: 1 bis 8');
+
+  const sichten = [];
+  for (const api of knoten) sichten.push(await tokenSicht(u, api, K));
+  const s0 = sichten[0];
+  if (!sichten.every((s) => s.d === s0.d && s.c === s0.c && s.wurzel === s0.wurzel && s.proben.join() === s0.proben.join())) fehler('Knoten uneins über den Token');
+  const ich = adresseVon(schluessel);
+  if (!unterschriftVon(sBestaetigungNachricht(K, s0.wurzel, a.n, a.t, a.validatoren, a.x, s0.proben, a.zeit, a.tol), f.bestaetigung.sig, ich)) {
+    fehler('Token auf der Kette ist nicht die bestätigte Ausgabe');
+  }
+  const schl = ethers.sha256(ethers.toUtf8Bytes(`${s0.d}|${s0.c}`)).slice(2);
+  const hs = [];
+  for (const api of knoten) hs.push(await hoehen(u, api));
+  if (!f.sichtung || f.sichtung.schl !== schl) {
+    await tresor.speichern({ ...f, sichtung: { schl, hoehe: Math.max(...hs.map((h) => h.hoehe)) } });
+    fehler('erst, wenn Bindung und Wahl final sind (gesehen, bitte später noch einmal)');
+  }
+  if (Math.min(...hs.map((h) => h.final)) < f.sichtung.hoehe) fehler('erst, wenn Bindung und Wahl final sind');
+
+  const g = gepruefterAuftragAusFall(schluessel, f);
+  const { tresor: t } = antwortAusFall(schluessel, f, g);
+  const stelle = { adresse: a.stellen[b], pub: a.stellen_schluessel[b] };
+  const oeffnung = oeffnungFuerStelle(stelle, K, b, a.x, g.von, g.bis, t.werte, t.salze[b], u.zufall);
+  const pakete: Record<string, string> = {};
+  for (const [xv, p] of Object.entries(f.bestaetigung.oeffnungen)) pakete[xv] = p[b];
+  const art = f.stand === 'geoeffnet' ? 'wiederholt' : 'neu';
+  if (f.stand !== 'geoeffnet') await tresor.speichern({ ...f, stand: 'geoeffnet' });
+  const jetzt = Math.floor(u.jetzt() / 1000);
+  const signer = { signMessage: async (n: string) => unterschreiben(schluessel, n) };
+  const inhalt = ethers.toUtf8Bytes(JSON.stringify({ k: K, b, x: a.x, oeffnung, pakete }));
+  for (const brief of einpacken(schluessel, { adresse: m.von, pub: m.pub }, 'oeffnung', inhalt, jetzt, u.zufall)) {
+    await ablegen(ich, m.von, brief, signer, jetzt, u.fetchFn, u.apiBasis);
+  }
+  return { k: K, art };
+}
+
 /** Eine Runde: abholen, öffnen, Aufträge beantworten, sicher quittieren. */
-export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: Messer): Promise<RundenBericht> {
+export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: Messer, knoten: string[] = [u.apiBasis]): Promise<RundenBericht> {
   const schluessel = (await wallet.entsperren()).privateKey.replace(/^0x/, '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(schluessel)) fehler('Wallet: Schlüssel unlesbar');
   const ich = adresseVon(schluessel);
@@ -247,7 +372,7 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   const zs = new Zusammensetzer(await gesehenLesen(u.ablage));
   const jetzt = () => Math.floor(u.jetzt() / 1000);
   zs.aufraeumen(jetzt());
-  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], bestaetigt: [], wiederholt: [], abgelehnt: [], offen: 0, quittiertBis: 0 };
+  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], bestaetigt: [], geoeffnet: [], wiederholt: [], abgelehnt: [], offen: 0, quittiertBis: 0 };
 
   // 2. + 3. Abholen und öffnen. Je Brief: zu welcher Nachricht (von|id) er gehört.
   const nachStart = await zahlLesen(u.ablage, NACH);
@@ -289,6 +414,16 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   let bestCache: ReturnType<typeof bestellungenLesen> & object | null = null;
   const bestellungen = async () => (bestCache ??= await bestellungenHolen(u));
   for (const m of fertig) {
+    if (m.art === 'oeffnung') {
+      try {
+        const r = await oeffnungBeantworten(u, schluessel, tresor, m, knoten);
+        if (r.art === 'neu') bericht.geoeffnet.push(r.k);
+        else bericht.wiederholt.push(r.k);
+      } catch (e) {
+        bericht.abgelehnt.push({ k: '?', grund: (e as Error).message.slice(0, 200) });
+      }
+      continue;
+    }
     if (m.art === 'bestaetigung') {
       try {
         const r = await bestaetigungBeantworten(u, schluessel, tresor, m);

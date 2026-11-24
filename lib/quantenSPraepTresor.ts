@@ -84,6 +84,8 @@ export interface Fall {
   zeit: number;
   /** nach der Bestätigung: Unterschrift, alle n eigenen Anteile, je anderer Präparatorin die zwei Pakete */
   bestaetigung?: GespeicherteBestaetigung;
+  /** Öffnung: wann Bindung und Wahl (schl = SHA-256 von d|c) zuerst gesehen wurden (Höhe der Kette) */
+  sichtung?: { schl: string; hoehe: number };
 }
 
 export interface GespeicherteBestaetigung {
@@ -117,7 +119,11 @@ function fallPruefen(f: unknown): Fall {
   if (!f || typeof f !== 'object' || Array.isArray(f)) fehler('Tresor: Form');
   const o = f as Record<string, unknown>;
   const felder = Object.keys(o).sort().join(',');
-  if (felder !== 'auftrag,k,seed,stand,t,u,x,zeit' && felder !== 'auftrag,bestaetigung,k,seed,stand,t,u,x,zeit') fehler('Tresor: Felder');
+  if (![
+    'auftrag,k,seed,stand,t,u,x,zeit',
+    'auftrag,bestaetigung,k,seed,stand,t,u,x,zeit',
+    'auftrag,bestaetigung,k,seed,sichtung,stand,t,u,x,zeit',
+  ].includes(felder)) fehler('Tresor: Felder');
   if (typeof o.k !== 'string' || !HEX64.test(o.k) || typeof o.seed !== 'string' || !HEX64.test(o.seed)) fehler('Tresor: K oder Seed');
   for (const b of ['u', 't', 'x'] as const) if (typeof o[b] !== 'string' || !BITS.test(o[b] as string)) fehler(`Tresor: ${b}`);
   if ((o.u as string).length !== (o.t as string).length || (o.u as string).length !== (o.x as string).length) fehler('Tresor: Längen');
@@ -130,6 +136,12 @@ function fallPruefen(f: unknown): Fall {
   const mitB = fall.stand === 'bestaetigt' || fall.stand === 'geoeffnet';
   if (mitB !== ('bestaetigung' in o)) fehler('Tresor: Stand und Bestätigung passen nicht');
   if (mitB) fall.bestaetigung = bestaetigungPruefen(o.bestaetigung, auftrag.n, auftrag.validatoren.length);
+  if ('sichtung' in o) {
+    const si = o.sichtung as Record<string, unknown> | null;
+    if (!si || typeof si !== 'object' || Object.keys(si).sort().join(',') !== 'hoehe,schl' || typeof si.schl !== 'string' || !HEX64.test(si.schl) ||
+      typeof si.hoehe !== 'number' || !Number.isSafeInteger(si.hoehe) || si.hoehe < 0) fehler('Tresor: Sichtung');
+    fall.sichtung = { schl: si.schl as string, hoehe: si.hoehe as number };
+  }
   return fall;
 }
 

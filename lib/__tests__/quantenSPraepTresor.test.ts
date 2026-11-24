@@ -176,6 +176,11 @@ describe('PraepTresor: Bestätigung im Fall (B4b-4c-1f)', () => {
     ['Paket an Nummer über v', { stand: 'bestaetigt', bestaetigung: b({ oeffnungen: { '4': ['aa', 'bb'] } }) }, 'Pakete'],
     ['nur ein Paket', { stand: 'bestaetigt', bestaetigung: b({ oeffnungen: { '1': ['aa'] } }) }, 'Pakete'],
     ['fremdes Feld', { stand: 'bestaetigt', bestaetigung: b({ extra: 1 }) }, 'Felder'],
+    ['Sichtung mit negativer Höhe', { stand: 'bestaetigt', bestaetigung: b(), sichtung: { schl: 'ab'.repeat(32), hoehe: -1 } }, 'Sichtung'],
+    ['Sichtung mit Bruch', { stand: 'bestaetigt', bestaetigung: b(), sichtung: { schl: 'ab'.repeat(32), hoehe: 1.5 } }, 'Sichtung'],
+    ['Sichtung mit kurzem Schlüssel', { stand: 'bestaetigt', bestaetigung: b(), sichtung: { schl: 'ab', hoehe: 1 } }, 'Sichtung'],
+    ['Sichtung mit fremdem Feld', { stand: 'bestaetigt', bestaetigung: b(), sichtung: { schl: 'ab'.repeat(32), hoehe: 1, x: 1 } }, 'Sichtung'],
+    ['Sichtung ohne Bestätigung', { sichtung: { schl: 'ab'.repeat(32), hoehe: 1 } }, 'Felder'],
   ])('weist ab: %s', async (_n, x, grund) => {
     const tr = new PraepTresor(speicher(), speicher(), zaehler());
     await expect(tr.speichern(fall(x as Partial<Fall>))).rejects.toThrow(grund);
