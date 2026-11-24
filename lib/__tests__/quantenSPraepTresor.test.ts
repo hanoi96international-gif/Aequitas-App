@@ -158,3 +158,26 @@ describe('PraepTresor', () => {
     expect(await tr.liste()).toEqual([]);
   });
 });
+
+describe('PraepTresor: Bestätigung im Fall (B4b-4c-1f)', () => {
+  const b = (x: Record<string, unknown> = {}) => ({ sig: '0x' + 'ab'.repeat(65), anteile: Array(q.n).fill('1f'), oeffnungen: { '1': ['aa', 'bb'], '3': ['cc', 'dd'] }, ...x });
+  it('speichert und liest eine Bestätigung', async () => {
+    const tr = new PraepTresor(speicher(), speicher(), zaehler());
+    await tr.speichern(fall({ stand: 'bestaetigt', bestaetigung: b() as never }));
+    expect((await tr.laden(q.k))?.bestaetigung?.oeffnungen['3']).toEqual(['cc', 'dd']);
+  });
+  it.each([
+    ['bestätigt ohne Bestätigung', { stand: 'bestaetigt' }, 'passen nicht'],
+    ['Bestätigung beim Stand gemessen', { bestaetigung: b() }, 'passen nicht'],
+    ['Unterschrift falsch', { stand: 'bestaetigt', bestaetigung: b({ sig: '0x12' }) }, 'Unterschrift'],
+    ['zu wenige Anteile', { stand: 'bestaetigt', bestaetigung: b({ anteile: ['1f'] }) }, 'Anteile'],
+    ['Anteil zu lang', { stand: 'bestaetigt', bestaetigung: b({ anteile: Array(q.n).fill('f'.repeat(65)) }) }, 'Anteile'],
+    ['Paket an Nummer 0', { stand: 'bestaetigt', bestaetigung: b({ oeffnungen: { '0': ['aa', 'bb'] } }) }, 'Pakete'],
+    ['Paket an Nummer über v', { stand: 'bestaetigt', bestaetigung: b({ oeffnungen: { '4': ['aa', 'bb'] } }) }, 'Pakete'],
+    ['nur ein Paket', { stand: 'bestaetigt', bestaetigung: b({ oeffnungen: { '1': ['aa'] } }) }, 'Pakete'],
+    ['fremdes Feld', { stand: 'bestaetigt', bestaetigung: b({ extra: 1 }) }, 'Felder'],
+  ])('weist ab: %s', async (_n, x, grund) => {
+    const tr = new PraepTresor(speicher(), speicher(), zaehler());
+    await expect(tr.speichern(fall(x as Partial<Fall>))).rejects.toThrow(grund);
+  });
+});
