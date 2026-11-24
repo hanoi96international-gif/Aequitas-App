@@ -6,7 +6,7 @@ jest.mock('expo-crypto', () => ({ getRandomBytes: () => new Uint8Array(0) }));
 jest.mock('../config', () => ({ API_BASE: 'https://knoten.test/api' }));
 import { ethers } from 'ethers';
 import vektor from './vektoren/quanten_s_praep_auftrag_vektor.json';
-import { abschnitt, adresseVon, antwortNachricht, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, unterschriftVon } from '../quantenS';
+import { abschnitt, adresseVon, antwortNachricht, eciesOeffnen, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, unterschriftVon } from '../quantenS';
 import { antwortBauen, sAuftragNachricht, sBestaetigungNachricht, type Antwort } from '../quantenSPraeparieren';
 import { Zusammensetzer, einpacken, oeffnen } from '../quantenSHuelle';
 import type { Speicher } from '../quantenSInhaberin';
@@ -25,12 +25,29 @@ function speicher(): Speicher & { daten: Map<string, string> } {
 }
 
 /** Ein Knoten im Speicher: Briefkasten (ohne Unterschriftsprüfung, die prüft briefkasten.test.ts) und Register. */
+/** Kettenstand je Knoten (für die Öffnung): Token, Höhe, finalisierte Höhe. */
+interface Kette {
+  token: Record<string, unknown> | null;
+  hoehe: number;
+  final: number;
+}
+const K2 = 'https://k2.test/api';
+
 function knoten(opt: { aktiv?: boolean } = {}) {
   let id = 0;
+  const kette: Record<string, Kette> = { [API]: { token: null, hoehe: 100, final: 0 }, [K2]: { token: null, hoehe: 100, final: 0 } };
   const kasten: { id: number; von: string; an: string; inhalt: string; zeit: number }[] = [];
   const bestellung = { k: vektor.auftrag.k, ausgeber: vektor.auftrag.praeger, v: 3, t: 2, zeit: vektor.auftrag.zeit - 600, frist: vektor.auftrag.zeit + 3000, im_abbild: 3, runde: 1, deckung: 1, pfand: 1, los: vektor.auftrag.validatoren };
   const f = (async (url: string, init?: RequestInit) => {
     const ok = (o: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(o) }) as unknown as Response;
+    for (const basis of [API, K2]) {
+      const kt = kette[basis];
+      if (url === `${basis}/quanten-w/note?k=${vektor.auftrag.k}`) {
+        return kt.token ? ok({ k: vektor.auftrag.k, art: 's', ...kt.token }) : ({ ok: false, status: 404, text: async () => '{}' } as unknown as Response);
+      }
+      if (url === `${basis}/status`) return ok({ height: kt.hoehe });
+      if (url === `${basis}/health/combined`) return ok({ sync_diagnostics: { finalized_height: kt.final } });
+    }
     if (url === `${API}/quanten-w/praeparatoren`) return ok({ aktiv: opt.aktiv ?? true, vorlauf: 86400, nachlauf: 695160, hoechstens: 256, praeparatoren: [], bestellungen: [bestellung] });
     const k = JSON.parse(init!.body as string);
     if (url.endsWith('/briefkasten/ablegen')) {
@@ -49,7 +66,7 @@ function knoten(opt: { aktiv?: boolean } = {}) {
     throw new Error('unbekannt ' + url);
   }) as unknown as typeof fetch;
   const einwerfen = (von: string, an: string, inhalt: string) => kasten.push({ id: ++id, von, an, inhalt, zeit: ZEIT });
-  return { f, kasten, einwerfen };
+  return { f, kasten, einwerfen, kette };
 }
 
 const ideal: Messer = { messen: async (u, t, y) => u.map((ui, i) => (ui === y[i] ? t[i] : (i * 7) % 2)) };
@@ -286,5 +303,126 @@ describe('Bestätigung (B4b-4c-1f)', () => {
     anfrageSenden(k, { ...anfrageBauen(meine), extra: 1 });
     const r = await runde(u, wallet, ideal);
     expect(r.abgelehnt[0].grund).toContain('Felder');
+  });
+});
+
+describe('Öffnung (B4b-4c-1g)', () => {
+  const STELLE = ['86', '87'].map((b) => b.repeat(32)); // Schlüssel der Annahmestellen im Knotenvektor (nur Tests)
+
+  async function bestaetigt() {
+    const k = knoten();
+    auftragSenden(k);
+    const u = umgebung(k.f);
+    await runde(u, wallet, ideal);
+    const meine = anAusgeber(k, 'antwort')[0] as Antwort;
+    const anfrage = anfrageBauen(meine);
+    anfrageSenden(k, anfrage);
+    await runde(u, wallet, ideal);
+    const token = { probe_art: 2, gebunden: true, gewaehlt: true, d: '0'.repeat(vektor.auftrag.n), c: 1, wurzel: anfrage.wurzel, proben: anfrage.proben };
+    return { k, u, anfrage, token };
+  }
+
+  let saat = 0;
+  function bitten(k: ReturnType<typeof knoten>, b: number, absender = STELLE[b]) {
+    for (const brief of einpacken(absender, { adresse: adresseVon(ICH), pub: pubVon(ICH) }, 'oeffnung', ethers.toUtf8Bytes(JSON.stringify({ k: vektor.auftrag.k, b })), ZEIT, drbg((++saat).toString(16).padStart(64, '0')))) {
+      k.einwerfen(adresseVon(absender), adresseVon(ICH), brief);
+    }
+  }
+
+  function anStelle(k: ReturnType<typeof knoten>, b: number) {
+    const zs = new Zusammensetzer();
+    const out = [];
+    for (const x of k.kasten.filter((y) => y.an === adresseVon(STELLE[b]))) {
+      const m = zs.hinzu(oeffnen(STELLE[b], x.inhalt, ZEIT), ZEIT);
+      if (m) out.push(JSON.parse(ethers.toUtf8String(m.nutzlast)));
+    }
+    return out;
+  }
+
+  it('gibt die Öffnung erst nach Bindung, Wahl und Finalität heraus, und nur an die Stelle', async () => {
+    const { k, u, token } = await bestaetigt();
+    bitten(k, 1);
+    let r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('Bindung und Wahl auf der Kette');
+    k.kette[API].token = { probe_art: 2, gebunden: false, gewaehlt: false, wurzel: token.wurzel, proben: token.proben };
+    bitten(k, 1);
+    r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('Bindung und Wahl auf der Kette'); // steht, aber ungebunden
+    k.kette[API].token = token;
+    k.kette[API].hoehe = 120;
+    bitten(k, 1);
+    r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('gesehen'); // erste Sichtung bei Höhe 120
+    k.kette[API].final = 119;
+    bitten(k, 1);
+    r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('final');
+    expect(anStelle(k, 1)).toHaveLength(0);
+    k.kette[API].final = 120;
+    bitten(k, 1);
+    r = await runde(u, wallet, ideal);
+    expect(r.geoeffnet).toEqual([vektor.auftrag.k]);
+    const [oe] = anStelle(k, 1);
+    expect([oe.k, oe.b, oe.x]).toEqual([vektor.auftrag.k, 1, vektor.auftrag.x]);
+    expect(Object.keys(oe.pakete).sort()).toEqual(['1', '3']);
+    const inhalt = JSON.parse(ethers.toUtf8String(eciesOeffnen(STELLE[1], oe.oeffnung)));
+    expect(inhalt.b).toBe(1);
+    expect(inhalt.salz).toMatch(/^[0-9a-f]{64}$/);
+    expect(() => eciesOeffnen(STELLE[0], oe.oeffnung)).toThrow(); // nur Stelle 1 kann sie lesen
+    expect((await new PraepTresor(u.geheim, u.ablage, u.zufall).laden(vektor.auftrag.k))?.stand).toBe('geoeffnet');
+  });
+
+  it('weist Anfragen ab, die nicht von der Stelle b kommen', async () => {
+    const { k, u, token } = await bestaetigt();
+    Object.assign(k.kette[API], { token, final: 1000 });
+    bitten(k, 1, STELLE[0]);
+    bitten(k, 0, FREMD);
+    const r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt.map((x) => x.grund).every((g) => g.includes('nicht von dieser Annahmestelle'))).toBe(true);
+    expect(r.abgelehnt).toHaveLength(2);
+  });
+
+  it('öffnet nicht, wenn auf der Kette eine andere Ausgabe steht als die bestätigte', async () => {
+    const { k, u, token } = await bestaetigt();
+    Object.assign(k.kette[API], { token: { ...token, wurzel: '77'.repeat(32) }, final: 1000 });
+    bitten(k, 1);
+    const r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('nicht die bestätigte Ausgabe');
+  });
+
+  it('öffnet nicht, wenn die Knoten uneins sind', async () => {
+    const { k, u, token } = await bestaetigt();
+    Object.assign(k.kette[API], { token, final: 1000 });
+    Object.assign(k.kette[K2], { token: { ...token, c: 0 }, final: 1000 });
+    bitten(k, 1);
+    const r = await runde(u, wallet, ideal, [API, K2]);
+    expect(r.abgelehnt[0].grund).toContain('uneins');
+  });
+
+  it('eine andere Bindung ist eine neue Sichtung (wieder warten)', async () => {
+    const { k, u, token } = await bestaetigt();
+    Object.assign(k.kette[API], { token, hoehe: 100, final: 0 });
+    bitten(k, 1);
+    await runde(u, wallet, ideal); // Sichtung bei 100
+    Object.assign(k.kette[API], { token: { ...token, d: '1'.repeat(vektor.auftrag.n) }, hoehe: 200, final: 150 });
+    bitten(k, 1);
+    const r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('gesehen');
+    expect(anStelle(k, 1)).toHaveLength(0);
+  });
+
+  it('öffnet nichts ohne Bestätigung und nichts ohne Stichprobe v2', async () => {
+    const k = knoten();
+    auftragSenden(k);
+    const u = umgebung(k.f);
+    await runde(u, wallet, ideal);
+    bitten(k, 0);
+    let r = await runde(u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('keine bestätigte Ausgabe');
+    const b = await bestaetigt();
+    Object.assign(b.k.kette[API], { token: { ...b.token, probe_art: 1 }, final: 1000 });
+    bitten(b.k, 0);
+    r = await runde(b.u, wallet, ideal);
+    expect(r.abgelehnt[0].grund).toContain('Stichprobe v2');
   });
 });
