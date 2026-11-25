@@ -611,6 +611,13 @@ export interface Vorlage {
   b: number;
   x: string;
   vorlage: string;
+  /**
+   * Nur Weg B (B4b-4c-2f-2b): die Gelosten in Losreihenfolge, damit die
+   * Annahmestelle sie fragen kann (die Kette speichert nur ihre Zahl). Nicht
+   * unterschrieben und nicht noetig: falsche Namen liefern keine Werte, die zu
+   * den Blaettern der Wurzel auf der Kette passen.
+   */
+  validatoren?: string[];
 }
 
 /**
@@ -655,7 +662,8 @@ export async function einloesen(u: Umgebung, b: 0 | 1, fortschritt: (schritt: 'b
   }
   if (st.c !== (b ^ mz)) fehler(`gewaehlt ist die andere Stelle; eine Vorlage fuer Stelle ${b} waere eine Doppelvorlage -- nicht unterschrieben`);
   fortschritt('vorlage');
-  return { k: K, b, x, vorlage: unterschreiben(schl, vorlageText(K, b, x)) };
+  const vorlage = unterschreiben(schl, vorlageText(K, b, x));
+  return z.wegB && z.validatoren ? { k: K, b, x, vorlage, validatoren: [...z.validatoren] } : { k: K, b, x, vorlage };
 }
 
 /** Der Zustand fuer die Anzeige (ohne Schluessel). */
