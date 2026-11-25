@@ -19,6 +19,13 @@
 //   5. Quittieren nur bis zum letzten Brief, VOR dem alles erledigt ist: ein Teil
 //      einer noch unvollständigen Nachricht wird nie gelöscht.
 //
+// Die Runde ist der EINZIGE Leser des Kastens einer Wallet: Präparatorin und
+// Ausgeber (B4b-4c-2c) teilen sich die Menschen-Wallet und damit den Kasten.
+// Darum verteilt sie nach Art -- `antwort` an den Ausgeber
+// (lib/quantenSAusgeberRunde.ts, antwortAufnehmen sichert vor dem Quittieren),
+// `auftrag`, `bestaetigung`, `oeffnung` an die Präparatorin. Ein zweiter Leser
+// würde Briefe des anderen quittieren.
+//
 // Zufall: alles Geheime eines Falls folgt aus seinem Seed (drbg), in fester
 // Reihenfolge: erst u und t (messbitsZiehen), dann die Antwort. So lässt sich die
 // Antwort später für Bestätigung und Öffnung genau wiederherstellen.
@@ -30,6 +37,7 @@ import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from './quantenSHu
 import type { Speicher } from './quantenSInhaberin';
 import { antwortAufAuftrag, auftragLesen, auftragNachricht, auftragPruefen, basenOeffnen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
 import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
+import { antwortAufnehmen } from './quantenSAusgeberRunde';
 import { bestaetigen, oeffnungFuerStelle, sBestaetigungNachricht, type AbschnittTresor, type Antwort, type BestaetigenAnfrage, type Zufall } from './quantenSPraeparieren';
 import { PraepTresor, drbg, type Fall } from './quantenSPraepTresor';
 
@@ -73,6 +81,8 @@ export interface RundenBericht {
   geoeffnet: string[];
   wiederholt: string[];
   abgelehnt: { k: string; grund: string }[];
+  /** Antworten an die App als Ausgeber (B4b-4c-2c), gesichert; `fertig` = damit alle da */
+  antworten: { k: string; x: number; fertig: boolean }[];
   /** unfertige Nachrichten (ihre Briefe bleiben im Kasten) */
   offen: number;
   quittiertBis: number;
@@ -372,7 +382,7 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   const zs = new Zusammensetzer(await gesehenLesen(u.ablage));
   const jetzt = () => Math.floor(u.jetzt() / 1000);
   zs.aufraeumen(jetzt());
-  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], bestaetigt: [], geoeffnet: [], wiederholt: [], abgelehnt: [], offen: 0, quittiertBis: 0 };
+  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], bestaetigt: [], geoeffnet: [], wiederholt: [], abgelehnt: [], antworten: [], offen: 0, quittiertBis: 0 };
 
   // 2. + 3. Abholen und öffnen. Je Brief: zu welcher Nachricht (von|id) er gehört.
   const nachStart = await zahlLesen(u.ablage, NACH);
@@ -414,6 +424,17 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   let bestCache: ReturnType<typeof bestellungenLesen> & object | null = null;
   const bestellungen = async () => (bestCache ??= await bestellungenHolen(u));
   for (const m of fertig) {
+    if (m.art === 'antwort') {
+      // An die App als Ausgeber: gesichert wird vor dem Quittieren (antwortAufnehmen schreibt zuerst).
+      try {
+        const r = await antwortAufnehmen(u, m);
+        if (r.art === 'neu') bericht.antworten.push({ k: r.k, x: r.x, fertig: r.ergebnis !== undefined });
+        else bericht.wiederholt.push(r.k);
+      } catch (e) {
+        bericht.abgelehnt.push({ k: '?', grund: (e as Error).message.slice(0, 200) });
+      }
+      continue;
+    }
     if (m.art === 'oeffnung') {
       try {
         const r = await oeffnungBeantworten(u, schluessel, tresor, m, knoten);
