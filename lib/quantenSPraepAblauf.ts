@@ -73,6 +73,8 @@ export interface PraepUmgebung {
   zufall: Zufall;
   /** Millisekunden */
   jetzt: () => number;
+  /** Ablage in Dateien für große Daten (die App als Ausgeber: Antworten der Gelosten; lib/dateiAblage.ts). */
+  dateien?: Speicher;
 }
 
 export interface RundenBericht {
