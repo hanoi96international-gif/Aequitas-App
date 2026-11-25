@@ -263,6 +263,9 @@ export default function Quantengeld() {
           <TouchableOpacity style={S.btn} onPress={() => router.push('/quanten-token')} activeOpacity={0.85} accessibilityRole="button">
             <Text style={S.btnText}>{t('node.qtOeffnen')}</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={S.btn} onPress={() => router.push('/quanten-ausgabe')} activeOpacity={0.85} accessibilityRole="button">
+            <Text style={S.btnText}>{t('node.qaOeffnen')}</Text>
+          </TouchableOpacity>
         </View>
 
         {binPruefer ? (
