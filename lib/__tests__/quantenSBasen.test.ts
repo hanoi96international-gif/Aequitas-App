@@ -18,7 +18,7 @@ import {
   validatorenHash,
   hashListe,
 } from '../quantenS';
-import { abholen, bestellungAnzeigen, einloesen, neu, vergessen, type Umgebung } from '../quantenSInhaberin';
+import { abholen, bestellungAnzeigen, einloesen, neu, vergessen, zustandLesen, type Umgebung } from '../quantenSInhaberin';
 
 const B = bv as any;
 const V = iv as any;
@@ -119,6 +119,8 @@ function welt(): Welt {
     speicher: map(w.speicher),
     ablage: map(w.ablage),
     zufall: (n) => {
+      // Schlüssel und Nonce des verschlüsselten Zustands (2b′) kommen nicht aus dem Vektor.
+      if (n === 12 || (n === 32 && zufall[0]?.length !== 32)) return ethers.getBytes(ethers.sha256(ethers.toUtf8Bytes(`zustand|${w.zeit}|${n}|${zufall.length}`))).slice(0, n);
       const z = zufall.shift();
       if (!z || z.length !== n) throw new Error(`Zufall ${n}`);
       return z;
@@ -173,14 +175,14 @@ describe('R8: die App bestellt verschluesselt', () => {
       const best = await neu(w.u, V.n, V.v, (w as any).stellen, VAL);
       mitHash(w, best.basen_verschluesselt!, (i) => (i === 1 ? (fall === 'ohne Hash' ? undefined : basenHash('ab' + best.basen_verschluesselt![1])) : basenHash(best.basen_verschluesselt![i])));
       await expect(abholen(w.u, V.k, VAL)).rejects.toThrow('BEFUND: Validator 2');
-      expect(JSON.parse(w.speicher.get('aequitas.quantenS.inhaberin.zustand')!).k).toBeUndefined();
+      expect((await zustandLesen(w.u))!.k).toBeUndefined();
     }
   });
 
   test('Klartext-Bestellung: ein Abschnitt mit basen_hash wird nicht angenommen', async () => {
     const w = welt();
     // Klartext: nur Schluessel und y aus dem Zufall.
-    const best = await neu({ ...w.u, zufall: ((q) => (n: number) => q.shift()!)([ethers.getBytes('0x' + V.inhaberin_schluessel_nur_test), Uint8Array.from(V.y.split('').map(Number))]) }, V.n, V.v, (w as any).stellen);
+    const best = await neu({ ...w.u, zufall: ((q) => (n: number) => q.shift() ?? new Uint8Array(n).fill(7))([ethers.getBytes('0x' + V.inhaberin_schluessel_nur_test), Uint8Array.from(V.y.split('').map(Number))]) }, V.n, V.v, (w as any).stellen);
     expect(best.basen).toHaveLength(V.v);
     mitHash(w, ['aa', 'bb']);
     await expect(abholen(w.u, V.k, VAL)).rejects.toThrow('BEFUND');

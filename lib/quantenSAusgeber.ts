@@ -39,6 +39,9 @@ import type { Zufall } from './quantenSPraeparieren';
 
 const DOM_BESTELLEN = 'aequitas-quanten-s-bestellen-v1';
 const ZUSTAND = 'aequitas.quantenS.ausgeber.zustand';
+/** Rahmen der Aufträge und die Antworten je Geloster (B4b-4c-2c, lib/quantenSAusgeberRunde.ts). */
+export const RAHMEN = 'aequitas.quantenS.ausgeber.rahmen';
+export const ANTWORT = 'aequitas.quantenS.ausgeber.antwort.';
 const FRIST_MS = 20_000;
 const DRAND_FRIST_MS = 10_000;
 const DRAND_MAX = 4096;
@@ -113,7 +116,10 @@ export function losRunde(bestellZeit: number): number {
 
 // ------------------------------------------------------------ Zustand
 
-export type Stand = 'eingereicht' | 'bestellt' | 'gelost';
+export type Stand = 'eingereicht' | 'bestellt' | 'gelost' | 'beauftragt' | 'beantwortet';
+
+/** Stände, in denen das Los feststeht. */
+const MIT_LOS: Stand[] = ['gelost', 'beauftragt', 'beantwortet'];
 
 /** Was das Gerät zur eigenen Bestellung aufbewahrt (nichts Geheimes). */
 export interface AusgeberZustand {
@@ -131,6 +137,9 @@ export interface AusgeberZustand {
   frist?: number;
   /** die Gelosten in Losreihenfolge (ab `gelost`) */
   los?: string[];
+  /** ab `beantwortet` (B4b-4c-2c): Wurzel und Bindungen der Stichproben v2 */
+  wurzel?: string;
+  proben?: [string, string];
 }
 
 export interface AusgeberUmgebung {
@@ -152,18 +161,24 @@ export interface WalletSchluessel {
 function zustandPruefen(o: unknown): AusgeberZustand {
   if (!o || typeof o !== 'object' || Array.isArray(o)) fehler('Zustand des Ausgebers unlesbar');
   const z = o as Record<string, unknown>;
-  const erlaubt = ['k', 'ausgeber', 'v', 't', 'deckung', 'zeit', 'stand', 'buchzeit', 'runde', 'frist', 'los'];
+  const erlaubt = ['k', 'ausgeber', 'v', 't', 'deckung', 'zeit', 'stand', 'buchzeit', 'runde', 'frist', 'los', 'wurzel', 'proben'];
   if (Object.keys(z).some((k) => !erlaubt.includes(k))) fehler('Zustand des Ausgebers unlesbar');
   if (typeof z.k !== 'string' || !HEX64.test(z.k) || typeof z.ausgeber !== 'string' || !ADRESSE.test(z.ausgeber)) fehler('Zustand des Ausgebers unlesbar');
   if (!groessenGehen(z.v as number, z.t as number) || !ganz(z.deckung) || z.deckung < DECKUNG_MIN || !ganz(z.zeit) || z.zeit <= 0) fehler('Zustand des Ausgebers unlesbar');
-  if (z.stand !== 'eingereicht' && z.stand !== 'bestellt' && z.stand !== 'gelost') fehler('Zustand des Ausgebers unlesbar');
+  if (z.stand !== 'eingereicht' && z.stand !== 'bestellt' && !MIT_LOS.includes(z.stand as Stand)) fehler('Zustand des Ausgebers unlesbar');
   if (z.stand !== 'eingereicht' && (!ganz(z.buchzeit) || !ganz(z.runde) || !ganz(z.frist))) fehler('Zustand des Ausgebers unlesbar');
-  if (z.stand === 'gelost') {
+  if (MIT_LOS.includes(z.stand as Stand)) {
     const los = z.los;
     if (!Array.isArray(los) || los.length !== z.v || !los.every((a) => typeof a === 'string' && ADRESSE.test(a)) || new Set(los).size !== los.length) {
       fehler('Zustand des Ausgebers unlesbar');
     }
   } else if (z.los !== undefined) fehler('Zustand des Ausgebers unlesbar');
+  if (z.stand === 'beantwortet') {
+    const p = z.proben;
+    if (typeof z.wurzel !== 'string' || !HEX64.test(z.wurzel) || !Array.isArray(p) || p.length !== 2 || !p.every((h) => typeof h === 'string' && HEX64.test(h))) {
+      fehler('Zustand des Ausgebers unlesbar');
+    }
+  } else if (z.wurzel !== undefined || z.proben !== undefined) fehler('Zustand des Ausgebers unlesbar');
   return z as unknown as AusgeberZustand;
 }
 
@@ -179,7 +194,7 @@ export async function zustandLesen(u: AusgeberUmgebung): Promise<AusgeberZustand
   return zustandPruefen(o);
 }
 
-async function zustandSchreiben(u: AusgeberUmgebung, z: AusgeberZustand): Promise<void> {
+export async function zustandSchreiben(u: AusgeberUmgebung, z: AusgeberZustand): Promise<void> {
   zustandPruefen(z);
   await u.ablage.schreiben(ZUSTAND, JSON.stringify(z), false);
 }
@@ -188,7 +203,14 @@ async function zustandSchreiben(u: AusgeberUmgebung, z: AusgeberZustand): Promis
 export async function vergessen(u: AusgeberUmgebung): Promise<void> {
   const z = await zustandLesen(u);
   if (z && !(z.frist !== undefined && Math.floor(u.jetzt() / 1000) > z.frist)) fehler('die Bestellung gilt noch -- erst nach der Frist vergessen');
+  await rundeLoeschen(u);
   await u.ablage.loeschen(ZUSTAND);
+}
+
+/** Rahmen und Antworten einer früheren Runde löschen (vor einer neuen Bestellung oder Beauftragung). */
+export async function rundeLoeschen(u: AusgeberUmgebung): Promise<void> {
+  for (let x = 1; x <= LOS_V_MAX; x++) await u.ablage.loeschen(ANTWORT + x);
+  await u.ablage.loeschen(RAHMEN);
 }
 
 // ------------------------------------------------------------ Netz
@@ -279,7 +301,7 @@ export function registerBestellungLesen(roh: unknown, K: string): RegisterBestel
   return { k: K, ausgeber: b.ausgeber, v, t, zeit, frist: b.frist as number, runde: b.runde as number, deckung: b.deckung as number, pfand: b.pfand as number, los };
 }
 
-async function registerHolen(u: AusgeberUmgebung): Promise<unknown> {
+export async function registerHolen(u: AusgeberUmgebung): Promise<unknown> {
   const r = await anfrage(u, `${u.apiBasis}/quanten-w/praeparatoren`, { headers: { Accept: 'application/json' } }, REGISTER_MAX);
   if (r.status !== 200) fehler(`Register: HTTP ${r.status}`);
   try {
@@ -309,7 +331,7 @@ export async function drandHolen(u: AusgeberUmgebung, relais: string, r: number)
 
 // ------------------------------------------------------------ bestellen, losen
 
-function schluesselAus(privateKey: string): string {
+export function schluesselAus(privateKey: string): string {
   const s = privateKey.replace(/^0x/, '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(s)) fehler('Wallet: Schlüssel unlesbar');
   return s;
@@ -337,6 +359,7 @@ export async function bestellen(u: AusgeberUmgebung, wallet: WalletSchluessel, v
   if (!kanonisch(sig) || !unterschriftVon(nachricht, sig, ausgeber)) fehler('Unterschrift passt nicht zur Wallet');
   // Erst sichern, dann einreichen: bricht das Netz ab, kennt das Gerät das K.
   const z: AusgeberZustand = { k: K, ausgeber, v, t, deckung, zeit: jetzt, stand: 'eingereicht' };
+  await rundeLoeschen(u);
   await zustandSchreiben(u, z);
   try {
     await einreichen(u, 's_bestellen', ausgeber, jetzt, { k: K, t, praep_zahl: v, deckung, wallet_sig: sig });
@@ -363,7 +386,7 @@ export async function losStand(u: AusgeberUmgebung): Promise<LosErgebnis> {
   const z = await zustandLesen(u);
   if (!z) fehler('keine Bestellung');
   const jetzt = Math.floor(u.jetzt() / 1000);
-  if (z.stand === 'gelost') return { stand: 'gelost', zustand: z };
+  if (MIT_LOS.includes(z.stand)) return { stand: 'gelost', zustand: z };
   const b = registerBestellungLesen(await registerHolen(u), z.k);
   if (!b) {
     if (z.stand === 'eingereicht') {
