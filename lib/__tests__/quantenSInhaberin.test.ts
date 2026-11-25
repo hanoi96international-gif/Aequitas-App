@@ -107,7 +107,7 @@ describe('App als Inhaberin: Ablauf', () => {
     const roh = w.speicher.get('aequitas.quantenS.inhaberin.zustand')!;
     expect(roh.length).toBeLessThan(2048);
     expect(roh).not.toContain(V.inhaberin_schluessel_nur_test);
-    expect(await zustandAnzeigen(w.u)).toEqual({ n: V.n, v: V.v, k: V.k, stellen: w.kette!.stellen, gebunden: true });
+    expect(await zustandAnzeigen(w.u)).toEqual({ n: V.n, v: V.v, k: V.k, stellen: w.kette!.stellen, gebunden: true, wegB: false });
   });
 
   test('keine Doppelvorlage: fuer die nicht gewaehlte Stelle keine Unterschrift', async () => {

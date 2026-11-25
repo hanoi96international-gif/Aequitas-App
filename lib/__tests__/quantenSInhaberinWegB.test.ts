@@ -8,7 +8,7 @@ jest.mock('../config', () => ({ API_BASE: 'https://knoten.test/api' }));
 
 import { ethers } from 'ethers';
 import { abschnitt, adresseVon, basenHash, hexZuBits, pubVon } from '../quantenS';
-import { neuWegB, zustandLesen, type Umgebung } from '../quantenSInhaberin';
+import { neuWegB, zustandAnzeigen, zustandLesen, type Umgebung } from '../quantenSInhaberin';
 import { basenOeffnen } from '../quantenSPraepAuftrag';
 import { drbg } from '../quantenSPraepTresor';
 
@@ -66,6 +66,7 @@ describe('B4b-4c-2b: Inhaberin verschlüsselt an die Gelosten', () => {
     const z = (await zustandLesen(w.u))!;
     expect(z.wegB).toBe(K);
     expect(z.verschluesseltAn).toEqual(LOS);
+    expect((await zustandAnzeigen(w.u))!.wegB).toBe(true); // die Seite zeigt dann "Paket abholen" (4c-3c)
     expect(z.basenHash).toEqual(best.basen_verschluesselt!.map(basenHash));
     const y = hexZuBits(z.y, N);
     for (let x = 1; x <= 5; x++) {

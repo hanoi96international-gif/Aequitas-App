@@ -15,6 +15,21 @@ const mockEinloesen = jest.fn();
 const mockBestellung = jest.fn();
 const mockAnnehmen = jest.fn();
 const mockValidatorKennung = jest.fn();
+// Weg B (4c-3c/d)
+const mockNeuWegB = jest.fn();
+const mockPaket = jest.fn();
+const mockAnfordern = jest.fn();
+const mockSammeln = jest.fn();
+const mockAnnehmenB = jest.fn();
+let mockAnnahmeB: any = null;
+jest.mock('@/lib/quantenSInhaberinPaket', () => ({ paketAbholen: (...a: any[]) => mockPaket(...a) }));
+jest.mock('@/lib/quantenSStelleWegB', () => ({
+  ...jest.requireActual('@/lib/quantenSStelleWegB'),
+  annahmeWegBStand: async () => mockAnnahmeB,
+  oeffnungenAnfordern: (...a: any[]) => mockAnfordern(...a),
+  oeffnungenSammeln: (...a: any[]) => mockSammeln(...a),
+  annehmenWegB: (...a: any[]) => mockAnnehmenB(...a),
+}));
 
 jest.mock('expo-router', () => {
   const R = require('react');
@@ -35,6 +50,7 @@ jest.mock('@/lib/quantenSInhaberin', () => ({
   },
   zustandAnzeigen: (...a: any[]) => mockZustand(...a),
   neu: (...a: any[]) => mockNeu(...a),
+  neuWegB: (...a: any[]) => mockNeuWegB(...a),
   abholen: (...a: any[]) => mockAbholen(...a),
   einloesen: (...a: any[]) => mockEinloesen(...a),
   bestellungAnzeigen: (...a: any[]) => mockBestellung(...a),
@@ -243,5 +259,85 @@ describe('Annahmestelle', () => {
     await act(async () => knopf(r, 'node.qtScannen').props.onPress());
     await act(async () => r.findByType('Scanner' as any).props.onScanned('x'));
     expect(texte(r).join(' ')).toContain('nicht dieses Konto');
+  });
+});
+
+describe('Weg B (4c-3c/d)', () => {
+  const K = 'c7'.repeat(32);
+  const LOS = Array.from({ length: 7 }, (_, i) => '0x' + (i + 1).toString(16).repeat(40));
+  const vorlage = (mit: boolean) => JSON.stringify({ k: K, b: 1, x: '0101', vorlage: '0xab', ...(mit ? { validatoren: LOS } : {}) });
+  beforeEach(() => {
+    [mockNeu, mockNeuWegB, mockPaket, mockAnfordern, mockSammeln, mockAnnehmenB, mockAnnehmen].forEach((m) => m.mockReset());
+    mockAnnahmeB = null;
+  });
+
+  test('Bestellung in Weg B: erst mit K (64 hex), dann neuWegB mit n, K und den Stellen; kein v, kein neu', async () => {
+    mockZustand.mockResolvedValue(null);
+    mockNeuWegB.mockResolvedValue({ n: 2822, basen_verschluesselt: [], inhaberin: '0x', inhaberin_schluessel: '', stellen: [] });
+    const r = await zeigen();
+    const schalter = r.findAllByType(RN.Switch).find((x: any) => x.props.accessibilityLabel === 'node.qbWegB');
+    await act(async () => schalter.props.onValueChange(true));
+    expect(texte(r)).not.toContain('v');
+    expect(texte(r)).toContain('node.qbWegBText');
+    const felder = r.findAllByType(RN.TextInput);
+    const kFeld = felder.find((f: any) => f.props.placeholder === 'K');
+    const [s0, s1] = felder.filter((f: any) => f.props.placeholder === '0x…=04…');
+    await act(async () => { s0.props.onChangeText(stelle(2)); s1.props.onChangeText(stelle(3)); });
+    await act(async () => kFeld.props.onChangeText('C7'.repeat(31)));
+    expect(knopf(r, 'node.qtAnlegen').props.disabled).toBe(true);
+    await act(async () => kFeld.props.onChangeText('C7'.repeat(32) + 'zz'));
+    expect(knopf(r, 'node.qtAnlegen').props.disabled).toBe(false);
+    await act(async () => knopf(r, 'node.qtAnlegen').props.onPress());
+    expect(mockNeu).not.toHaveBeenCalled();
+    const [, n, k, stellen] = mockNeuWegB.mock.calls[0];
+    expect([n, k]).toEqual([2822, K]);
+    expect(stellen.map((x: any) => x.adresse)).toEqual([stelle(2).split('=')[0], stelle(3).split('=')[0]]);
+  });
+
+  test('offene Bestellung in Weg B: Paket abholen statt K und Validatoren; Warten mit Grund', async () => {
+    mockZustand.mockResolvedValue({ n: 2822, v: 7, stellen: ['0x1', '0x2'], gebunden: false, wegB: true });
+    mockBestellung.mockResolvedValue(null);
+    mockPaket.mockResolvedValue({ stand: 'warten', grund: 'Token noch nicht auf der Kette', abgewiesen: [] });
+    const r = await zeigen();
+    expect(knopf(r, 'node.qtAbholen')).toBeUndefined();
+    await act(async () => knopf(r, 'node.qbPaketAbholen').props.onPress());
+    expect(mockPaket).toHaveBeenCalledTimes(1);
+    expect(mockAbholen).not.toHaveBeenCalled();
+    expect(texte(r).join(' ')).toContain('node.qbPaketWarten');
+  });
+
+  test('Annahmestelle: Weg-B-Scan nimmt nur Vorlagen mit Gelosten, fordert Öffnungen an, sammelt, nimmt an', async () => {
+    mockZustand.mockResolvedValue(null);
+    const r = await zeigen();
+    // Weg-B-Scan ohne Validatoren der Stelle möglich; eine Vorlage aus Weg A wird abgewiesen.
+    await act(async () => knopf(r, 'node.qbScannen').props.onPress());
+    await act(async () => r.findByType('Scanner' as any).props.onScanned(vorlage(false)));
+    expect(mockAnfordern).not.toHaveBeenCalled();
+    expect(mockAnnehmen).not.toHaveBeenCalled();
+    expect(texte(r).join(' ')).toContain('node.qbKeineWegB');
+    // Unlesbar: abgewiesen, nichts angefordert.
+    await act(async () => knopf(r, 'node.qbScannen').props.onPress());
+    await act(async () => r.findByType('Scanner' as any).props.onScanned('x'));
+    expect(mockAnfordern).not.toHaveBeenCalled();
+    // Gut: der Text geht unverändert an oeffnungenAnfordern.
+    mockAnfordern.mockResolvedValue({ gesendet: [1, 2, 3, 4, 5, 6, 7] });
+    mockAnnahmeB = { k: K, b: 1, v: 7 };
+    await act(async () => knopf(r, 'node.qbScannen').props.onPress());
+    await act(async () => r.findByType('Scanner' as any).props.onScanned(vorlage(true)));
+    const [, schl, text] = mockAnfordern.mock.calls[0];
+    expect(schl).toBe('81'.repeat(32));
+    expect(text).toBe(vorlage(true));
+    expect(mockAnnehmen).not.toHaveBeenCalled();
+    // Annehmen erst nach einem Sammeln.
+    expect(knopf(r, 'node.qbAnnehmen').props.disabled).toBe(true);
+    mockSammeln.mockResolvedValue({ fehlen: [4], neu: [1, 2, 3, 5, 6, 7], abgewiesen: [], paket: true });
+    await act(async () => knopf(r, 'node.qbSammeln').props.onPress());
+    expect(texte(r).join(' ')).toContain('node.qbFehlen');
+    expect(knopf(r, 'node.qbAnnehmen').props.disabled).toBe(false);
+    mockAnnehmenB.mockResolvedValue({ k: K, stelle_nummer: 1, stelle: '0x', inhaberin: '0x', stichprobe: 552, treffer: 290, fehler: 2, vorab: 'besteht', urteil: 'eingeloest', wurzel: 'cd'.repeat(32), proben: ['ee'.repeat(32), 'ff'.repeat(32)] });
+    await act(async () => knopf(r, 'node.qbAnnehmen').props.onPress());
+    expect(mockAnnehmenB).toHaveBeenCalledTimes(1);
+    expect(mockAnnehmenB.mock.calls[0][1]).toBe('81'.repeat(32));
+    expect(texte(r).join(' ')).toContain('node.qtAErgebnis');
   });
 });
