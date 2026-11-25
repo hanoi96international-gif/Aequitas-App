@@ -86,6 +86,12 @@ describe('auftragPruefen weist ab', () => {
     ['Annahmestelle = Inhaberin', () => auftragPruefen(neuUnterschrieben({ stellen: [vektor.auftrag.inhaberin, vektor.auftrag.stellen[1]], stellen_schluessel: [vektor.auftrag.inhaberin_schluessel, vektor.auftrag.stellen_schluessel[1]] }), ICH, [bestellung()], JETZT), 'Annahmestelle 0'],
     ['unbekannte Toleranz', () => auftragPruefen(neuUnterschrieben({ tol: 99 }), ICH, [bestellung()], JETZT), 'Größen'],
     ['zu wenige Stellen', () => auftragPruefen(neuUnterschrieben({ n: 600 }), ICH, [bestellung()], JETZT), 'zu wenige'],
+    ['der Ausgeber selbst im Los (gültig unterschrieben, vom Knoten so gemeldet)', () => {
+      const pa = ethers.computeAddress(new ethers.SigningKey('0x' + PRAEGER).publicKey).toLowerCase();
+      const pp = ethers.SigningKey.computePublicKey('0x' + PRAEGER, false).slice(2);
+      const val = [pa, v[1], v[2]];
+      return auftragPruefen(neuUnterschrieben({ validatoren: val, schluessel: [pp, vektor.auftrag.schluessel[1], vektor.auftrag.schluessel[2]] }), ICH, [bestellung({ los: val })], JETZT);
+    }, 'Ausgeber steht selbst im Los'],
     ['K groß geschrieben', () => auftragPruefen(neuUnterschrieben({ k: vektor.auftrag.k.toUpperCase() }), ICH, [bestellung()], JETZT), 'K'],
   ])('%s', (_n, f, grund) => {
     expect(f).toThrow(grund);

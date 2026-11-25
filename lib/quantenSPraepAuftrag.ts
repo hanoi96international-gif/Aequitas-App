@@ -253,6 +253,8 @@ export function auftragPruefen(q: AbschnittAuftrag, schluessel: string, bestellu
   if (jetztSek > b.frist) fehler('Bestellung verfallen');
   if (b.ausgeber !== q.praeger || b.t !== q.t || b.v !== v) fehler('Auftrag passt nicht zur Bestellung (Ausgeber, t oder v)');
   if (b.los.join(',') !== q.validatoren.join(',')) fehler('Präparatorinnen sind nicht die Gelosten in Losreihenfolge');
+  // Der Ausgeber nie im eigenen Los (Kette seit 25.11.2026; hier noch einmal, fail-closed).
+  if (q.validatoren.includes(q.praeger)) fehler('der Ausgeber steht selbst im Los');
   // Erst jetzt öffnen.
   const y = basenOeffnen(schluessel, q.basen_verschluesselt, q.n, q.validatoren, q.x, q.inhaberin);
   return { von: eigen.von, bis: eigen.bis, y, auftragHash: ethers.sha256(ethers.toUtf8Bytes(nachricht)).slice(2) };

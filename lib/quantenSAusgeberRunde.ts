@@ -168,6 +168,7 @@ export function rahmenPruefen(r: Rahmen, z: AusgeberZustand): void {
   if (!r || typeof r !== 'object' || Array.isArray(r) || Object.keys(r).sort().join(',') !== RAHMEN_FELDER.join(',')) fehler('Rahmen: Felder');
   const los = z.los;
   if (!los || los.length !== z.v) fehler('Rahmen: Bestellung nicht gelost');
+  if (los.includes(z.ausgeber)) fehler('Rahmen: der Ausgeber steht im eigenen Los');
   const v = los.length;
   if (r.k !== z.k) fehler('Rahmen: anderes K');
   if (!ganz(r.n) || r.n < 2 || r.n > N_MAX || r.n < v) fehler('Rahmen: n');

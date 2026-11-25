@@ -313,6 +313,8 @@ export function registerBestellungLesen(roh: unknown, K: string): RegisterBestel
   if (b.los !== undefined) {
     const l = b.los;
     if (!Array.isArray(l) || l.length !== v || !l.every((a) => typeof a === 'string' && ADRESSE.test(a)) || new Set(l).size !== l.length) fehler('Register: Los');
+    // Der Ausgeber nie im eigenen Los (die Kette schließt ihn seit 25.11.2026 aus; hier fail-closed noch einmal).
+    if ((l as string[]).includes(b.ausgeber)) fehler('Register: der Ausgeber steht im eigenen Los');
     los = l as string[];
   }
   return { k: K, ausgeber: b.ausgeber, v, t, zeit, frist: b.frist as number, runde: b.runde as number, deckung: b.deckung as number, pfand: b.pfand as number, los };
