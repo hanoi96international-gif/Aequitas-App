@@ -45,6 +45,18 @@ jest.mock('@/lib/quantenSPraeparator', () => ({
   praepEinreichen: (...a: any[]) => (mockEinreichen as any)(...a),
 }));
 
+// Weg B, Runde der Praeparatorin (lib/quantenSPraepGeraet.ts): als Attrappe.
+let mockZugangDa = false;
+const mockZugangSetzen = jest.fn(async (_z: any) => { mockZugangDa = true; });
+const mockRunde = jest.fn(async (_w: any) => ({ briefe: 3, abgewiesen: [], beantwortet: ['k'], bestaetigt: [], geoeffnet: [], wiederholt: [], abgelehnt: [], antworten: [], bestaetigungen: [], offen: 0, quittiertBis: 3 }));
+jest.mock('@/lib/quantenSPraepGeraet', () => ({
+  ibmZugangDa: async () => mockZugangDa,
+  ibmZugangSetzen: (z: any) => mockZugangSetzen(z),
+  ibmZugangLoeschen: async () => { mockZugangDa = false; },
+  praepRundeJetzt: (w: any) => mockRunde(w),
+}));
+jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '11'.repeat(32) }) }));
+
 import Quantengeld from '../../app/quantengeld';
 const RN = require('react-native');
 
@@ -171,6 +183,44 @@ describe('Quantengeld-Seite', () => {
     expect(t).toContain('node.qpImLos');
     expect(t).toContain('node.qpAbmelden');
     expect(t).not.toContain('node.qpMelden');
+    act(() => r.unmount());
+    mockRegister = null;
+  });
+
+  it('Weg B: the IBM access is saved, never shown again; the round runs and reports', async () => {
+    mockPruefer = [];
+    mockZugangDa = false;
+    mockRunde.mockClear();
+    mockZugangSetzen.mockClear();
+    // Nicht gemeldet: keine Runde, kein Feld.
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [] };
+    let r = await rendern();
+    expect(texte(r)).not.toContain('node.qrTitel');
+    act(() => r.unmount());
+
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [{ konto: mockIch, gemeldet: 1000, imLosAb: 87400 }] };
+    r = await rendern();
+    expect(texte(r)).toContain('node.qrTitel');
+    expect(texte(r)).not.toContain('node.qrRunde'); // ohne Zugang keine Runde
+    const praepFelder = () => r.root.findAllByType(RN.TextInput).filter((f: any) => f.props.secureTextEntry || String(f.props.placeholder ?? '').startsWith('crn:'));
+    const felder = praepFelder();
+    expect(felder).toHaveLength(2);
+    expect(felder[0].props.secureTextEntry).toBe(true);
+    expect(felder[1].props.secureTextEntry).toBeFalsy();
+    const SCHLUESSEL = 'S'.repeat(44);
+    await act(async () => { felder[0].props.onChangeText(SCHLUESSEL); felder[1].props.onChangeText('crn:x'); });
+    const sichern = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qrSpeichern'));
+    await act(async () => { sichern.props.onPress(); });
+    expect(mockZugangSetzen).toHaveBeenCalledWith({ apiKey: SCHLUESSEL, crn: 'crn:x' });
+    // Gesichert: Felder weg, Schluessel nirgends mehr auf der Seite.
+    expect(praepFelder()).toHaveLength(0);
+    expect(r.root.findAllByType(RN.TextInput).some((f: any) => f.props.value === SCHLUESSEL)).toBe(false);
+    expect(JSON.stringify(texte(r))).not.toContain(SCHLUESSEL);
+    expect(texte(r)).toContain('node.qrZugangDa');
+    const runde = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qrRunde'));
+    await act(async () => { runde.props.onPress(); });
+    expect(mockRunde).toHaveBeenCalledTimes(1);
+    expect(texte(r)).toContain('node.qrBeantwortet');
     act(() => r.unmount());
     mockRegister = null;
   });
