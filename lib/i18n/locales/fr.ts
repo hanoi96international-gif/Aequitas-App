@@ -651,7 +651,7 @@ const fr: Translations = {
     qrGespeichert: "Accès IBM enregistré sur cet appareil.",
     qrZugangDa: "Accès IBM enregistré.",
     qrRunde: "Vérifier la boîte et répondre",
-    qrLaeuft: "En cours – une mesure peut attendre dans la file d'IBM. Garde l'app ouverte.",
+    qrLaeuft: "En cours – une mesure peut attendre dans la file d'IBM. Si l'app est interrompue, la prochaine ronde reprend la même mesure.",
     qrLoeschen: "Supprimer l'accès IBM de cet appareil",
     qrLoeschenFrage: "L'accès IBM sera supprimé de cet appareil. Sans lui, tu ne peux pas répondre aux commandes. Continuer ?",
     qrFehler: "Erreur : {meldung}",

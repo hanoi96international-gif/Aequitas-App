@@ -29,7 +29,7 @@ import {
   type IbmZugang,
 } from './ibmQuantum';
 import type { Speicher } from './quantenSInhaberin';
-import type { Messer } from './quantenSPraepAblauf';
+import type { Fortsetzung, Messer } from './quantenSPraepAblauf';
 import { MAX_QUBITS_KREIS, abschnittAuswerten, abschnittKreise } from './quantenSSchaltkreis';
 
 export const IBM_ZUGANG = 'aequitas.quantenS.praep.ibmZugang';
@@ -77,22 +77,45 @@ export function ibmMesser(zugang: IbmZugang, u: IbmUmgebung, opt: { schuesse?: n
     return tok.token;
   };
   return {
-    async messen(ub: number[], tb: number[], y: number[]): Promise<number[]> {
+    async messen(ub: number[], tb: number[], y: number[], fort?: Fortsetzung): Promise<number[]> {
       const n = ub.length;
       if (n < 1 || tb.length !== n || y.length !== n) throw new IbmFehler('Messung: Längen');
       const qubits = Math.min(MAX_QUBITS_KREIS, n);
-      const geraet = (await geraeteListe(await token(), z.crn, u.fetchFn)).find((g) => g.qubits >= qubits);
-      if (!geraet) throw new IbmFehler('Geräte: kein freies Gerät mit genug Qubits in dieser Instanz');
+      // Das Gerät wird nur zum Einreichen gebraucht; fortgesetzte Aufträge laufen schon.
+      let geraet: string | null = null;
+      const geraetName = async () => {
+        if (geraet === null) {
+          const g = (await geraeteListe(await token(), z.crn, u.fetchFn)).find((d) => d.qubits >= qubits);
+          if (!g) throw new IbmFehler('Geräte: kein freies Gerät mit genug Qubits in dieser Instanz');
+          geraet = g.name;
+        }
+        return geraet;
+      };
       const kreise = abschnittKreise(ub, tb, y, Array.from({ length: qubits }, (_, i) => i));
+      const teile = Math.ceil(kreise.length / KREISE_MAX);
+      if (fort && fort.jobs.length > teile) throw new IbmFehler('Fortsetzung: Aufträge passen nicht zur Messung');
+      const jobs: (string | null)[] = Array.from({ length: teile }, (_, c) => fort?.jobs[c] ?? null);
       const x: number[] = [];
-      for (let i = 0; i < kreise.length; i += KREISE_MAX) {
-        const teil = kreise.slice(i, i + KREISE_MAX);
-        const id = await einreichen(await token(), z.crn, auftragKoerper(geraet.name, teil.map((k) => k.qasm), schuesse), u.fetchFn);
+      for (let c = 0; c < teile; c++) {
+        const teil = kreise.slice(c * KREISE_MAX, (c + 1) * KREISE_MAX);
+        let id = jobs[c];
+        if (id === null) {
+          id = await einreichen(await token(), z.crn, auftragKoerper(await geraetName(), teil.map((k) => k.qasm), schuesse), u.fetchFn);
+          jobs[c] = id;
+          // Sichern, BEVOR gewartet wird: bricht die App ab, geht der Auftrag nicht verloren.
+          if (fort) await fort.merken([...jobs]);
+        }
         const start = u.jetzt();
         for (;;) {
           const s = await status(await token(), z.crn, id, u.fetchFn);
           if (s === 'COMPLETED') break;
-          if (s === 'FAILED' || s === 'CANCELLED') throw new IbmFehler(`IBM-Auftrag ${id}: ${s}`);
+          if (s === 'FAILED' || s === 'CANCELLED') {
+            // Dieser Auftrag liefert nie ein Ergebnis: vergessen, die nächste Runde reicht neu ein.
+            jobs[c] = null;
+            if (fort) await fort.merken([...jobs]);
+            throw new IbmFehler(`IBM-Auftrag ${id}: ${s}`);
+          }
+          // Frist dieser Runde: der Auftrag bleibt gemerkt (er kann noch in der Schlange laufen).
           if (u.jetzt() - start > frist) throw new IbmFehler(`IBM-Auftrag ${id}: Frist überschritten`);
           await u.warten(takt);
         }

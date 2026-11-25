@@ -651,7 +651,7 @@ const zh: Translations = {
     qrGespeichert: "IBM 访问权限已保存在本设备。",
     qrZugangDa: "IBM 访问权限已保存。",
     qrRunde: "检查信箱并回复",
-    qrLaeuft: "进行中——测量可能在 IBM 队列中等待。请保持应用打开。",
+    qrLaeuft: "进行中——测量可能在 IBM 队列中等待。若应用被中断，下一轮会继续同一次测量。",
     qrLoeschen: "从本设备删除 IBM 访问权限",
     qrLoeschenFrage: "IBM 访问权限将从本设备删除。没有它你无法回复任务。继续吗？",
     qrFehler: "错误：{meldung}",

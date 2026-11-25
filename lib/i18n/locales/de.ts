@@ -651,7 +651,7 @@ const de: Translations = {
     qrGespeichert: "IBM-Zugang in diesem Gerät gesichert.",
     qrZugangDa: "IBM-Zugang gespeichert.",
     qrRunde: "Briefkasten prüfen und antworten",
-    qrLaeuft: "Läuft – eine Messung kann in der Warteschlange bei IBM dauern. Lass die App offen.",
+    qrLaeuft: "Läuft – eine Messung kann bei IBM in der Warteschlange dauern. Wird die App unterbrochen, setzt die nächste Runde dieselbe Messung fort.",
     qrLoeschen: "IBM-Zugang aus dem Gerät löschen",
     qrLoeschenFrage: "Der IBM-Zugang wird aus diesem Gerät gelöscht. Ohne ihn kannst du keine Aufträge beantworten. Fortfahren?",
     qrFehler: "Fehler: {meldung}",

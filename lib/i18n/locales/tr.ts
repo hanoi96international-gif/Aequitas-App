@@ -651,7 +651,7 @@ const tr: Translations = {
     qrGespeichert: "IBM erişimi bu cihaza kaydedildi.",
     qrZugangDa: "IBM erişimi kayıtlı.",
     qrRunde: "Kutuyu kontrol et ve yanıtla",
-    qrLaeuft: "Çalışıyor – bir ölçüm IBM kuyruğunda bekleyebilir. Uygulamayı açık tut.",
+    qrLaeuft: "Çalışıyor – bir ölçüm IBM kuyruğunda bekleyebilir. Uygulama kesilirse sonraki tur aynı ölçüme devam eder.",
     qrLoeschen: "IBM erişimini bu cihazdan sil",
     qrLoeschenFrage: "IBM erişimi bu cihazdan silinecek. O olmadan siparişleri yanıtlayamazsın. Devam edilsin mi?",
     qrFehler: "Hata: {meldung}",

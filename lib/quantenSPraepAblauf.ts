@@ -37,7 +37,7 @@ import { abholen, ablegen, quittieren, type Brief } from './briefkasten';
 import { QuantenSFehler, abschnitt, adresseVon, unterschreiben, unterschriftVon } from './quantenS';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from './quantenSHuelle';
 import type { Speicher } from './quantenSInhaberin';
-import { antwortAufAuftrag, auftragLesen, auftragNachricht, auftragPruefen, basenOeffnen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
+import { AUFTRAG_ALT, antwortAufAuftrag, auftragLesen, auftragNachricht, auftragPruefen, basenOeffnen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
 import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
 import { antwortAufnehmen, bestaetigungAufnehmen, istBestaetigung, paketAbschnittAus } from './quantenSAusgeberRunde';
 import { bestaetigen, oeffnungFuerStelle, sBestaetigungNachricht, type AbschnittTresor, type Antwort, type BestaetigenAnfrage, type Zufall } from './quantenSPraeparieren';
@@ -47,6 +47,8 @@ const NACH = 'aequitas.quantenS.praep.nach';
 const GESEHEN = 'aequitas.quantenS.praep.gesehen';
 /** Höchstens so viele Seiten Briefe je Runde (je 32 Briefe). */
 export const SEITEN_MAX = 8;
+/** Eine laufende Messung, deren Auftrag älter ist, kann nie mehr beantwortet werden (AUFTRAG_ALT) -- dann weg. */
+export const MESSUNG_ALT = AUFTRAG_ALT + 3600;
 const FRIST_MS = 20_000;
 
 function fehler(text: string): never {
@@ -54,8 +56,18 @@ function fehler(text: string): never {
 }
 
 /** Die Messung eines Abschnitts: aus u, t (Präparatorin) und y (Inhaberin) das Ergebnis x. */
+/**
+ * Fortsetzung einer Messung (4c-4): die schon eingereichten IBM-Aufträge je Teil
+ * (null = noch einzureichen) und wie eine neue Kennung gesichert wird -- VOR dem
+ * Warten, damit ein Abbruch der App sie nicht verliert.
+ */
+export interface Fortsetzung {
+  jobs: (string | null)[];
+  merken(jobs: (string | null)[]): Promise<void>;
+}
+
 export interface Messer {
-  messen(u: number[], t: number[], y: number[]): Promise<number[]>;
+  messen(u: number[], t: number[], y: number[], fortsetzung?: Fortsetzung): Promise<number[]>;
 }
 
 export interface WalletSchluessel {
@@ -232,16 +244,33 @@ export async function auftragBeantworten(
     antwort = antwortAusFall(schluessel, alt, g).antwort;
     art = 'wiederholt';
   } else {
-    const seed = tresor.neuerSeed();
+    // Laufende Messung (4c-4): vor dem ersten IBM-Auftrag gesichert, mit Seed und
+    // den Kennungen der IBM-Aufträge -- bricht die App ab, setzt die nächste Runde
+    // mit demselben Seed (also denselben u, t) und denselben Aufträgen fort.
+    let mess = await tresor.messungLaden(q.k);
+    if (mess && JSON.stringify(mess.auftrag) !== JSON.stringify(q)) fehler('schon ein anderer Auftrag für dieses K');
+    if (!mess) {
+      mess = { k: q.k, auftrag: q, seed: tresor.neuerSeed(), pub: m.pub, jobs: [], zeit: jetzt };
+      await tresor.messungSpeichern(mess);
+    }
+    const seed = mess.seed;
     const z = drbg(seed);
     const n = g.bis - g.von;
     const { u: ub, t: tb } = messbitsZiehen(n, z);
     const y = g.y.split('').map(Number);
-    const x = await messer.messen(ub, tb, y);
+    const fort: Fortsetzung = {
+      jobs: [...mess.jobs],
+      merken: async (jobs) => {
+        mess = { ...mess!, jobs: [...jobs] };
+        await tresor.messungSpeichern(mess);
+      },
+    };
+    const x = await messer.messen(ub, tb, y, fort);
     if (x.length !== n || !x.every((b) => b === 0 || b === 1)) fehler('Messung: Form');
     antwort = antwortAufAuftrag(schluessel, q, g, { y, u: ub, t: tb, x }, z).antwort;
     // Erst sichern, dann senden: geht das Senden schief, ist die Antwort wiederherstellbar.
     await tresor.speichern({ k: q.k, auftrag: q, seed, u: ub.join(''), t: tb.join(''), x: x.join(''), stand: 'gemessen', zeit: jetzt });
+    await tresor.messungLoeschen(q.k);
     art = 'neu';
   }
   const ich = adresseVon(schluessel);
@@ -430,6 +459,8 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   // (Netz), wiederholt der Ausgeber seinen Auftrag -- der Fall liegt dann schon
   // im Tresor, und es kommt dieselbe Antwort.
   let bestCache: ReturnType<typeof bestellungenLesen> & object | null = null;
+  /** K, deren Auftrag diese Runde schon versucht hat (höchstens ein Messversuch je K und Runde). */
+  const versucht = new Set<string>();
   const bestellungen = async () => (bestCache ??= await bestellungenHolen(u));
   for (const m of fertig) {
     if (m.art === 'antwort') {
@@ -476,6 +507,11 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
     }
     if (m.art !== 'auftrag') continue;
     try {
+      versucht.add(auftragLesen(m.nutzlast).k);
+    } catch {
+      // unlesbar: lehnt auftragBeantworten gleich ab
+    }
+    try {
       const r = await auftragBeantworten(u, schluessel, tresor, m, messer, bestellungen);
       if (r.art === 'neu') bericht.beantwortet.push(r.k);
       else bericht.wiederholt.push(r.k);
@@ -487,6 +523,29 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
         // unlesbar
       }
       bericht.abgelehnt.push({ k, grund: (e as Error).message.slice(0, 200) });
+    }
+  }
+
+  // 4b. Laufende Messungen fortsetzen (4c-4), auch ohne neuen Brief: der Auftrag
+  // liegt geprüft im Tresor und wird hier noch einmal voll geprüft (Los, Frist,
+  // Unterschrift des Ausgebers). Zu alt (nie beantwortbar): löschen -- es wurde
+  // nichts gesendet, also nichts preisgegeben.
+  for (const K of await tresor.messungen()) {
+    if (versucht.has(K)) continue;
+    try {
+      const mess = await tresor.messungLaden(K);
+      if (!mess) continue;
+      if (jetzt() > mess.zeit + MESSUNG_ALT) {
+        await tresor.messungLoeschen(K);
+        bericht.abgelehnt.push({ k: K, grund: 'Messung verfallen (nie beantwortet)' });
+        continue;
+      }
+      const m: Nachricht = { art: 'auftrag', von: mess.auftrag.praeger, pub: mess.pub, id: 'fortsetzung', zeit: mess.zeit, nutzlast: ethers.toUtf8Bytes(JSON.stringify(mess.auftrag)) };
+      const r = await auftragBeantworten(u, schluessel, tresor, m, messer, bestellungen);
+      if (r.art === 'neu') bericht.beantwortet.push(r.k);
+      else bericht.wiederholt.push(r.k);
+    } catch (e) {
+      bericht.abgelehnt.push({ k: K, grund: (e as Error).message.slice(0, 200) });
     }
   }
 

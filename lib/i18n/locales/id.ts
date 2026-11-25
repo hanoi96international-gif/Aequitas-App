@@ -651,7 +651,7 @@ const id: Translations = {
     qrGespeichert: "Akses IBM tersimpan di perangkat ini.",
     qrZugangDa: "Akses IBM tersimpan.",
     qrRunde: "Periksa kotak dan balas",
-    qrLaeuft: "Berjalan – pengukuran bisa menunggu di antrean IBM. Biarkan aplikasi terbuka.",
+    qrLaeuft: "Berjalan – pengukuran bisa menunggu di antrean IBM. Jika aplikasi terputus, putaran berikutnya melanjutkan pengukuran yang sama.",
     qrLoeschen: "Hapus akses IBM dari perangkat ini",
     qrLoeschenFrage: "Akses IBM akan dihapus dari perangkat ini. Tanpanya kamu tidak bisa menjawab tugas. Lanjutkan?",
     qrFehler: "Galat: {meldung}",
