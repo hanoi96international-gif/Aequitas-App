@@ -6,7 +6,7 @@ jest.mock('expo-crypto', () => ({ getRandomBytes: () => new Uint8Array(0) }));
 jest.mock('../config', () => ({ API_BASE: 'https://knoten.test/api' }));
 import { ethers } from 'ethers';
 import vektor from './vektoren/quanten_s_praep_auftrag_vektor.json';
-import { abschnitt, adresseVon, antwortNachricht, eciesOeffnen, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, unterschriftVon } from '../quantenS';
+import { abschnitt, abschnittPruefen, adresseVon, antwortNachricht, eciesOeffnen, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, unterschriftVon } from '../quantenS';
 import { antwortBauen, sAuftragNachricht, sBestaetigungNachricht, type Antwort } from '../quantenSPraeparieren';
 import { Zusammensetzer, einpacken, oeffnen } from '../quantenSHuelle';
 import type { Speicher } from '../quantenSInhaberin';
@@ -365,6 +365,9 @@ describe('Öffnung (B4b-4c-1g)', () => {
     const [oe] = anStelle(k, 1);
     expect([oe.k, oe.b, oe.x]).toEqual([vektor.auftrag.k, 1, vektor.auftrag.x]);
     expect(Object.keys(oe.pakete).sort()).toEqual(['1', '3']);
+    // Der eigene Abschnitt, von ihr unterschrieben, mit den Blättern ihres Teils (2f-2).
+    expect(oe.abschnitt.x).toBe(vektor.auftrag.x);
+    abschnittPruefen(oe.abschnitt, vektor.auftrag.k, vektor.auftrag.n, vektor.auftrag.validatoren.length, vektor.auftrag.x, adresseVon(ICH));
     const inhalt = JSON.parse(ethers.toUtf8String(eciesOeffnen(STELLE[1], oe.oeffnung)));
     expect(inhalt.b).toBe(1);
     expect(inhalt.salz).toMatch(/^[0-9a-f]{64}$/);
