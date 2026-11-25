@@ -17,7 +17,7 @@ import { ANTWORT, BESTAETIGUNG, RAHMEN, bestellPfand, losRunde, vergessen, zusta
 import { ANTWORTEN_MAX, antwortenStand, auftraegeSenden, auftragBauen, beauftragen, ausgeben, bestaetigenAnfrageBauen, paketSenden, bestaetigungenAnfordern, bestaetigungenStand, sAusgabeNachricht, type Rahmen } from '../quantenSAusgeberRunde';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from '../quantenSHuelle';
 import { einloesen, neuWegB, zustandLesen as inhaberinZustand, type Speicher, type Umgebung } from '../quantenSInhaberin';
-import { annehmenWegB, oeffnungenAnfordern, oeffnungenSammeln } from '../quantenSStelleWegB';
+import { PAKET as STELLE_PAKET, annehmenWegB, oeffnungenAnfordern, oeffnungenSammeln } from '../quantenSStelleWegB';
 import { paketAbholen } from '../quantenSInhaberinPaket';
 import { runde, type Messer, type PraepUmgebung } from '../quantenSPraepAblauf';
 import { AUFTRAG_ALT, auftragLesen, auftragNachricht } from '../quantenSPraepAuftrag';
@@ -864,14 +864,14 @@ function stelleUmgebung(k: ReturnType<typeof knoten>, saat: string): Umgebung {
 }
 
 /** Die Präparatorinnen beantworten Öffnungs-Anfragen (erst sehen, dann nach der Finalität herausgeben). */
-async function oeffnenLassen(w: Awaited<ReturnType<typeof bisVorlage>>, su: Umgebung, schl: string) {
+async function oeffnenLassen(w: Awaited<ReturnType<typeof bisVorlage>>, su: Umgebung, schl: string, wer = [1, 2, 3, 4]) {
   await oeffnungenAnfordern(su, schl, w.vorlageText);
-  const r1 = await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups);
-  for (let x = 1; x <= V; x++) expect(r1[x].abgelehnt.map((a) => a.grund).join()).toContain('gesehen');
+  const r1 = await praepAntworten(w.k, wer, ideal, w.ups);
+  for (const x of wer) expect(r1[x].abgelehnt.map((a) => a.grund).join()).toContain('gesehen');
   w.k.kette.final = w.k.kette.hoehe;
   expect((await oeffnungenAnfordern(su, schl, w.vorlageText)).gesendet).toEqual([1, 2, 3, 4]);
-  const r2 = await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups);
-  for (let x = 1; x <= V; x++) expect(r2[x].geoeffnet).toEqual([K]);
+  const r2 = await praepAntworten(w.k, wer, ideal, w.ups);
+  for (const x of wer) expect(r2[x].geoeffnet).toEqual([K]);
 }
 
 describe('B4b-4c-2f-2b: Annahmestelle in Weg B', () => {
@@ -959,5 +959,69 @@ describe('B4b-4c-2f-2b: Annahmestelle in Weg B', () => {
     // Vor Bindung und Wahl: ein Token, der noch nicht gewählt ist.
     w.k.kette.token = { ...w.k.kette.token!, gewaehlt: false };
     await expect(oeffnungenAnfordern(stelleUmgebung(w.k, '5e'), STELLE_SCHL[1], w.vorlageText)).rejects.toThrow('erst nach Bindung und Wahl');
+  });
+});
+
+// ------------------------------------------------------------ B4b-4c-2f-2c: R9-Ausweg in Weg B
+
+describe('B4b-4c-2f-2c: eine Geloste fehlt', () => {
+  test('Gutfall: Geloste 3 antwortet nie -- Blätter aus dem Paket des Ausgebers, Werte aus den Paketen der anderen, eingelöst', async () => {
+    const w = await bisVorlage(1);
+    const su = stelleUmgebung(w.k, '6a');
+    await oeffnenLassen(w, su, STELLE_SCHL[1], [1, 2, 4]);
+    const s = await oeffnungenSammeln(su, STELLE_SCHL[1]);
+    expect(s.abgewiesen).toEqual([]);
+    expect(s.fehlen).toEqual([3]);
+    expect(s.paket).toBe(true);
+    const erg = await annehmenWegB(su, STELLE_SCHL[1]);
+    expect(erg).toMatchObject({ k: K, stelle_nummer: 1, vorab: 'besteht', urteil: 'eingeloest' });
+  });
+
+  test('Missbrauch: gefälschtes Paket wird nicht gesichert; ohne Paket oder mit zu wenigen Antworten kein Einlösen', async () => {
+    const w = await bisVorlage(0);
+    const su = stelleUmgebung(w.k, '6b');
+    const ich = adresseVon(STELLE_SCHL[0]);
+    // Das echte Paket des Ausgebers aus dem Kasten der Stelle nehmen und durch Fälschungen ersetzen.
+    const zs = new Zusammensetzer();
+    let echt: any = null;
+    for (const b of w.k.kasten.filter((x) => x.an === ich)) {
+      const m = zs.hinzu(oeffnen(STELLE_SCHL[0], b.inhalt, JETZT), JETZT);
+      if (m && m.art === 'paket') echt = JSON.parse(ethers.toUtf8String(m.nutzlast));
+    }
+    expect(echt).not.toBeNull();
+    for (let i = w.k.kasten.length - 1; i >= 0; i--) if (w.k.kasten[i].an === ich) w.k.kasten.splice(i, 1);
+    const an = { adresse: ich, pub: pubVon(STELLE_SCHL[0]) };
+    const werfen = (inhalt: unknown, saat: string) => {
+      for (const b of einpacken(FREMD, an, 'paket', ethers.toUtf8Bytes(JSON.stringify(inhalt)), JETZT, drbg(saat.repeat(32)))) w.k.einwerfen(adresseVon(FREMD), ich, b);
+    };
+    const ab2 = echt.abschnitte[1];
+    werfen({ ...echt, abschnitte: echt.abschnitte.map((a: any, i: number) => (i === 1 ? { ...a, blaetter: [a.blaetter[1], ...a.blaetter.slice(1)] } : a)) }, 'c1');
+    // Blätter von 3 durch eigene ersetzt und als 3 neu unterschrieben (ein Fremder) -- Unterschrift passt nicht.
+    werfen({ ...echt, abschnitte: echt.abschnitte.map((a: any, i: number) => (i === 2 ? { ...ab2, x: 3, von: a.von, bis: a.bis } : a)) }, 'c2');
+    werfen({ ...echt, k: 'd0'.repeat(32) }, 'c3');
+    await oeffnenLassen(w, su, STELLE_SCHL[0], [1, 2, 4]);
+    const s = await oeffnungenSammeln(su, STELLE_SCHL[0]);
+    expect(s.paket).toBe(false);
+    expect(s.fehlen).toEqual([3]);
+    expect(s.abgewiesen.join(' | ')).toContain('Abschnitt 2 ist nicht von Validator 2 unterschrieben');
+    expect(s.abgewiesen.join(' | ')).toContain('Paket: anderes K');
+    expect(su.ablage!.lesen(STELLE_PAKET)).resolves.toBeNull();
+    await expect(annehmenWegB(su, STELLE_SCHL[0])).rejects.toThrow('kein Paket des Ausgebers');
+    expect(w.k.kette.anmeldungen).toHaveLength(0);
+    // Das echte Paket (von wem auch immer) wird angenommen; dann geht es.
+    werfen(echt, 'c4');
+    expect((await oeffnungenSammeln(su, STELLE_SCHL[0])).paket).toBe(true);
+    expect((await annehmenWegB(su, STELLE_SCHL[0])).urteil).toBe('eingeloest');
+  });
+
+  test('zu wenige Antworten für den Ausweg: keine Anmeldung', async () => {
+    const w = await bisVorlage(1);
+    const su = stelleUmgebung(w.k, '6c');
+    await oeffnungenAnfordern(su, STELLE_SCHL[1], w.vorlageText);
+    const s = await oeffnungenSammeln(su, STELLE_SCHL[1]);
+    expect(s.fehlen).toEqual([1, 2, 3, 4]);
+    expect(s.paket).toBe(true);
+    await expect(annehmenWegB(su, STELLE_SCHL[1])).rejects.toThrow('zu wenige Antworten');
+    expect(w.k.kette.anmeldungen).toHaveLength(0);
   });
 });
