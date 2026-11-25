@@ -22,9 +22,13 @@
 //      Gelosten von ihr unterschrieben und zusammen die Wurzel der Kette, jeder
 //      Wert passt zu seinem Blatt und zu dieser Stelle, Stichprobe und Salze
 //      ergeben die Bindung, Vorab-Rechnung, Anmelden, Urteil, BEFUND bei
-//      Abweichung. Die R9-Pakete der anderen (`pakete`) stehen dem Ausweg dort zur
-//      Verfügung; alle Blätter eines Fehlenden (Dienst `blaetter`) gibt es in Weg B
-//      nicht (Schritt 2f-2c).
+//      Abweichung.
+//   R9 (2f-2c): antwortet eine Geloste nicht, gilt der Ausweg aus Weg A: ihre
+//      Blätter aus dem Paket des Ausgebers (er schickt es auch an beide Stellen;
+//      beim Sammeln geprüft: jeder Abschnitt von seiner Gelosten unterschrieben,
+//      alle Blätter die Wurzel der Kette; annehmenAlsStelle prüft sie noch einmal
+//      an der Wurzel), ihre Werte aus mindestens t Paketen der anderen (`pakete`
+//      in deren Antworten; jeder Wert gegen sein Blatt und sein Stellen-Bit).
 //
 // Die Liste der Gelosten kommt mit der Vorlage (Entscheidung 25.11.: die Kette
 // speichert nur ihre Zahl). Falsche Namen bringen nichts: sie liefern keine
@@ -36,7 +40,7 @@
 
 import { ethers } from 'ethers';
 import { ablegen, abholen, quittieren } from './briefkasten';
-import { QuantenSFehler, abschnitt, abschnittPruefen, adresseVon, kanonisch, unterschreiben, unterschriftVon, vorlageText, type PaketAbschnitt } from './quantenS';
+import { QuantenSFehler, abschnitt, abschnittPruefen, adresseVon, kanonisch, merkleWurzel, unterschreiben, unterschriftVon, vorlageText, type PaketAbschnitt } from './quantenS';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from './quantenSHuelle';
 import { holeJson, stand, type Umgebung } from './quantenSInhaberin';
 import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
@@ -44,6 +48,8 @@ import { annehmenAlsStelle, oeffnungLesen, vorlageLesen, type AnnahmeErgebnis, t
 
 export const ANNAHME = 'aequitas.quantenS.stelle.wegb.annahme';
 export const ANTWORT = 'aequitas.quantenS.stelle.wegb.antwort.';
+/** Das Paket des Ausgebers (alle unterschriebenen Abschnitte), für den R9-Ausweg (2f-2c). */
+export const PAKET = 'aequitas.quantenS.stelle.wegb.paket';
 const NACH = 'aequitas.quantenS.stelle.wegb.nach';
 const GESEHEN = 'aequitas.quantenS.stelle.wegb.gesehen';
 /** Eine gesicherte Antwort (JSON). */
@@ -129,7 +135,10 @@ export async function oeffnungenAnfordern(u: Umgebung, schluessel: string, vorla
   } catch {
     altK = '';
   }
-  if (alt !== null && altK !== K) for (let x = 1; x <= V_MAX; x++) await u.ablage.loeschen(ANTWORT + x);
+  if (alt !== null && altK !== K) {
+    for (let x = 1; x <= V_MAX; x++) await u.ablage.loeschen(ANTWORT + x);
+    await u.ablage.loeschen(PAKET);
+  }
   const annahme: Annahme = { k: K, b, validatoren: los, vorlage: vorlageRoh };
   await u.ablage.schreiben(ANNAHME, JSON.stringify(annahme), false);
   const jetzt = Math.floor(u.jetzt() / 1000);
@@ -152,6 +161,26 @@ interface Antwort {
   oeffnung: string;
   pakete: Record<string, string>;
   abschnitt: PaketAbschnitt;
+}
+
+/** Das Paket des Ausgebers streng lesen (genau k, validatoren, abschnitte; Abschnitte in Weg-B-Form). */
+function paketLesen(m: Nachricht, K: string, v: number): PaketAbschnitt[] {
+  if (m.nutzlast.length > ANTWORT_MAX * 2) fehler('Paket: zu groß');
+  let o: unknown;
+  try {
+    o = JSON.parse(ethers.toUtf8String(m.nutzlast));
+  } catch {
+    return fehler('Paket: kein JSON');
+  }
+  if (!o || typeof o !== 'object' || Array.isArray(o) || Object.keys(o).sort().join(',') !== 'abschnitte,k,validatoren') fehler('Paket: Felder');
+  const p = o as { k: unknown; abschnitte: unknown };
+  if (p.k !== K) fehler('Paket: anderes K');
+  if (!Array.isArray(p.abschnitte) || p.abschnitte.length !== v) fehler('Paket: Zahl der Abschnitte');
+  const felder = 'basen_hash,bis,blaetter,buendel_hash,buendel_sig_hash,fuer_inhaberin,sig,teile,von,x,zaehlung';
+  for (const ab of p.abschnitte) {
+    if (!ab || typeof ab !== 'object' || Array.isArray(ab) || Object.keys(ab).sort().join(',') !== felder) fehler('Paket: Abschnitt, Felder');
+  }
+  return p.abschnitte as PaketAbschnitt[];
 }
 
 /** Die Antwort einer Gelosten streng lesen (genau diese Felder, Typen). */
@@ -177,7 +206,7 @@ function antwortLesen(m: Nachricht): Antwort {
  * Phase 2: die Antworten aus dem eigenen Kasten sichern. Gibt die Nummern der
  * Gelosten, deren Antwort noch fehlt, und was abgewiesen wurde.
  */
-export async function oeffnungenSammeln(u: Umgebung, schluessel: string): Promise<{ fehlen: number[]; neu: number[]; abgewiesen: string[] }> {
+export async function oeffnungenSammeln(u: Umgebung, schluessel: string): Promise<{ fehlen: number[]; neu: number[]; abgewiesen: string[]; paket: boolean }> {
   const a = await annahmeLesen(u);
   const ablage = u.ablage!;
   const ich = adresseVon(schluessel);
@@ -224,7 +253,28 @@ export async function oeffnungenSammeln(u: Umgebung, schluessel: string): Promis
   }
   await ablage.schreiben(GESEHEN, JSON.stringify(zs.gesehenListe()), false);
   const neu: number[] = [];
+  let paket = false;
   for (const { m } of fertig) {
+    if (m.art === 'paket') {
+      // R9 (2f-2c): das Paket des Ausgebers -- jeder Abschnitt von seiner Gelosten
+      // unterschrieben, alle Blätter zusammen die Wurzel der Kette. Wer es schickt, zählt nicht.
+      try {
+        const abschnitte = paketLesen(m, a.k, v);
+        const blaetter: string[] = [];
+        abschnitte.forEach((ab, i) => {
+          abschnittPruefen(ab, a.k, n, v, i + 1, a.validatoren[i]);
+          blaetter.push(...ab.blaetter);
+        });
+        if (merkleWurzel(blaetter) !== st.wurzel) fehler('Paket: die Blätter ergeben nicht die Wurzel auf der Kette');
+        if ((await ablage.lesen(PAKET)) === null) {
+          await ablage.schreiben(PAKET, JSON.stringify(abschnitte), false);
+          paket = true;
+        }
+      } catch (e) {
+        abgewiesen.push((e as Error).message.slice(0, 200));
+      }
+      continue;
+    }
     if (m.art !== 'oeffnung') continue;
     try {
       const ant = antwortLesen(m);
@@ -256,7 +306,7 @@ export async function oeffnungenSammeln(u: Umgebung, schluessel: string): Promis
   }
   const fehlen: number[] = [];
   for (let x = 1; x <= v; x++) if ((await ablage.lesen(ANTWORT + x)) === null) fehlen.push(x);
-  return { fehlen, neu, abgewiesen };
+  return { fehlen, neu, abgewiesen, paket: paket || (await ablage.lesen(PAKET)) !== null };
 }
 
 /** Die Adresse, unter der der Adapter die Antwort der Gelosten x liefert (nie im Netz). */
@@ -265,7 +315,7 @@ export function gelosteApi(x: number): string {
 }
 
 /** Ein fetch, das die gesicherten Antworten wie die Validator-Dienste liefert; alles andere geht ans echte Netz. */
-function adapter(echt: typeof fetch, antworten: Antwort[]): typeof fetch {
+function adapter(echt: typeof fetch, antworten: (Antwort | null)[], alleBlaetter: string[] | null): typeof fetch {
   const antwort = (status: number, o: unknown) =>
     ({ ok: status === 200, status, text: async () => (o === null ? '' : JSON.stringify(o)) }) as unknown as Response;
   return (async (eingabe: RequestInfo | URL, init?: RequestInit) => {
@@ -287,6 +337,9 @@ function adapter(echt: typeof fetch, antworten: Antwort[]): typeof fetch {
         const p = a.pakete[q.get('x') ?? ''];
         return q.get('b') === String(a.b) && p ? antwort(200, { paket: p }) : antwort(404, null);
       }
+      case 'blaetter':
+        // R9: alle Blätter aus dem Paket des Ausgebers (annehmenAlsStelle prüft sie an der Wurzel).
+        return alleBlaetter ? antwort(200, { blaetter: alleBlaetter }) : antwort(404, null);
       default:
         return antwort(404, null);
     }
@@ -299,10 +352,15 @@ function adapter(echt: typeof fetch, antworten: Antwort[]): typeof fetch {
  */
 export async function annehmenWegB(u: Umgebung, schluessel: string, fortschritt: (s: AnnahmeSchritt) => void = () => {}): Promise<AnnahmeErgebnis> {
   const a = await annahmeLesen(u);
-  const antworten: Antwort[] = [];
+  const antworten: (Antwort | null)[] = [];
+  const fehlend: number[] = [];
   for (let x = 1; x <= a.validatoren.length; x++) {
     const roh = await u.ablage!.lesen(ANTWORT + x);
-    if (roh === null) fehler(`die Öffnung der Gelosten ${x} fehlt noch -- erst sammeln`);
+    if (roh === null) {
+      antworten.push(null);
+      fehlend.push(x);
+      continue;
+    }
     let ant: Antwort;
     try {
       ant = JSON.parse(roh) as Antwort;
@@ -312,6 +370,21 @@ export async function annehmenWegB(u: Umgebung, schluessel: string, fortschritt:
     if (ant.x !== x || ant.k !== a.k || ant.b !== a.b) fehler(`Antwort ${x} im Gerät passt nicht`);
     antworten.push(ant);
   }
+  // R9 (2f-2c): fehlen Gelosten, nur mit dem Paket des Ausgebers (ihre Blätter) und
+  // genug anderen Antworten (ihre Pakete für die Werte, mindestens t).
+  let alle: string[] | null = null;
+  if (fehlend.length > 0) {
+    const roh = await u.ablage!.lesen(PAKET);
+    if (roh === null) fehler(`die Öffnung der Gelosten ${fehlend.join(', ')} fehlt noch, und es gibt kein Paket des Ausgebers -- erst sammeln`);
+    const st = await stand(u, a.k);
+    const t = st?.t;
+    if (typeof t !== 'number' || a.validatoren.length - fehlend.length < t) fehler(`zu wenige Antworten für den Ausweg: ${a.validatoren.length - fehlend.length}, verlangt ${String(t)}`);
+    try {
+      alle = (JSON.parse(roh) as PaketAbschnitt[]).flatMap((ab) => ab.blaetter);
+    } catch {
+      return fehler('Paket im Gerät unlesbar');
+    }
+  }
   const validatoren = a.validatoren.map((adresse, i) => ({ adresse, api: gelosteApi(i + 1) }));
-  return annehmenAlsStelle({ ...u, fetchFn: adapter(u.fetchFn, antworten) }, schluessel, a.vorlage, validatoren, fortschritt);
+  return annehmenAlsStelle({ ...u, fetchFn: adapter(u.fetchFn, antworten, alle) }, schluessel, a.vorlage, validatoren, fortschritt);
 }

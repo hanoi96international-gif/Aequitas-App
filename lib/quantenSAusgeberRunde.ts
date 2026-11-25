@@ -51,8 +51,8 @@
 //      nicht noch einmal eingereicht. Stand `ausgegeben` erst, wenn der Knoten
 //      den Token mit genau dieser Wurzel, diesen Proben, n, t, v, Toleranz,
 //      Inhaberin und Annahmestellen zeigt; steht K mit etwas anderem dort, wirft es.
-//   8. paketSenden (B4b-4c-2f): nach der Ausgabe das Paket an die Inhaberin
-//      (Hülle `paket` an ihren Schlüssel aus der Bestellung): je Abschnitt die
+//   8. paketSenden (B4b-4c-2f): nach der Ausgabe das Paket an die Inhaberin und
+//      die beiden Annahmestellen (Hülle `paket` an ihre Schlüssel aus der Bestellung): je Abschnitt die
 //      unterschriebene Antwort ohne die Bündel (nur deren Hashes, wie
 //      quantenSPaketAbschnittAus) -- x für sie liegt verschlüsselt darin. Ob
 //      es stimmt, prüft die Inhaberin selbst gegen die Kette (annehmen).
@@ -694,7 +694,20 @@ export async function paketSenden(u: AusgeberUmgebung, wallet: WalletSchluessel)
   const paket = { k: z.k, validatoren: [...z.los!], abschnitte: antworten.map(paketAbschnittAus) };
   const jetzt = Math.floor(u.jetzt() / 1000);
   const signer = { signMessage: async (m: string) => unterschreiben(schluessel, m) };
-  const briefe = einpacken(schluessel, { adresse: r.inhaberin, pub: r.inhaberin_schluessel }, 'paket', ethers.toUtf8Bytes(JSON.stringify(paket)), jetzt, u.zufall);
-  for (const brief of briefe) await ablegen(z.ausgeber, r.inhaberin, brief, signer, jetzt, u.fetchFn, u.apiBasis);
-  return { briefe: briefe.length };
+  // An die Inhaberin und an beide Annahmestellen (B4b-4c-2f-2c): fehlt später eine
+  // Geloste, nimmt die Stelle deren Blätter aus diesem Paket (geprüft an der Wurzel).
+  const nutzlast = ethers.toUtf8Bytes(JSON.stringify(paket));
+  const an = [
+    { adresse: r.inhaberin, pub: r.inhaberin_schluessel },
+    { adresse: r.stellen[0], pub: r.stellen_schluessel[0] },
+    { adresse: r.stellen[1], pub: r.stellen_schluessel[1] },
+  ];
+  let zahl = 0;
+  for (const e of an) {
+    for (const brief of einpacken(schluessel, e, 'paket', nutzlast, jetzt, u.zufall)) {
+      await ablegen(z.ausgeber, e.adresse, brief, signer, jetzt, u.fetchFn, u.apiBasis);
+      zahl++;
+    }
+  }
+  return { briefe: zahl };
 }
