@@ -19,6 +19,14 @@
 // -> Fehler, nie ein halber Fall.
 //
 // GRENZEN: höchstens FAELLE_MAX offene Fälle, ein Fall höchstens FALL_MAX Byte.
+//
+// Laufende Messung (4c-4, fortsetzbar): eine Messung bei IBM wartet bis zu
+// Stunden in der Schlange; das Handy beendet die App vorher. Darum liegt VOR dem
+// ersten IBM-Auftrag eine `Messung` im Tresor: Auftrag, Seed (daraus u, t und
+// alles Weitere -- derselbe Seed, dieselbe Antwort), Schlüssel des Ausgebers und
+// die Kennungen der IBM-Aufträge. Getrennt vom Fall (eigene Domäne, eigene Liste,
+// höchstens MESSUNGEN_MAX): ein Fall entsteht erst mit dem Messergebnis, und
+// Bestätigung und Öffnung sehen nur Fälle.
 
 import { gcm } from '@noble/ciphers/aes.js';
 import { ethers } from 'ethers';
@@ -35,6 +43,15 @@ const LISTE = 'aequitas.quantenS.praep.faelle';
 export const FAELLE_MAX = 16;
 /** Ein Fall: Auftrag, Bits und Antwort; deutlich unter den ~2 MB je Eintrag von AsyncStorage. */
 export const FALL_MAX = 1024 * 1024;
+const MESSUNG_PREFIX = 'aequitas.quantenS.praep.messung.';
+const MESSUNG_LISTE = 'aequitas.quantenS.praep.messungen';
+const DOM_MESSUNG = 'aequitas-praep-messung-v1';
+/** Höchstens so viele laufende Messungen (je Los eine; ein Mensch steht selten in mehreren Losen zugleich). */
+export const MESSUNGEN_MAX = 4;
+/** Höchstens so viele IBM-Aufträge je Messung (ein Abschnitt: n ≤ 16384 Stellen, je Auftrag viele Kreise). */
+export const JOBS_MAX = 64;
+const JOB_ID = /^[a-z0-9]{8,64}$/;
+const PUB = /^04[0-9a-f]{128}$/;
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const HEX = /^[0-9a-f]*$/;
@@ -145,6 +162,33 @@ function fallPruefen(f: unknown): Fall {
   return fall;
 }
 
+/** Eine laufende Messung (vor dem Fall). */
+export interface Messung {
+  k: string;
+  auftrag: AbschnittAuftrag;
+  /** geheim: daraus u, t und alles Weitere (drbg) */
+  seed: string;
+  /** Schlüssel des Ausgebers (aus der Unterschrift seiner Hülle), für die Antwort */
+  pub: string;
+  /** IBM-Aufträge je Teil, null = noch nicht (oder neu) einzureichen */
+  jobs: (string | null)[];
+  /** Zeit der Annahme (Sekunden) */
+  zeit: number;
+}
+
+function messungPruefen(m: unknown): Messung {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) fehler('Tresor: Messung, Form');
+  const o = m as Record<string, unknown>;
+  if (Object.keys(o).sort().join(',') !== 'auftrag,jobs,k,pub,seed,zeit') fehler('Tresor: Messung, Felder');
+  if (typeof o.k !== 'string' || !HEX64.test(o.k) || typeof o.seed !== 'string' || !HEX64.test(o.seed)) fehler('Tresor: Messung, K oder Seed');
+  if (typeof o.pub !== 'string' || !PUB.test(o.pub)) fehler('Tresor: Messung, Schlüssel');
+  if (!Array.isArray(o.jobs) || o.jobs.length > JOBS_MAX || !o.jobs.every((j) => j === null || (typeof j === 'string' && JOB_ID.test(j)))) fehler('Tresor: Messung, Aufträge');
+  if (typeof o.zeit !== 'number' || !Number.isSafeInteger(o.zeit) || o.zeit <= 0) fehler('Tresor: Messung, Zeit');
+  const auftrag = auftragLesen(ethers.toUtf8Bytes(JSON.stringify(o.auftrag)));
+  if (auftrag.k !== o.k) fehler('Tresor: Messung, Auftrag zu anderem K');
+  return { k: o.k, auftrag, seed: o.seed, pub: o.pub, jobs: [...(o.jobs as (string | null)[])], zeit: o.zeit };
+}
+
 export class PraepTresor {
   constructor(
     private geheim: Speicher,
@@ -174,7 +218,11 @@ export class PraepTresor {
   }
 
   async liste(): Promise<string[]> {
-    const roh = await this.ablage.lesen(LISTE);
+    return this.listeLesen(LISTE, FAELLE_MAX);
+  }
+
+  private async listeLesen(key: string, max: number): Promise<string[]> {
+    const roh = await this.ablage.lesen(key);
     if (roh === null) return [];
     let l: unknown;
     try {
@@ -182,46 +230,84 @@ export class PraepTresor {
     } catch {
       return fehler('Tresor: Liste beschädigt');
     }
-    if (!Array.isArray(l) || l.length > FAELLE_MAX || !l.every((k) => typeof k === 'string' && HEX64.test(k)) || new Set(l).size !== l.length) {
+    if (!Array.isArray(l) || l.length > max || !l.every((k) => typeof k === 'string' && HEX64.test(k)) || new Set(l).size !== l.length) {
       fehler('Tresor: Liste beschädigt');
     }
     return l as string[];
   }
 
-  async speichern(f: Fall): Promise<void> {
-    const fall = fallPruefen(f);
-    const klar = ethers.toUtf8Bytes(JSON.stringify(fall));
+  private async verschluesseln(prefix: string, dom: string, K: string, obj: unknown): Promise<void> {
+    const klar = ethers.toUtf8Bytes(JSON.stringify(obj));
     if (klar.length > FALL_MAX) fehler('Tresor: Fall zu groß');
-    const liste = await this.liste();
-    if (!liste.includes(fall.k) && liste.length >= FAELLE_MAX) fehler('Tresor: zu viele offene Fälle');
     const key = await this.schluessel(true);
     const nonce = this.zufall(12);
     if (nonce.length !== 12) fehler('Zufall');
-    const ct = gcm(key, nonce, ethers.toUtf8Bytes(`${DOM_TRESOR}|${fall.k}`)).encrypt(klar);
-    await this.ablage.schreiben(FALL_PREFIX + fall.k, ethers.hexlify(nonce).slice(2) + ethers.hexlify(ct).slice(2), false);
-    if (!liste.includes(fall.k)) await this.ablage.schreiben(LISTE, JSON.stringify([...liste, fall.k]), false);
+    const ct = gcm(key, nonce, ethers.toUtf8Bytes(`${dom}|${K}`)).encrypt(klar);
+    await this.ablage.schreiben(prefix + K, ethers.hexlify(nonce).slice(2) + ethers.hexlify(ct).slice(2), false);
   }
 
-  /** Den Fall zu K lesen; null, wenn es keinen gibt. Jeder andere Fehler wirft. */
-  async laden(K: string): Promise<Fall | null> {
+  private async entschluesseln(prefix: string, dom: string, K: string): Promise<unknown | null> {
     if (!HEX64.test(K)) fehler('K');
-    const roh = await this.ablage.lesen(FALL_PREFIX + K);
+    const roh = await this.ablage.lesen(prefix + K);
     if (roh === null) return null;
     if (!HEX.test(roh) || roh.length % 2 !== 0 || roh.length < 2 * (12 + 16) || roh.length > 2 * (FALL_MAX + 12 + 16)) fehler('Tresor: Chiffrat');
     const key = await this.schluessel(false);
     const b = ethers.getBytes('0x' + roh);
     let klar: Uint8Array;
     try {
-      klar = gcm(key, b.slice(0, 12), ethers.toUtf8Bytes(`${DOM_TRESOR}|${K}`)).decrypt(b.slice(12));
+      klar = gcm(key, b.slice(0, 12), ethers.toUtf8Bytes(`${dom}|${K}`)).decrypt(b.slice(12));
     } catch {
       return fehler('Tresor: Chiffrat verändert oder fremder Schlüssel');
     }
-    let o: unknown;
     try {
-      o = JSON.parse(ethers.toUtf8String(klar));
+      return JSON.parse(ethers.toUtf8String(klar));
     } catch {
       return fehler('Tresor: Inhalt unlesbar');
     }
+  }
+
+  // ---- laufende Messungen (4c-4)
+
+  async messungen(): Promise<string[]> {
+    return this.listeLesen(MESSUNG_LISTE, MESSUNGEN_MAX);
+  }
+
+  async messungSpeichern(m: Messung): Promise<void> {
+    const mess = messungPruefen(m);
+    const liste = await this.messungen();
+    if (!liste.includes(mess.k) && liste.length >= MESSUNGEN_MAX) fehler('Tresor: zu viele laufende Messungen');
+    await this.verschluesseln(MESSUNG_PREFIX, DOM_MESSUNG, mess.k, mess);
+    if (!liste.includes(mess.k)) await this.ablage.schreiben(MESSUNG_LISTE, JSON.stringify([...liste, mess.k]), false);
+  }
+
+  /** Die laufende Messung zu K; null, wenn es keine gibt. Jeder andere Fehler wirft. */
+  async messungLaden(K: string): Promise<Messung | null> {
+    const o = await this.entschluesseln(MESSUNG_PREFIX, DOM_MESSUNG, K);
+    if (o === null) return null;
+    const m = messungPruefen(o);
+    if (m.k !== K) fehler('Tresor: Messung zu anderem K');
+    return m;
+  }
+
+  async messungLoeschen(K: string): Promise<void> {
+    if (!HEX64.test(K)) fehler('K');
+    await this.ablage.loeschen(MESSUNG_PREFIX + K);
+    const liste = await this.messungen();
+    if (liste.includes(K)) await this.ablage.schreiben(MESSUNG_LISTE, JSON.stringify(liste.filter((k) => k !== K)), false);
+  }
+
+  async speichern(f: Fall): Promise<void> {
+    const fall = fallPruefen(f);
+    const liste = await this.liste();
+    if (!liste.includes(fall.k) && liste.length >= FAELLE_MAX) fehler('Tresor: zu viele offene Fälle');
+    await this.verschluesseln(FALL_PREFIX, DOM_TRESOR, fall.k, fall);
+    if (!liste.includes(fall.k)) await this.ablage.schreiben(LISTE, JSON.stringify([...liste, fall.k]), false);
+  }
+
+  /** Den Fall zu K lesen; null, wenn es keinen gibt. Jeder andere Fehler wirft. */
+  async laden(K: string): Promise<Fall | null> {
+    const o = await this.entschluesseln(FALL_PREFIX, DOM_TRESOR, K);
+    if (o === null) return null;
     const f = fallPruefen(o);
     if (f.k !== K) fehler('Tresor: Fall zu anderem K');
     return f;

@@ -651,7 +651,7 @@ const it: Translations = {
     qrGespeichert: "Accesso IBM salvato su questo dispositivo.",
     qrZugangDa: "Accesso IBM salvato.",
     qrRunde: "Controlla la casella e rispondi",
-    qrLaeuft: "In corso – una misura può attendere nella coda IBM. Tieni aperta l'app.",
+    qrLaeuft: "In corso – una misura può attendere nella coda IBM. Se l'app viene interrotta, il giro successivo riprende la stessa misura.",
     qrLoeschen: "Elimina l'accesso IBM da questo dispositivo",
     qrLoeschenFrage: "L'accesso IBM verrà eliminato da questo dispositivo. Senza di esso non puoi rispondere agli incarichi. Continuare?",
     qrFehler: "Errore: {meldung}",

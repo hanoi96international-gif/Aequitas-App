@@ -651,7 +651,7 @@ const en: Translations = {
     qrGespeichert: "IBM access saved on this device.",
     qrZugangDa: "IBM access saved.",
     qrRunde: "Check mailbox and reply",
-    qrLaeuft: "Running – a measurement may wait in IBM's queue. Keep the app open.",
+    qrLaeuft: "Running – a measurement may wait in IBM's queue. If the app is interrupted, the next round continues the same measurement.",
     qrLoeschen: "Delete IBM access from this device",
     qrLoeschenFrage: "The IBM access will be deleted from this device. Without it you cannot answer orders. Continue?",
     qrFehler: "Error: {meldung}",

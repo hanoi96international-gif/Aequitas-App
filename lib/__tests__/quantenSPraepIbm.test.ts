@@ -126,6 +126,60 @@ describe('IBM-Messer', () => {
   });
 });
 
+describe('IBM-Messer: Fortsetzung (4c-4)', () => {
+  const n = 40;
+  const u = bits(n, (i) => i % 2), t = bits(n, (i) => (i * 3) % 2), y = bits(n, (i) => (i % 3 === 0 ? 1 : 0));
+  const soll = u.map((ui, i) => (ui === y[i] ? t[i] : 0));
+
+  it('merkt den IBM-Auftrag VOR dem Warten; nach Abbruch (Frist) setzt eine neue Runde ihn fort, ohne neu einzureichen', async () => {
+    const folge = ['QUEUED'];
+    const st = ibm(u, t, y, { status: folge });
+    let gemerkt: (string | null)[] = [];
+    let statusBeimMerken = -1;
+    const fort = { jobs: [] as (string | null)[], merken: async (j: (string | null)[]) => { gemerkt = j; statusBeimMerken = st.statusAbfragen; } };
+    const uhr = { t: 0 };
+    await expect(ibmMesser(ZUGANG, umg(st.f, uhr), { fristMs: 60_000 }).messen(u, t, y, fort)).rejects.toThrow('Frist');
+    expect(gemerkt).toEqual(['job1abcdef']);
+    expect(statusBeimMerken).toBe(0); // gemerkt, bevor auch nur einmal gefragt wurde
+    // Neue Runde (neuer Messer): derselbe Auftrag, IBM ist inzwischen fertig.
+    folge.push('COMPLETED');
+    let geraeteFragen = 0;
+    const zaehlend = (async (url: string, init: RequestInit) => (url.endsWith('/backends') && geraeteFragen++, st.f(url, init))) as unknown as typeof fetch;
+    const x = await ibmMesser(ZUGANG, umg(zaehlend, { t: 0 })).messen(u, t, y, { jobs: gemerkt, merken: async (j) => void (gemerkt = j) });
+    expect(x).toEqual(soll);
+    expect(st.auftraege).toHaveLength(1); // nichts neu eingereicht
+    expect(geraeteFragen).toBe(0); // fortgesetzt braucht kein freies Gerät
+  });
+
+  it.each([['FAILED'], ['CANCELLED']])('%s: der Auftrag wird vergessen, die nächste Runde reicht neu ein', async (s) => {
+    const folge = ['QUEUED', s];
+    const st = ibm(u, t, y, { status: folge });
+    let gemerkt: (string | null)[] = [];
+    await expect(ibmMesser(ZUGANG, umg(st.f)).messen(u, t, y, { jobs: [], merken: async (j) => void (gemerkt = j) })).rejects.toThrow(s);
+    expect(gemerkt).toEqual([null]);
+    folge.push('COMPLETED');
+    st.statusAbfragen = 2;
+    const x = await ibmMesser(ZUGANG, umg(st.f)).messen(u, t, y, { jobs: gemerkt, merken: async (j) => void (gemerkt = j) });
+    expect(st.auftraege).toHaveLength(2);
+    expect(gemerkt).toEqual(['job2abcdef']);
+    expect(x.length).toBe(n);
+  });
+
+  it('weist eine Fortsetzung mit mehr Aufträgen ab, als die Messung Teile hat', async () => {
+    const st = ibm(u, t, y);
+    await expect(ibmMesser(ZUGANG, umg(st.f)).messen(u, t, y, { jobs: ['job1abcdef', 'job2abcdef'], merken: async () => {} })).rejects.toThrow('Fortsetzung');
+    expect(st.auftraege).toHaveLength(0);
+  });
+
+  it('eine unlesbare Kennung aus der Fortsetzung geht nie an IBM', async () => {
+    const st = ibm(u, t, y);
+    let netz = 0;
+    const zaehlend = (async (url: string, init: RequestInit) => (url.includes('/jobs/') && netz++, st.f(url, init))) as unknown as typeof fetch;
+    await expect(ibmMesser(ZUGANG, umg(zaehlend)).messen(u, t, y, { jobs: ['../boese'], merken: async () => {} })).rejects.toThrow('Kennung');
+    expect(netz).toBe(0);
+  });
+});
+
 describe('IBM-Zugang im Gerät', () => {
   it('speichert geheim und liest streng', async () => {
     const s = speicher();
