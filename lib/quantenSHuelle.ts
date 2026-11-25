@@ -48,8 +48,8 @@ export const OFFEN_MAX = 32;
 export const OFFEN_BYTES_MAX = 8 * 1024 * 1024;
 export const GESEHEN_MAX = 16384;
 
-/** Was über die Hülle läuft (B4b-4b): nichts sonst wird angenommen. */
-export const ARTEN = ['auftrag', 'antwort', 'buendel', 'bestaetigung', 'oeffnung'] as const;
+/** Was über die Hülle läuft (B4b-4b; `paket` vom Ausgeber an die Inhaberin, B4b-4c-2f): nichts sonst wird angenommen. */
+export const ARTEN = ['auftrag', 'antwort', 'buendel', 'bestaetigung', 'oeffnung', 'paket'] as const;
 export type Art = (typeof ARTEN)[number];
 
 const ADRESSE = /^0x[0-9a-f]{40}$/;
