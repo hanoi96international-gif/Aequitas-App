@@ -8,7 +8,7 @@ jest.mock('../config', () => ({ API_BASE: 'https://knoten.test/api' }));
 
 import { ethers } from 'ethers';
 import { abschnitt, adresseVon, basenHash, hexZuBits, pubVon } from '../quantenS';
-import { neuWegB, type Umgebung } from '../quantenSInhaberin';
+import { neuWegB, zustandLesen, type Umgebung } from '../quantenSInhaberin';
 import { basenOeffnen } from '../quantenSPraepAuftrag';
 import { drbg } from '../quantenSPraepTresor';
 
@@ -63,7 +63,7 @@ describe('B4b-4c-2b: Inhaberin verschlüsselt an die Gelosten', () => {
     const best = await neuWegB(w.u, N, K.toUpperCase(), STELLEN);
     expect(best.basen).toBeUndefined();
     expect(best.basen_verschluesselt).toHaveLength(5);
-    const z = JSON.parse(w.speicher.get('aequitas.quantenS.inhaberin.zustand')!);
+    const z = (await zustandLesen(w.u))!;
     expect(z.wegB).toBe(K);
     expect(z.verschluesseltAn).toEqual(LOS);
     expect(z.basenHash).toEqual(best.basen_verschluesselt!.map(basenHash));
@@ -109,8 +109,11 @@ describe('B4b-4c-2b: Inhaberin verschlüsselt an die Gelosten', () => {
     const w = welt();
     delete w.u.ablage;
     await expect(neuWegB(w.u, N, K, STELLEN)).rejects.toThrow('Ablage');
-    // Zu groß für den Speicher des Geräts (SecureStore 2048 Byte): abgewiesen, bevor Zufall gezogen wird.
-    await expect(neuWegB(welt().u, 4096, K, STELLEN)).rejects.toThrow('zu gross');
+    // 2b′: mit Ablage liegt der Zustand verschlüsselt dort -- auch das größte n passt (vorher SecureStore, 2048 Byte).
+    const g = welt();
+    await neuWegB(g.u, 16384, K, STELLEN);
+    expect((await zustandLesen(g.u))!.n).toBe(16384);
+    for (const wert of g.speicher.values()) expect(wert.length).toBeLessThanOrEqual(2048);
   });
 
   test('der Schlüssel aus dem Register wird gegen die Adresse geprüft (pubPasst), Groß-/Kleinschreibung zählt', async () => {

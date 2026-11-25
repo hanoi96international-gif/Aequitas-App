@@ -22,6 +22,7 @@
 // Schluessel verlaesst das Geraet nie und steht in keiner Meldung.
 import * as SecureStore from 'expo-secure-store';
 import { getRandomBytes } from 'expo-crypto';
+import { gcm } from '@noble/ciphers/aes.js';
 import { ethers } from 'ethers';
 import { API_BASE } from './config';
 import {
@@ -53,6 +54,20 @@ const SCHLUESSEL = 'aequitas.quantenS.inhaberin.schluessel';
 /** Schluessel der Annahmestelle, wenn das Geraet keine eigene Wallet hat (quantenSStelle.ts). */
 export const STELLE_SCHLUESSEL = 'aequitas.quantenS.stelle.schluessel';
 const ZUSTAND = 'aequitas.quantenS.inhaberin.zustand';
+/**
+ * B4b-4c-2b′: der Zustand passt nicht immer in SecureStore (2048 Byte je Wert).
+ * Mit Ablage liegt er AES-256-GCM-verschlüsselt dort, abwechselnd in zwei
+ * Plätzen; im SecureStore nur der ANKER: Schlüssel, gültiger Platz und
+ * SHA-256 des Chiffrats (gegen Tausch und Rückspielen eines alten Stands).
+ * Geschrieben wird erst der neue Platz, dann der Anker: bricht es dazwischen
+ * ab, gilt der alte Stand weiter.
+ */
+const ANKER = 'aequitas.quantenS.inhaberin.anker';
+const ZUSTAND_CT = 'aequitas.quantenS.inhaberin.zustand.';
+const DOM_ZUSTAND = 'aequitas-quanten-s-inhaberin-zustand-v1';
+/** Ohne Ablage (SecureStore) bzw. mit Ablage (verschlüsselt). */
+export const ZUSTAND_MAX_SECURESTORE = 2048;
+export const ZUSTAND_MAX = 256 * 1024;
 /** Chiffrate der Basen (oeffentlich, zu gross fuer SecureStore); ihre Hashes stehen im Zustand. */
 const CHIFFRATE = 'aequitas.quantenS.inhaberin.chiffrate';
 /** Abschnitt eines Validators: Blaetter fuer bis zu 16.384 Stellen (~1,1 MB). */
@@ -286,20 +301,96 @@ async function wartenAuf(u: Umgebung, K: string, fertig: (st: KettenStand | null
 
 // ------------------------------------------------------------ Speicher
 
-async function zustandLesen(u: Umgebung): Promise<Zustand | null> {
-  const roh = await u.speicher.lesen(ZUSTAND);
+interface Anker {
+  key: string;
+  platz: 0 | 1;
+  hash: string;
+}
+
+async function ankerLesen(u: Umgebung): Promise<Anker | null> {
+  const roh = await u.speicher.lesen(ANKER);
+  if (roh === null) return null;
+  let a: unknown;
+  try {
+    a = JSON.parse(roh);
+  } catch {
+    return fehler('Zustand im Geraet beschaedigt (Anker)');
+  }
+  const o = a as Record<string, unknown>;
+  if (!o || typeof o !== 'object' || Array.isArray(o) || Object.keys(o).sort().join(',') !== 'hash,key,platz' ||
+    typeof o.key !== 'string' || !K_FORM.test(o.key) || (o.platz !== 0 && o.platz !== 1) || typeof o.hash !== 'string' || !K_FORM.test(o.hash)) {
+    fehler('Zustand im Geraet beschaedigt (Anker)');
+  }
+  return o as unknown as Anker;
+}
+
+/** Den Zustand lesen: verschluesselt aus der Ablage (Anker im SecureStore), sonst wie frueher aus dem SecureStore. */
+export async function zustandLesen(u: Umgebung): Promise<Zustand | null> {
+  const anker = await ankerLesen(u);
+  let roh: string | null;
+  if (anker) {
+    if (!u.ablage) fehler('Zustand liegt in der Ablage, aber keine Ablage');
+    const ct = await u.ablage.lesen(ZUSTAND_CT + anker.platz);
+    if (ct === null || ct.length > 2 * (ZUSTAND_MAX + 64) || !/^[0-9a-f]+$/.test(ct) || ethers.sha256('0x' + ct).slice(2) !== anker.hash) {
+      fehler('Zustand im Geraet beschaedigt oder ausgetauscht');
+    }
+    const b = ethers.getBytes('0x' + ct);
+    try {
+      const klar = gcm(ethers.getBytes('0x' + anker.key), b.slice(0, 12), ethers.toUtf8Bytes(`${DOM_ZUSTAND}|${anker.platz}`)).decrypt(b.slice(12));
+      roh = ethers.toUtf8String(klar);
+    } catch {
+      return fehler('Zustand im Geraet beschaedigt oder ausgetauscht');
+    }
+  } else {
+    roh = await u.speicher.lesen(ZUSTAND);
+  }
   if (!roh) return null;
-  const z = JSON.parse(roh) as Zustand;
+  let z: Zustand;
+  try {
+    z = JSON.parse(roh) as Zustand;
+  } catch {
+    return fehler('Zustand im Geraet unlesbar');
+  }
   if (!Number.isInteger(z.n) || !Number.isInteger(z.v) || typeof z.y !== 'string' || !Array.isArray(z.stellen) || !Array.isArray(z.stellenSchluessel)) {
     fehler('Zustand im Geraet unlesbar');
   }
   return z;
 }
 
-async function zustandSchreiben(u: Umgebung, z: Zustand): Promise<void> {
+/** Den Zustand schreiben (exportiert fuer Tests). */
+export async function zustandSchreiben(u: Umgebung, z: Zustand): Promise<void> {
   const roh = JSON.stringify(z);
-  if (roh.length > 2048) fehler('Zustand zu gross fuer den Speicher');
-  await u.speicher.schreiben(ZUSTAND, roh, false);
+  if (!u.ablage) {
+    if (roh.length > ZUSTAND_MAX_SECURESTORE) fehler('Zustand zu gross fuer den Speicher');
+    await u.speicher.schreiben(ZUSTAND, roh, false);
+    return;
+  }
+  if (roh.length > ZUSTAND_MAX) fehler('Zustand zu gross fuer den Speicher');
+  const alt = await ankerLesen(u);
+  let key = alt?.key;
+  if (!key) {
+    const kb = u.zufall(32);
+    if (!(kb instanceof Uint8Array) || kb.length !== 32) fehler('Zufall');
+    key = ethers.hexlify(kb).slice(2);
+  }
+  const platz: 0 | 1 = alt ? (alt.platz === 0 ? 1 : 0) : 0;
+  const nonce = u.zufall(12);
+  if (!(nonce instanceof Uint8Array) || nonce.length !== 12) fehler('Zufall');
+  const c = gcm(ethers.getBytes('0x' + key), nonce, ethers.toUtf8Bytes(`${DOM_ZUSTAND}|${platz}`)).encrypt(ethers.toUtf8Bytes(roh));
+  const ct = ethers.hexlify(ethers.concat([nonce, c])).slice(2);
+  // Erst der neue Platz, dann der Anker (gilt erst ab hier), dann aufraeumen.
+  await u.ablage.schreiben(ZUSTAND_CT + platz, ct, false);
+  await u.speicher.schreiben(ANKER, JSON.stringify({ key, platz, hash: ethers.sha256('0x' + ct).slice(2) }), false);
+  await u.ablage.loeschen(ZUSTAND_CT + (1 - platz));
+  await u.speicher.loeschen(ZUSTAND);
+}
+
+/** Zustand ganz loeschen (beide Formen). */
+async function zustandLoeschen(u: Umgebung): Promise<void> {
+  await u.speicher.loeschen(ANKER);
+  await u.speicher.loeschen(ZUSTAND);
+  await u.ablage?.loeschen(ZUSTAND_CT + 0);
+  await u.ablage?.loeschen(ZUSTAND_CT + 1);
 }
 
 async function schluesselLesen(u: Umgebung): Promise<string> {
@@ -362,7 +453,8 @@ async function neuMit(
   if (alt?.k) fehler('es gibt schon einen angenommenen Token -- erst einloesen');
   if (alt) fehler('es gibt schon eine Bestellung -- erst abholen oder vergessen');
   // Passt der Zustand samt x nach dem Abholen in den Speicher (SecureStore:
-  // 2048 Byte je Wert)? Vorher pruefen -- dann erst Zufall ziehen und schreiben.
+  // 2048 Byte je Wert; mit Ablage verschluesselt dort, ZUSTAND_MAX)? Vorher
+  // pruefen -- dann erst Zufall ziehen und schreiben.
   const hexLaenge = Math.ceil(n / 4);
   const groesst: Zustand = {
     n, v, y: '0'.repeat(hexLaenge), stellen: [st[0].adresse, st[1].adresse], stellenSchluessel: [st[0].schluessel, st[1].schluessel],
@@ -370,7 +462,7 @@ async function neuMit(
     ...(wegB ? { wegB } : {}),
     ...(an ? { basenHash: Array(v).fill('0'.repeat(64)), verschluesseltAn: an } : {}),
   };
-  if (JSON.stringify(groesst).length > 2048) fehler('n zu gross fuer den Speicher dieses Geraets');
+  if (JSON.stringify(groesst).length > (u.ablage ? ZUSTAND_MAX : ZUSTAND_MAX_SECURESTORE)) fehler('n zu gross fuer den Speicher dieses Geraets');
   let schl = '';
   for (let i = 0; i < 8 && !schl; i++) {
     const k = BigInt('0x' + ethers.hexlify(u.zufall(32)).slice(2));
@@ -572,7 +664,7 @@ export async function vergessen(u: Umgebung): Promise<void> {
   const z = await zustandLesen(u);
   if (z?.k && (await stand(u, z.k)) != null) fehler('der Token steht noch auf der Kette -- erst einloesen');
   await u.speicher.loeschen(SCHLUESSEL);
-  await u.speicher.loeschen(ZUSTAND);
+  await zustandLoeschen(u);
   await u.ablage?.loeschen(CHIFFRATE);
 }
 
