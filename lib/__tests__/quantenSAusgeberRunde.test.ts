@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { abschnitt, adresseVon, antwortNachricht, basenHash, fuerInhaberinOeffnen, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, type Bestellung } from '../quantenS';
 import { ANTWORT, BESTAETIGUNG, RAHMEN, bestellPfand, losRunde, vergessen, zustandLesen, zustandSchreiben, type AusgeberZustand } from '../quantenSAusgeber';
-import { ANTWORTEN_MAX, antwortenStand, auftraegeSenden, auftragBauen, beauftragen, ausgeben, bestaetigenAnfrageBauen, paketSenden, bestaetigungenAnfordern, bestaetigungenStand, sAusgabeNachricht, type Rahmen } from '../quantenSAusgeberRunde';
+import { ANTWORTEN_MAX, antwortenStand, rahmenPruefen, auftraegeSenden, auftragBauen, beauftragen, ausgeben, bestaetigenAnfrageBauen, paketSenden, bestaetigungenAnfordern, bestaetigungenStand, sAusgabeNachricht, type Rahmen } from '../quantenSAusgeberRunde';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from '../quantenSHuelle';
 import { einloesen, neuWegB, zustandLesen as inhaberinZustand, type Speicher, type Umgebung } from '../quantenSInhaberin';
 import { PAKET as STELLE_PAKET, annehmenWegB, oeffnungenAnfordern, oeffnungenSammeln } from '../quantenSStelleWegB';
@@ -372,6 +372,14 @@ describe('B4b-4c-2c: Ausgeber beauftragt und sammelt', () => {
     expect(q).toMatchObject({ k: K, n: N, t: T, tol: TOL, x: 3, validatoren: LOS, basen: '', probe_art: 2, zeit: JETZT, praeger: adresseVon(AUSGEBER) });
     expect(q.basen_verschluesselt).toBe(w.best.basen_verschluesselt![2]);
     expect(ethers.verifyMessage(auftragNachricht(q), q.praeger_sig).toLowerCase()).toBe(adresseVon(AUSGEBER));
+  });
+
+  test('Missbrauch: der Ausgeber im eigenen Los -- der Rahmen gilt nicht', async () => {
+    const w = await welt();
+    await beauftragen(w.ua, wallet(AUSGEBER), w.best, TOL);
+    const r: Rahmen = JSON.parse(w.ua.ablage.daten.get(RAHMEN)!);
+    expect(() => rahmenPruefen(r, { ...GELOST, los: [adresseVon(AUSGEBER), LOS[1], LOS[2], LOS[3]] })).toThrow('eigenen Los');
+    expect(() => rahmenPruefen(r, GELOST)).not.toThrow();
   });
 
   test('Reste einer früheren Runde zählen nie: beauftragen und vergessen räumen auf', async () => {

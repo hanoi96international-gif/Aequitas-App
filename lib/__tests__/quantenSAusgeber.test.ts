@@ -204,7 +204,8 @@ describe('B4b-4c-2a: bestellen und losen', () => {
       ['Los doppelt', (b) => void (b.los = [LOS[0], LOS[0], LOS[1], LOS[2], LOS[3]]), 'Los'],
       ['Los zu kurz', (b) => void (b.los = LOS.slice(0, 4)), 'Los'],
       ['Los Form', (b) => void (b.los = LOS.map((a) => a.toUpperCase())), 'Los'],
-      ['fremder Ausgeber', (b) => void (b.ausgeber = LOS[0]), 'passt nicht'],
+      ['fremder Ausgeber', (b) => void (b.ausgeber = adresseVon('ab'.repeat(32))), 'passt nicht'],
+      ['Ausgeber im eigenen Los', (b) => void (b.los = [ICH, LOS[1], LOS[2], LOS[3], LOS[4]]), 'eigenen Los'],
       ['andere Deckung', (b) => {
         b.deckung = 6_000_000;
         b.pfand = bestellPfand(6_000_000);
