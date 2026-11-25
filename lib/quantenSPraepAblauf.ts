@@ -39,7 +39,7 @@ import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from './quantenSHu
 import type { Speicher } from './quantenSInhaberin';
 import { antwortAufAuftrag, auftragLesen, auftragNachricht, auftragPruefen, basenOeffnen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
 import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
-import { antwortAufnehmen, bestaetigungAufnehmen, istBestaetigung } from './quantenSAusgeberRunde';
+import { antwortAufnehmen, bestaetigungAufnehmen, istBestaetigung, paketAbschnittAus } from './quantenSAusgeberRunde';
 import { bestaetigen, oeffnungFuerStelle, sBestaetigungNachricht, type AbschnittTresor, type Antwort, type BestaetigenAnfrage, type Zufall } from './quantenSPraeparieren';
 import { PraepTresor, drbg, type Fall } from './quantenSPraepTresor';
 
@@ -360,7 +360,7 @@ export async function oeffnungBeantworten(u: PraepUmgebung, schluessel: string, 
   if (Math.min(...hs.map((h) => h.final)) < f.sichtung.hoehe) fehler('erst, wenn Bindung und Wahl final sind');
 
   const g = gepruefterAuftragAusFall(schluessel, f);
-  const { tresor: t } = antwortAusFall(schluessel, f, g);
+  const { antwort, tresor: t } = antwortAusFall(schluessel, f, g);
   const stelle = { adresse: a.stellen[b], pub: a.stellen_schluessel[b] };
   const oeffnung = oeffnungFuerStelle(stelle, K, b, a.x, g.von, g.bis, t.werte, t.salze[b], u.zufall);
   const pakete: Record<string, string> = {};
@@ -369,7 +369,9 @@ export async function oeffnungBeantworten(u: PraepUmgebung, schluessel: string, 
   if (f.stand !== 'geoeffnet') await tresor.speichern({ ...f, stand: 'geoeffnet' });
   const jetzt = Math.floor(u.jetzt() / 1000);
   const signer = { signMessage: async (n: string) => unterschreiben(schluessel, n) };
-  const inhalt = ethers.toUtf8Bytes(JSON.stringify({ k: K, b, x: a.x, oeffnung, pakete }));
+  // Dazu der eigene, unterschriebene Abschnitt (B4b-4c-2f-2): die Annahmestelle in
+  // Weg B hat keinen Dienst, der ihn nennt; sie prüft ihn selbst gegen die Wurzel der Kette.
+  const inhalt = ethers.toUtf8Bytes(JSON.stringify({ k: K, b, x: a.x, oeffnung, pakete, abschnitt: paketAbschnittAus(antwort) }));
   for (const brief of einpacken(schluessel, { adresse: m.von, pub: m.pub }, 'oeffnung', inhalt, jetzt, u.zufall)) {
     await ablegen(ich, m.von, brief, signer, jetzt, u.fetchFn, u.apiBasis);
   }
