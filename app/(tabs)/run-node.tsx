@@ -11,6 +11,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { AEQUITAS_CHAIN_IDS, RPC_URL } from '@/lib/config';
 import { kettenStandAusStatus } from '@/lib/kette';
+import { knotenBefehl, validatorBefehl, VERIFIER_BEFEHL } from '@/lib/knotenBefehle';
 import { theme, purpleTint, purpleTintBorder, goldTint, goldTintBorder, neonTint, neonTintBorder } from '@/constants/aequitas-theme';
 
 const GITHUB_URL = 'https://github.com/hanoi96international-gif/Aequitas';
@@ -18,21 +19,12 @@ const GITHUB_URL = 'https://github.com/hanoi96international-gif/Aequitas';
 // (docs/VALIDATOR_EINRICHTEN.md, docs/VERIFIER_EINRICHTEN.md).
 const GUIDE_URL = GITHUB_URL + '/blob/main/docs/VALIDATOR_EINRICHTEN.md';
 
-// Ein Befehl (docs/VALIDATOR_EINRICHTEN.md): die erste Zeile installiert
-// Docker, die zweite holt Aequitas, die dritte richtet alles ein. Die Wallet
-// steht schon drin; am Ende meldet der Server eine Anfrage, die dieser Tab von
-// selbst anzeigt (keeper/bindungsanfrage.go).
-function setupCmd(wallet?: string | null): string {
-  const w = wallet && /^0x[0-9a-fA-F]{40}$/.test(wallet) ? ' ' + wallet.toLowerCase() : '';
-  return `curl -fsSL https://get.docker.com | sh
-git clone https://github.com/hanoi96international-gif/Aequitas.git
-cd Aequitas/deploy/validator && bash einrichten.sh${w}`;
-}
-
-// Dasselbe fuer den Vergleichsdienst (docs/VERIFIER_EINRICHTEN.md).
-const VERIFIER_CMD = `curl -fsSL https://get.docker.com | sh
-git clone https://github.com/hanoi96international-gif/Aequitas.git
-cd Aequitas/deploy/verifier && bash einrichten.sh`;
+// Die Befehle (lib/knotenBefehle.ts): die erste Zeile installiert Docker, die
+// zweite holt Aequitas, die dritte richtet alles ein. Die Wallet steht schon
+// drin (nur wenn sie genau eine Adresse ist); am Ende meldet der Server eine
+// Anfrage, die dieser Tab von selbst anzeigt (keeper/bindungsanfrage.go).
+// Zuerst der Knotenbetreiber (Validator + Verifier), darunter die Einzelteile.
+const KNOTEN_GUIDE_URL = GITHUB_URL + '/blob/main/docs/KNOTEN_EINRICHTEN.md';
 const VERIFIER_GUIDE_URL = GITHUB_URL + '/blob/main/docs/VERIFIER_EINRICHTEN.md';
 
 const CHECK_CMD = `curl -s http://localhost:8080/api/status | grep -oE '"height":[0-9]+'
@@ -157,9 +149,19 @@ export default function RunNode() {
         </View>
 
         <View style={S.card}>
+          <Text style={S.cardTitle}>{t('node.knotenTitel')}</Text>
+          <Text style={S.faucetDesc}>{t('node.knotenText')}</Text>
+          <CodeBlock code={knotenBefehl(address)} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
+          <Text style={S.portNote}>{t('node.knotenPorts')}</Text>
+          <TouchableOpacity style={S.githubBtn} onPress={() => Linking.openURL(KNOTEN_GUIDE_URL)} activeOpacity={0.8}>
+            <Text style={S.githubBtnText}>{t('node.knotenGuideBtn')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={S.card}>
           <Text style={S.cardTitle}>{t('node.setupTitle')}</Text>
-          <Text style={S.faucetDesc}>{t('node.setupDesc')}</Text>
-          <CodeBlock code={setupCmd(address)} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
+          <Text style={S.faucetDesc}>{t('node.einzelHinweis')} {t('node.setupDesc')}</Text>
+          <CodeBlock code={validatorBefehl(address)} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
           <Text style={S.portNote}>{t('node.portNote')}</Text>
         </View>
 
@@ -183,7 +185,7 @@ export default function RunNode() {
         <View style={S.card}>
           <Text style={S.cardTitle}>{t('node.verifierTitle')}</Text>
           <Text style={S.faucetDesc}>{t('node.verifierDesc')}</Text>
-          <CodeBlock code={VERIFIER_CMD} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
+          <CodeBlock code={VERIFIER_BEFEHL} copyBtnLabel={t('node.copyBtn')} copiedTitle={t('common.copied')} copiedMsg={t('node.cmdCopiedMsg')} />
           <Text style={S.portNote}>{t('node.verifierNote')}</Text>
           <TouchableOpacity style={S.githubBtn} onPress={() => Linking.openURL(VERIFIER_GUIDE_URL)} activeOpacity={0.8}>
             <Text style={S.githubBtnText}>{t('node.verifierGuideBtn')}</Text>
