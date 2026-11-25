@@ -61,8 +61,10 @@
 // Bündel öffnen (an die anderen Gelosten). Ob sie stimmen, prüft jede Geloste
 // beim Bestätigen (2d), die Annahmestellen beim Laden ihrer Stichprobe.
 //
-// Grenzen: v ≤ 16 Aufträge je Bestellung; eine Antwort ≤ ANTWORT_SPEICHER_MAX
-// Zeichen, alle zusammen ≤ ANTWORTEN_MAX (Android-AsyncStorage: ~2 MB je
+// Grenzen: v ≤ 16 Aufträge je Bestellung. Mit Ablage in Dateien (u.dateien):
+// eine Antwort höchstens so groß, wie eine Hülle transportiert (TEILE_MAX ×
+// TEIL_NUTZLAST), alle zusammen ≤ ANTWORTEN_MAX_DATEIEN. Ohne: eine Antwort
+// ≤ ANTWORT_SPEICHER_MAX Zeichen, alle zusammen ≤ ANTWORTEN_MAX (Android-AsyncStorage: ~2 MB je
 // Eintrag, 6 MB gesamt ohne eigene Einstellung). Größere n brauchen eine Ablage
 // in Dateien (4c-3).
 
@@ -92,6 +94,7 @@ import {
 import {
   ANTWORT,
   BESTAETIGUNG,
+  antwortAblage,
   RAHMEN,
   anfrage,
   einreichen,
@@ -105,7 +108,7 @@ import {
   zustandLesen,
   zustandSchreiben,
 } from './quantenSAusgeber';
-import { einpacken, type Nachricht } from './quantenSHuelle';
+import { TEILE_MAX, TEIL_NUTZLAST, einpacken, type Nachricht } from './quantenSHuelle';
 import { AUFTRAG_ALT, auftragNachricht, type AbschnittAuftrag } from './quantenSPraepAuftrag';
 import { registerLesen } from './quantenSPraeparator';
 import { BUENDEL_MAX, sAuftragNachricht, sBestaetigungNachricht, schluesselPruefen, type Antwort, type BestaetigenAnfrage } from './quantenSPraeparieren';
@@ -114,6 +117,9 @@ import { BUENDEL_MAX, sAuftragNachricht, sBestaetigungNachricht, schluesselPruef
 export const ANTWORT_SPEICHER_MAX = 1024 * 1024;
 /** Alle Antworten einer Bestellung zusammen. */
 export const ANTWORTEN_MAX = 4 * 1024 * 1024;
+/** Mit Ablage in Dateien: je Antwort, was eine Hülle trägt; zusammen höchstens 16 solche (v ≤ 16). */
+export const ANTWORT_DATEI_MAX = TEILE_MAX * TEIL_NUTZLAST;
+export const ANTWORTEN_MAX_DATEIEN = 16 * ANTWORT_DATEI_MAX;
 /** fuer_inhaberin: x des Abschnitts als JSON, ECIES, Hex. */
 export const FUER_INHABERIN_MAX = 2 * (N_MAX + 4096);
 /** So lange vor dem Ende des Zeitfensters der Präparatorin wird noch gesendet. */
@@ -277,7 +283,7 @@ export async function beauftragen(u: AusgeberUmgebung, wallet: WalletSchluessel,
 /** Antworten, die schon gesichert sind (x -> Text). */
 async function antwortenLaden(u: AusgeberUmgebung, v: number): Promise<(string | null)[]> {
   const out: (string | null)[] = [];
-  for (let x = 1; x <= v; x++) out.push(await u.ablage.lesen(ANTWORT + x));
+  for (let x = 1; x <= v; x++) out.push(await antwortAblage(u).lesen(ANTWORT + x));
   return out;
 }
 
@@ -316,9 +322,9 @@ const ANTWORT_PFLICHT = ['bis', 'buendel', 'buendel_sig', 'fuer_inhaberin', 'k',
 const ANTWORT_WAHL = ['basen_hash', 'teile', 'zaehlung'];
 
 /** Die Antwort einer Gelosten aus der Nutzlast, streng (genau diese Felder, Typen, Größen). */
-export function antwortLesen(nutzlast: Uint8Array | string): Antwort {
+export function antwortLesen(nutzlast: Uint8Array | string, max = ANTWORT_SPEICHER_MAX): Antwort {
   const text = typeof nutzlast === 'string' ? nutzlast : ethers.toUtf8String(nutzlast);
-  if (text.length > ANTWORT_SPEICHER_MAX) fehler('Antwort zu groß für die Ablage (kleineres n)');
+  if (text.length > max) fehler('Antwort zu groß für die Ablage (kleineres n)');
   let o: unknown;
   try {
     o = JSON.parse(text);
@@ -415,7 +421,8 @@ export async function antwortAufnehmen(u: AusgeberUmgebung, m: Nachricht): Promi
   if (z.stand !== 'beauftragt' && z.stand !== 'beantwortet' && z.stand !== 'bestaetigt') fehler('keine offenen Aufträge');
   const r = await rahmenLaden(u, z);
   const text = ethers.toUtf8String(m.nutzlast);
-  const ans = antwortLesen(text);
+  const grenzen = u.dateien ? [ANTWORT_DATEI_MAX, ANTWORTEN_MAX_DATEIEN] : [ANTWORT_SPEICHER_MAX, ANTWORTEN_MAX];
+  const ans = antwortLesen(text, grenzen[0]);
   antwortPruefen(ans, m.von, z, r);
   const da = await antwortenLaden(u, z.v);
   const alt = da[ans.x - 1];
@@ -424,13 +431,13 @@ export async function antwortAufnehmen(u: AusgeberUmgebung, m: Nachricht): Promi
     return { k: z.k, x: ans.x, art: 'wiederholt' };
   }
   const summe = da.reduce((s, d) => s + (d?.length ?? 0), 0) + text.length;
-  if (summe > ANTWORTEN_MAX) fehler('Antworten zu groß für die Ablage (kleineres n)');
-  await u.ablage.schreiben(ANTWORT + ans.x, text, false);
+  if (summe > grenzen[1]) fehler('Antworten zu groß für die Ablage (kleineres n)');
+  await antwortAblage(u).schreiben(ANTWORT + ans.x, text, false);
   da[ans.x - 1] = text;
   if (da.some((d) => d === null)) return { k: z.k, x: ans.x, art: 'neu' };
   // Alle da: noch einmal streng aus der Ablage lesen und auswerten.
   const alle = da.map((d) => {
-    const a = antwortLesen(d!);
+    const a = antwortLesen(d!, grenzen[0]);
     antwortPruefen(a, z.los![a.x - 1], z, r);
     return a;
   });
@@ -456,7 +463,7 @@ async function alleAntworten(u: AusgeberUmgebung, z: AusgeberZustand, r: Rahmen)
   const da = await antwortenLaden(u, z.v);
   return da.map((d, i) => {
     if (d === null) fehler(`Antwort ${i + 1} fehlt`);
-    const a = antwortLesen(d);
+    const a = antwortLesen(d, u.dateien ? ANTWORT_DATEI_MAX : ANTWORT_SPEICHER_MAX);
     if (a.x !== i + 1) fehler(`Antwort ${i + 1}: Nummer`);
     antwortPruefen(a, z.los![i], z, r);
     return a;

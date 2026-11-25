@@ -154,6 +154,17 @@ export interface AusgeberUmgebung {
   jetzt: () => number;
   /** drand-Relais (Vorgabe RELAIS; nur Tests setzen andere) */
   relais?: string[];
+  /**
+   * Ablage in Dateien für die großen Antworten der Gelosten (lib/dateiAblage.ts).
+   * Ohne sie liegen die Antworten in `ablage` (AsyncStorage) mit der kleinen
+   * Grenze -- in Pilot-Größe reicht das nicht (Messung 25.11.2026).
+   */
+  dateien?: Speicher;
+}
+
+/** Wo die Antworten der Gelosten liegen. */
+export function antwortAblage(u: AusgeberUmgebung): Speicher {
+  return u.dateien ?? u.ablage;
 }
 
 export interface WalletSchluessel {
@@ -212,7 +223,8 @@ export async function vergessen(u: AusgeberUmgebung): Promise<void> {
 /** Rahmen und Antworten einer früheren Runde löschen (vor einer neuen Bestellung oder Beauftragung). */
 export async function rundeLoeschen(u: AusgeberUmgebung): Promise<void> {
   for (let x = 1; x <= LOS_V_MAX; x++) {
-    await u.ablage.loeschen(ANTWORT + x);
+    await antwortAblage(u).loeschen(ANTWORT + x);
+    if (u.dateien) await u.ablage.loeschen(ANTWORT + x); // Reste aus der Zeit ohne Dateien
     await u.ablage.loeschen(BESTAETIGUNG + x);
   }
   await u.ablage.loeschen(RAHMEN);
