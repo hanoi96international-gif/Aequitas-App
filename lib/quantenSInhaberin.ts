@@ -393,7 +393,8 @@ async function zustandLoeschen(u: Umgebung): Promise<void> {
   await u.ablage?.loeschen(ZUSTAND_CT + 1);
 }
 
-async function schluesselLesen(u: Umgebung): Promise<string> {
+/** Schluessel der Inhaberin aus dem SecureStore (auch fuer quantenSInhaberinPaket.ts). */
+export async function schluesselLesen(u: Umgebung): Promise<string> {
   const s = await u.speicher.lesen(SCHLUESSEL);
   if (!s || !/^[0-9a-f]{64}$/.test(s)) fehler('kein Schluessel der Inhaberin im Geraet');
   return s;
@@ -532,7 +533,8 @@ export async function neuWegB(u: Umgebung, n: number, Kroh: string, stellen: [St
   return neuMit(u, n, los.length, stellen, los, async (x) => pubs[x - 1], K);
 }
 
-async function bestellungAus(u: Umgebung, z: Zustand, schl: string): Promise<Bestellung> {
+/** Die Bestellung aus dem Zustand (auch fuer quantenSInhaberinPaket.ts). */
+export async function bestellungAus(u: Umgebung, z: Zustand, schl: string): Promise<Bestellung> {
   const y = hexZuBits(z.y, z.n);
   const basen: string[] = [];
   for (let x = 1; x <= z.v; x++) {
@@ -600,6 +602,10 @@ export async function abholen(u: Umgebung, Kroh: string, validatoren: ValidatorA
   return { k: K, n: z.n };
 }
 
+/** Briefkasten der Inhaberin in Weg B (quantenSInhaberinPaket.ts): Zaehler und erledigte Huellen. */
+export const PAKET_NACH = 'aequitas.quantenS.inhaberin.nach';
+export const PAKET_GESEHEN = 'aequitas.quantenS.inhaberin.gesehen';
+
 export interface Vorlage {
   k: string;
   b: number;
@@ -666,6 +672,8 @@ export async function vergessen(u: Umgebung): Promise<void> {
   await u.speicher.loeschen(SCHLUESSEL);
   await zustandLoeschen(u);
   await u.ablage?.loeschen(CHIFFRATE);
+  await u.ablage?.loeschen(PAKET_NACH);
+  await u.ablage?.loeschen(PAKET_GESEHEN);
 }
 
 // ------------------------------------------------------------ Eingaben der Seite

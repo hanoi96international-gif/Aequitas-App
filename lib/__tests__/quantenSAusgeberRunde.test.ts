@@ -14,9 +14,10 @@ import fs from 'fs';
 import path from 'path';
 import { abschnitt, adresseVon, antwortNachricht, basenHash, fuerInhaberinOeffnen, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, type Bestellung } from '../quantenS';
 import { ANTWORT, BESTAETIGUNG, RAHMEN, bestellPfand, losRunde, vergessen, zustandLesen, zustandSchreiben, type AusgeberZustand } from '../quantenSAusgeber';
-import { ANTWORTEN_MAX, antwortenStand, auftraegeSenden, auftragBauen, beauftragen, ausgeben, bestaetigenAnfrageBauen, bestaetigungenAnfordern, bestaetigungenStand, sAusgabeNachricht, type Rahmen } from '../quantenSAusgeberRunde';
+import { ANTWORTEN_MAX, antwortenStand, auftraegeSenden, auftragBauen, beauftragen, ausgeben, bestaetigenAnfrageBauen, paketSenden, bestaetigungenAnfordern, bestaetigungenStand, sAusgabeNachricht, type Rahmen } from '../quantenSAusgeberRunde';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from '../quantenSHuelle';
-import { neuWegB, type Speicher, type Umgebung } from '../quantenSInhaberin';
+import { neuWegB, zustandLesen as inhaberinZustand, type Speicher, type Umgebung } from '../quantenSInhaberin';
+import { paketAbholen } from '../quantenSInhaberinPaket';
 import { runde, type Messer, type PraepUmgebung } from '../quantenSPraepAblauf';
 import { AUFTRAG_ALT, auftragLesen, auftragNachricht } from '../quantenSPraepAuftrag';
 import { drbg } from '../quantenSPraepTresor';
@@ -718,5 +719,112 @@ describe('B4b-4c-2e: Ausgabe gegen das Los', () => {
     const pfad = path.join(__dirname, 'vektoren', 'quanten_s_ausgeber_ausgeben_vektor.json');
     if (process.env.AEQUITAS_VEKTOR_SCHREIBEN === '1') fs.writeFileSync(pfad, JSON.stringify(neu, null, 1) + '\n');
     expect(neu).toEqual(JSON.parse(fs.readFileSync(pfad, 'utf8')));
+  });
+});
+
+// ------------------------------------------------------------ B4b-4c-2f: Paket an die Inhaberin
+
+/** Ende zu Ende bis zur Ausgabe; die Inhaberin hat ihr Gerät (Umgebung) am selben Knoten. */
+async function bisAusgegeben() {
+  const k = knoten();
+  const ua = umgebung(k.f, 'a0');
+  await zustandSchreiben(ua, GELOST);
+  const sp = speicher();
+  const ab = speicher();
+  const ui: Umgebung = { fetchFn: k.f, speicher: sp, ablage: ab, zufall: drbg('1a'.repeat(32)), apiBasis: API, warten: async () => {}, jetzt: () => JETZT * 1000 };
+  const best = await neuWegB(ui, N, K, INHABERIN_STELLEN);
+  await beauftragen(ua, wallet(AUSGEBER), best, TOL);
+  const ups: Record<number, PraepUmgebung> = {};
+  await praepAntworten(k, [1, 2, 3, 4], ideal, ups);
+  await runde(ua, wallet(AUSGEBER), ideal);
+  await bestaetigungenAnfordern(ua, wallet(AUSGEBER));
+  await praepAntworten(k, [1, 2, 3, 4], ideal, ups);
+  await runde(ua, wallet(AUSGEBER), ideal);
+  expect(await ausgeben(ua, wallet(AUSGEBER))).toEqual({ stand: 'ausgegeben' });
+  const inhaberin = (await inhaberinZustand(ui))!;
+  return { k, ua, ui, best, sp, ab, inhaberin };
+}
+
+describe('B4b-4c-2f: Paket an die Inhaberin', () => {
+  test('Gutfall: die Inhaberin holt das Paket aus ihrem Kasten und nimmt den Token an', async () => {
+    const w = await bisAusgegeben();
+    expect(await paketAbholen(w.ui)).toEqual({ stand: 'warten', grund: 'noch kein Paket', abgewiesen: [] });
+    expect((await paketSenden(w.ua, wallet(AUSGEBER))).briefe).toBeGreaterThan(0);
+    expect(await paketAbholen(w.ui)).toEqual({ stand: 'angenommen', k: K, n: N });
+    const z = (await inhaberinZustand(w.ui))!;
+    expect(z.k).toBe(K);
+    expect(z.validatoren).toEqual(LOS);
+    expect(z.x).toMatch(/^[0-9a-f]+$/);
+    // Kasten der Inhaberin quittiert; ein zweiter Abruf ändert nichts.
+    expect(w.k.kasten.filter((b) => b.an === w.best.inhaberin)).toHaveLength(0);
+    expect(await paketAbholen(w.ui)).toEqual({ stand: 'angenommen', k: K, n: N });
+  });
+
+  test('vor der Ausgabe wird der Kasten nicht angefasst', async () => {
+    const w = await bisAusgegeben();
+    await paketSenden(w.ua, wallet(AUSGEBER));
+    const token = w.k.kette.token;
+    w.k.kette.token = null;
+    const r = await paketAbholen(w.ui);
+    expect(r).toEqual({ stand: 'warten', grund: 'der Token steht noch nicht auf der Kette', abgewiesen: [] });
+    expect(w.k.kasten.filter((b) => b.an === w.best.inhaberin).length).toBeGreaterThan(0);
+    w.k.kette.token = token;
+    expect((await paketAbholen(w.ui)).stand).toBe('angenommen');
+  });
+
+  test('Missbrauch: gefälschte Pakete (fremder Absender, verändertes Blatt, fremder Abschnitt, anderes K) -- abgewiesen, das echte danach angenommen', async () => {
+    const w = await bisAusgegeben();
+    const r: Rahmen = JSON.parse(w.ua.ablage.daten.get(RAHMEN)!);
+    const antw = [1, 2, 3, 4].map((x) => JSON.parse(w.ua.ablage.daten.get(ANTWORT + x)!));
+    const echt = antw.map((a) => ({
+      x: a.x, von: a.von, bis: a.bis, blaetter: a.blaetter, fuer_inhaberin: a.fuer_inhaberin, buendel_hash: hashListe(a.buendel),
+      buendel_sig_hash: hashListe(a.buendel_sig), teile: a.teile, zaehlung: a.zaehlung, sig: a.sig, basen_hash: a.basen_hash,
+    }));
+    const an = { adresse: r.inhaberin, pub: r.inhaberin_schluessel };
+    const senden = (absender: string, inhalt: unknown, saat: string) => {
+      for (const b of einpacken(absender, an, 'paket', ethers.toUtf8Bytes(JSON.stringify(inhalt)), JETZT, drbg(saat.repeat(32)))) w.k.einwerfen(adresseVon(absender), r.inhaberin, b);
+    };
+    const anders = (i: number, f: (a: Record<string, any>) => Record<string, any>) => echt.map((a, j) => (j === i ? f({ ...a }) : a));
+    senden(FREMD, { k: K, validatoren: LOS, abschnitte: anders(1, (a) => ({ ...a, blaetter: [a.blaetter[1], ...a.blaetter.slice(1)] })) }, '81');
+    senden(FREMD, { k: K, validatoren: LOS, abschnitte: anders(2, (a) => ({ ...a, basen_hash: echt[0].basen_hash })) }, '82');
+    // Die Geloste 3 selbst unterschreibt einen Abschnitt mit dem Hash fremder Basen (sie hat in falschen Basen präpariert).
+    senden(FREMD, {
+      k: K, validatoren: LOS, abschnitte: anders(2, (a) => {
+        const b: Record<string, any> = { ...a, basen_hash: echt[0].basen_hash };
+        return { ...b, sig: unterschreiben(PRAEP[2], antwortNachricht(K, b.x, b.von, b.bis, hashListe(b.blaetter), b.fuer_inhaberin, b.buendel_hash, b.buendel_sig_hash, b.teile, b.zaehlung, b.basen_hash)) };
+      }),
+    }, '87');
+    senden(FREMD, { k: K, validatoren: LOS, abschnitte: [echt[1], echt[0], echt[2], echt[3]] }, '83');
+    senden(FREMD, { k: 'd0'.repeat(32), validatoren: LOS, abschnitte: echt }, '84');
+    senden(FREMD, { k: K, validatoren: LOS, abschnitte: echt.slice(0, 3) }, '85');
+    senden(FREMD, { k: K, validatoren: LOS, abschnitte: echt, mehr: 1 }, '86');
+    // Echter Abschnitt 2, aber von einem Fremden unterschrieben, der sich in die Liste des Pakets setzt:
+    // die Inhaberin prüft gegen IHRE Liste der Gelosten (an die sie verschlüsselt hat), nicht gegen die des Pakets.
+    const fremd2 = { ...echt[1], sig: unterschreiben(FREMD, antwortNachricht(K, 2, echt[1].von, echt[1].bis, hashListe(echt[1].blaetter), echt[1].fuer_inhaberin, echt[1].buendel_hash, echt[1].buendel_sig_hash, echt[1].teile, echt[1].zaehlung, echt[1].basen_hash)) };
+    senden(FREMD, { k: K, validatoren: [LOS[0], adresseVon(FREMD), LOS[2], LOS[3]], abschnitte: [echt[0], fremd2, echt[2], echt[3]] }, '88');
+    const r1 = await paketAbholen(w.ui);
+    expect(r1.stand).toBe('warten');
+    const grund = (r1 as { abgewiesen: string[] }).abgewiesen.join(' | ');
+    for (const g of ['nicht von Validator 2 unterschrieben', 'nicht von Validator 3 unterschrieben', 'Chiffrat getauscht', 'nicht die Form', 'anderes K', 'Zahl der Abschnitte', 'Felder']) expect(grund).toContain(g);
+    expect((await inhaberinZustand(w.ui))!.k).toBeUndefined();
+    // Die falschen sind erledigt (quittiert); das echte Paket wird angenommen -- auch von einem anderen Absender wäre es gültig.
+    await paketSenden(w.ua, wallet(AUSGEBER));
+    expect((await paketAbholen(w.ui)).stand).toBe('angenommen');
+  });
+
+  test('Missbrauch: Paket vor der Ausgabe wird nicht gesendet; Token auf der Kette passt nicht -- nicht angenommen', async () => {
+    const w = await bisAusgegeben();
+    const z = (await zustandLesen(w.ua))!;
+    await zustandSchreiben(w.ua, { ...z, stand: 'bestaetigt' });
+    await expect(paketSenden(w.ua, wallet(AUSGEBER))).rejects.toThrow('erst ausgeben');
+    await zustandSchreiben(w.ua, z);
+    await expect(paketSenden(w.ua, wallet(FREMD))).rejects.toThrow('nicht die des Ausgebers');
+    await paketSenden(w.ua, wallet(AUSGEBER));
+    // Der Knoten zeigt einen anderen Token (andere Wurzel): annehmen weist ab.
+    w.k.kette.token = { ...w.k.kette.token!, wurzel: 'ee'.repeat(32) };
+    const r = await paketAbholen(w.ui);
+    expect(r.stand).toBe('warten');
+    expect((r as { abgewiesen: string[] }).abgewiesen.join()).toContain('Wurzel');
+    expect((await inhaberinZustand(w.ui))!.k).toBeUndefined();
   });
 });

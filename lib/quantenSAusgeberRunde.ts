@@ -51,6 +51,11 @@
 //      nicht noch einmal eingereicht. Stand `ausgegeben` erst, wenn der Knoten
 //      den Token mit genau dieser Wurzel, diesen Proben, n, t, v, Toleranz,
 //      Inhaberin und Annahmestellen zeigt; steht K mit etwas anderem dort, wirft es.
+//   8. paketSenden (B4b-4c-2f): nach der Ausgabe das Paket an die Inhaberin
+//      (Hülle `paket` an ihren Schlüssel aus der Bestellung): je Abschnitt die
+//      unterschriebene Antwort ohne die Bündel (nur deren Hashes, wie
+//      quantenSPaketAbschnittAus) -- x für sie liegt verschlüsselt darin. Ob
+//      es stimmt, prüft die Inhaberin selbst gegen die Kette (annehmen).
 //
 // Was der Ausgeber NICHT kann: y lesen (an die Gelosten verschlüsselt) und die
 // Bündel öffnen (an die anderen Gelosten). Ob sie stimmen, prüft jede Geloste
@@ -82,6 +87,7 @@ import {
   unterschreiben,
   unterschriftVon,
   type Bestellung,
+  type PaketAbschnitt,
 } from './quantenS';
 import {
   ANTWORT,
@@ -663,4 +669,32 @@ export async function ausgeben(u: AusgeberUmgebung, wallet: WalletSchluessel): P
     return { stand: 'ausgegeben' };
   }
   return { stand: 'eingereicht' };
+}
+
+// ------------------------------------------------------------ Paket an die Inhaberin (B4b-4c-2f)
+
+/** Ein Abschnitt für Inhaberin und Annahmestelle: die Antwort ohne Bündel (quantenSPaketAbschnittAus). */
+export function paketAbschnittAus(a: Antwort): PaketAbschnitt {
+  return {
+    x: a.x, von: a.von, bis: a.bis, blaetter: a.blaetter, fuer_inhaberin: a.fuer_inhaberin, buendel_hash: hashListe(a.buendel),
+    buendel_sig_hash: hashListe(a.buendel_sig), teile: a.teile ?? null, zaehlung: a.zaehlung ?? null, sig: a.sig,
+    ...(a.basen_hash !== undefined ? { basen_hash: a.basen_hash } : {}),
+  };
+}
+
+/** Das Paket an die Inhaberin, nachdem der Token auf der Kette steht. Gibt die Zahl der Briefe. */
+export async function paketSenden(u: AusgeberUmgebung, wallet: WalletSchluessel): Promise<{ briefe: number }> {
+  const z = await zustandLesen(u);
+  if (!z) fehler('keine Bestellung');
+  if (z.stand !== 'ausgegeben') fehler('erst ausgeben');
+  const r = await rahmenLaden(u, z);
+  const schluessel = schluesselAus((await wallet.entsperren()).privateKey);
+  if (adresseVon(schluessel) !== z.ausgeber) fehler('Wallet ist nicht die des Ausgebers');
+  const antworten = await alleAntworten(u, z, r);
+  const paket = { k: z.k, validatoren: [...z.los!], abschnitte: antworten.map(paketAbschnittAus) };
+  const jetzt = Math.floor(u.jetzt() / 1000);
+  const signer = { signMessage: async (m: string) => unterschreiben(schluessel, m) };
+  const briefe = einpacken(schluessel, { adresse: r.inhaberin, pub: r.inhaberin_schluessel }, 'paket', ethers.toUtf8Bytes(JSON.stringify(paket)), jetzt, u.zufall);
+  for (const brief of briefe) await ablegen(z.ausgeber, r.inhaberin, brief, signer, jetzt, u.fetchFn, u.apiBasis);
+  return { briefe: briefe.length };
 }
