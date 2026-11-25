@@ -23,7 +23,9 @@
 // Ausgeber (B4b-4c-2c) teilen sich die Menschen-Wallet und damit den Kasten.
 // Darum verteilt sie nach Art -- `antwort` an den Ausgeber
 // (lib/quantenSAusgeberRunde.ts, antwortAufnehmen sichert vor dem Quittieren),
-// `auftrag`, `bestaetigung`, `oeffnung` an die Präparatorin. Ein zweiter Leser
+// `bestaetigung` mit genau {k, x, sig} an den Ausgeber (bestaetigungAufnehmen),
+// jede andere `bestaetigung` (die Anfrage) sowie `auftrag` und `oeffnung` an
+// die Präparatorin. Ein zweiter Leser
 // würde Briefe des anderen quittieren.
 //
 // Zufall: alles Geheime eines Falls folgt aus seinem Seed (drbg), in fester
@@ -37,7 +39,7 @@ import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from './quantenSHu
 import type { Speicher } from './quantenSInhaberin';
 import { antwortAufAuftrag, auftragLesen, auftragNachricht, auftragPruefen, basenOeffnen, bestellungenLesen, messbitsZiehen, type AbschnittAuftrag, type GepruefterAuftrag } from './quantenSPraepAuftrag';
 import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
-import { antwortAufnehmen } from './quantenSAusgeberRunde';
+import { antwortAufnehmen, bestaetigungAufnehmen, istBestaetigung } from './quantenSAusgeberRunde';
 import { bestaetigen, oeffnungFuerStelle, sBestaetigungNachricht, type AbschnittTresor, type Antwort, type BestaetigenAnfrage, type Zufall } from './quantenSPraeparieren';
 import { PraepTresor, drbg, type Fall } from './quantenSPraepTresor';
 
@@ -83,6 +85,8 @@ export interface RundenBericht {
   abgelehnt: { k: string; grund: string }[];
   /** Antworten an die App als Ausgeber (B4b-4c-2c), gesichert; `fertig` = damit alle da */
   antworten: { k: string; x: number; fertig: boolean }[];
+  /** Bestätigungen an die App als Ausgeber (B4b-4c-2d), gesichert; `fertig` = damit alle da */
+  bestaetigungen: { k: string; x: number; fertig: boolean }[];
   /** unfertige Nachrichten (ihre Briefe bleiben im Kasten) */
   offen: number;
   quittiertBis: number;
@@ -382,7 +386,7 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
   const zs = new Zusammensetzer(await gesehenLesen(u.ablage));
   const jetzt = () => Math.floor(u.jetzt() / 1000);
   zs.aufraeumen(jetzt());
-  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], bestaetigt: [], geoeffnet: [], wiederholt: [], abgelehnt: [], antworten: [], offen: 0, quittiertBis: 0 };
+  const bericht: RundenBericht = { briefe: 0, abgewiesen: [], beantwortet: [], bestaetigt: [], geoeffnet: [], wiederholt: [], abgelehnt: [], antworten: [], bestaetigungen: [], offen: 0, quittiertBis: 0 };
 
   // 2. + 3. Abholen und öffnen. Je Brief: zu welcher Nachricht (von|id) er gehört.
   const nachStart = await zahlLesen(u.ablage, NACH);
@@ -439,6 +443,17 @@ export async function runde(u: PraepUmgebung, wallet: WalletSchluessel, messer: 
       try {
         const r = await oeffnungBeantworten(u, schluessel, tresor, m, knoten);
         if (r.art === 'neu') bericht.geoeffnet.push(r.k);
+        else bericht.wiederholt.push(r.k);
+      } catch (e) {
+        bericht.abgelehnt.push({ k: '?', grund: (e as Error).message.slice(0, 200) });
+      }
+      continue;
+    }
+    if (m.art === 'bestaetigung' && istBestaetigung(m.nutzlast)) {
+      // Art `bestaetigung` in beide Richtungen: genau {k, x, sig} ist die Antwort einer Gelosten an den Ausgeber.
+      try {
+        const r = await bestaetigungAufnehmen(u, m);
+        if (r.art === 'neu') bericht.bestaetigungen.push({ k: r.k, x: r.x, fertig: r.fertig });
         else bericht.wiederholt.push(r.k);
       } catch (e) {
         bericht.abgelehnt.push({ k: '?', grund: (e as Error).message.slice(0, 200) });
