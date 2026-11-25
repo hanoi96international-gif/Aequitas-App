@@ -118,10 +118,10 @@ export function losRunde(bestellZeit: number): number {
 
 // ------------------------------------------------------------ Zustand
 
-export type Stand = 'eingereicht' | 'bestellt' | 'gelost' | 'beauftragt' | 'beantwortet' | 'bestaetigt';
+export type Stand = 'eingereicht' | 'bestellt' | 'gelost' | 'beauftragt' | 'beantwortet' | 'bestaetigt' | 'ausgegeben';
 
 /** Stände, in denen das Los feststeht. */
-const MIT_LOS: Stand[] = ['gelost', 'beauftragt', 'beantwortet', 'bestaetigt'];
+const MIT_LOS: Stand[] = ['gelost', 'beauftragt', 'beantwortet', 'bestaetigt', 'ausgegeben'];
 
 /** Was das Gerät zur eigenen Bestellung aufbewahrt (nichts Geheimes). */
 export interface AusgeberZustand {
@@ -175,7 +175,7 @@ function zustandPruefen(o: unknown): AusgeberZustand {
       fehler('Zustand des Ausgebers unlesbar');
     }
   } else if (z.los !== undefined) fehler('Zustand des Ausgebers unlesbar');
-  if (z.stand === 'beantwortet' || z.stand === 'bestaetigt') {
+  if (z.stand === 'beantwortet' || z.stand === 'bestaetigt' || z.stand === 'ausgegeben') {
     const p = z.proben;
     if (typeof z.wurzel !== 'string' || !HEX64.test(z.wurzel) || !Array.isArray(p) || p.length !== 2 || !p.every((h) => typeof h === 'string' && HEX64.test(h))) {
       fehler('Zustand des Ausgebers unlesbar');
@@ -220,7 +220,7 @@ export async function rundeLoeschen(u: AusgeberUmgebung): Promise<void> {
 
 // ------------------------------------------------------------ Netz
 
-async function anfrage(u: AusgeberUmgebung, url: string, init: RequestInit, max: number, frist = FRIST_MS): Promise<{ status: number; text: string }> {
+export async function anfrage(u: AusgeberUmgebung, url: string, init: RequestInit, max: number, frist = FRIST_MS): Promise<{ status: number; text: string }> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), frist);
   try {
@@ -247,7 +247,7 @@ function grundAus(text: string): string {
 }
 
 /** POST /api/quanten-w/<art>; wirft mit Grund, wenn der Knoten nicht annimmt. */
-async function einreichen(u: AusgeberUmgebung, art: string, wallet: string, zeit: number, quantenW: Record<string, unknown>): Promise<void> {
+export async function einreichen(u: AusgeberUmgebung, art: string, wallet: string, zeit: number, quantenW: Record<string, unknown>): Promise<void> {
   const r = await anfrage(u, `${u.apiBasis}/quanten-w/${art}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
