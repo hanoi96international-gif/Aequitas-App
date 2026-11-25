@@ -667,10 +667,10 @@ export async function einloesen(u: Umgebung, b: 0 | 1, fortschritt: (schritt: 'b
 }
 
 /** Der Zustand fuer die Anzeige (ohne Schluessel). */
-export async function zustandAnzeigen(u: Umgebung): Promise<{ n: number; v: number; k?: string; stellen: [string, string]; gebunden: boolean } | null> {
+export async function zustandAnzeigen(u: Umgebung): Promise<{ n: number; v: number; k?: string; stellen: [string, string]; gebunden: boolean; wegB: boolean } | null> {
   const z = await zustandLesen(u);
   if (!z) return null;
-  return { n: z.n, v: z.v, k: z.k, stellen: z.stellen, gebunden: z.z !== undefined };
+  return { n: z.n, v: z.v, k: z.k, stellen: z.stellen, gebunden: z.z !== undefined, wegB: !!z.wegB };
 }
 
 /** vergessen: nur, wenn kein Token angenommen ist oder er nicht mehr auf der Kette steht. */

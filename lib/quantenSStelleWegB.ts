@@ -109,6 +109,18 @@ async function vorpruefen(u: Umgebung, schluessel: string, vorlageRoh: string) {
   return { ich, vl, K, b, n, v: vl.validatoren.length, los: vl.validatoren };
 }
 
+/** Die laufende Annahme in Weg B (für die Seite), streng gelesen; ohne eine null. */
+export async function annahmeWegBStand(u: Umgebung): Promise<{ k: string; b: 0 | 1; v: number } | null> {
+  if (!u.ablage || (await u.ablage.lesen(ANNAHME)) === null) return null;
+  const a = await annahmeLesen(u);
+  return { k: a.k, b: a.b, v: a.validatoren.length };
+}
+
+/** Ist die Vorlage (Text des QR-Codes) eine aus Weg B (mit der Liste der Gelosten)? Wirft, wenn sie unlesbar ist. */
+export function istWegBVorlage(text: string): boolean {
+  return vorlageLesen(text).validatoren !== undefined;
+}
+
 /**
  * Phase 1: die Vorlage vorprüfen und jede Geloste um die Öffnung für diese
  * Stelle bitten. Noch einmal aufrufen ist erlaubt (dann nur an die, deren
