@@ -76,6 +76,8 @@ const VERSUCHE_MAX = 64; // quantenSAnteilOeffnungVersuche
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const ADRESSE = /^0x[0-9a-f]{40}$/;
+/** Hoechstens so viele Gelosten in einer Vorlage (quantenSLosVMax). */
+const V_MAX_STELLE = 16;
 
 function fehler(text: string): never {
   throw new QuantenSFehler(text);
@@ -353,11 +355,18 @@ export function vorlageLesen(text: string): Vorlage {
   } catch {
     fehler('Vorlage: kein JSON');
   }
-  if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).sort().join(',') !== 'b,k,vorlage,x') fehler('Vorlage: genau k, b, x, vorlage');
+  const felder = v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().join(',') : '';
+  // Weg B (B4b-4c-2f-2b): dazu die Gelosten in Losreihenfolge.
+  if (felder !== 'b,k,vorlage,x' && felder !== 'b,k,validatoren,vorlage,x') fehler('Vorlage: genau k, b, x, vorlage (Weg B: und validatoren)');
   if (typeof v.k !== 'string' || !HEX64.test(v.k) || (v.b !== 0 && v.b !== 1) || typeof v.x !== 'string' || !/^[01]+$/.test(v.x) || typeof v.vorlage !== 'string') {
     fehler('Vorlage: Form');
   }
-  return { k: v.k, b: v.b, x: v.x, vorlage: v.vorlage };
+  if (v.validatoren === undefined) return { k: v.k, b: v.b, x: v.x, vorlage: v.vorlage };
+  const val = v.validatoren;
+  if (!Array.isArray(val) || val.length < 1 || val.length > V_MAX_STELLE || !val.every((a: unknown) => typeof a === 'string' && ADRESSE.test(a)) || new Set(val).size !== val.length) {
+    fehler('Vorlage: Gelosten');
+  }
+  return { k: v.k, b: v.b, x: v.x, vorlage: v.vorlage, validatoren: val as string[] };
 }
 
 /** Zugang zur Wallet der App (lib/wallet.ts) -- in Tests ersetzbar. */

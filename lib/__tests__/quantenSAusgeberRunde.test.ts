@@ -16,7 +16,8 @@ import { abschnitt, adresseVon, antwortNachricht, basenHash, fuerInhaberinOeffne
 import { ANTWORT, BESTAETIGUNG, RAHMEN, bestellPfand, losRunde, vergessen, zustandLesen, zustandSchreiben, type AusgeberZustand } from '../quantenSAusgeber';
 import { ANTWORTEN_MAX, antwortenStand, auftraegeSenden, auftragBauen, beauftragen, ausgeben, bestaetigenAnfrageBauen, paketSenden, bestaetigungenAnfordern, bestaetigungenStand, sAusgabeNachricht, type Rahmen } from '../quantenSAusgeberRunde';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from '../quantenSHuelle';
-import { neuWegB, zustandLesen as inhaberinZustand, type Speicher, type Umgebung } from '../quantenSInhaberin';
+import { einloesen, neuWegB, zustandLesen as inhaberinZustand, type Speicher, type Umgebung } from '../quantenSInhaberin';
+import { annehmenWegB, oeffnungenAnfordern, oeffnungenSammeln } from '../quantenSStelleWegB';
 import { paketAbholen } from '../quantenSInhaberinPaket';
 import { runde, type Messer, type PraepUmgebung } from '../quantenSPraepAblauf';
 import { AUFTRAG_ALT, auftragLesen, auftragNachricht } from '../quantenSPraepAuftrag';
@@ -56,11 +57,25 @@ interface Opt {
 function knoten(opt: Opt = {}) {
   let id = 0;
   const kasten: { id: number; von: string; an: string; inhalt: string }[] = [];
-  const kette: { token: Record<string, unknown> | null; eingereicht: Record<string, any>[] } = { token: null, eingereicht: [] };
+  const kette: { token: Record<string, unknown> | null; eingereicht: Record<string, any>[]; hoehe: number; final: number; anmeldungen: Record<string, any>[] } = {
+    token: null, eingereicht: [], hoehe: 100, final: 0, anmeldungen: [],
+  };
   const f = (async (url: string, init?: RequestInit) => {
     const ok = (o: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(o) }) as unknown as Response;
     if (url === `${API}/quanten-w/note?k=${K}`) {
       return kette.token ? ok(kette.token) : ({ ok: false, status: 404, text: async () => '{"error":"unbekannt"}' } as unknown as Response);
+    }
+    if (url === `${API}/status`) return ok({ height: kette.hoehe });
+    if (url === `${API}/health/combined`) return ok({ sync_diagnostics: { finalized_height: kette.final } });
+    if (url === `${API}/quanten-w/s_binden` || url === `${API}/quanten-w/s_waehlen` || url === `${API}/quanten-w/s_anmelden`) {
+      const q = JSON.parse(init!.body as string).quanten_w;
+      if (url.endsWith('s_binden')) kette.token = { ...kette.token!, gebunden: true, d: q.d };
+      if (url.endsWith('s_waehlen')) kette.token = { ...kette.token!, gewaehlt: true, c: Number(q.c) };
+      if (url.endsWith('s_anmelden')) {
+        kette.anmeldungen.push(q);
+        kette.token = null; // eingelöst (die Rechnung der Kette prüft die Stelle vorab selbst)
+      }
+      return ok({ ok: true });
     }
     if (url === `${API}/quanten-w/s_ausgeben`) {
       const koerper = JSON.parse(init!.body as string);
@@ -742,7 +757,7 @@ async function bisAusgegeben() {
   await runde(ua, wallet(AUSGEBER), ideal);
   expect(await ausgeben(ua, wallet(AUSGEBER))).toEqual({ stand: 'ausgegeben' });
   const inhaberin = (await inhaberinZustand(ui))!;
-  return { k, ua, ui, best, sp, ab, inhaberin };
+  return { k, ua, ui, best, sp, ab, inhaberin, ups };
 }
 
 describe('B4b-4c-2f: Paket an die Inhaberin', () => {
@@ -826,5 +841,123 @@ describe('B4b-4c-2f: Paket an die Inhaberin', () => {
     expect(r.stand).toBe('warten');
     expect((r as { abgewiesen: string[] }).abgewiesen.join()).toContain('Wurzel');
     expect((await inhaberinZustand(w.ui))!.k).toBeUndefined();
+  });
+});
+
+// ------------------------------------------------------------ B4b-4c-2f-2b: Annahmestelle in Weg B
+
+const STELLE_SCHL = ['31'.repeat(32), '32'.repeat(32)];
+
+/** Bis die Inhaberin gebunden und gewählt hat; Bindung und Wahl final. Gibt die Vorlage für Stelle b. */
+async function bisVorlage(b: 0 | 1) {
+  const w = await bisAusgegeben();
+  await paketSenden(w.ua, wallet(AUSGEBER));
+  expect((await paketAbholen(w.ui)).stand).toBe('angenommen');
+  const vorlage = await einloesen(w.ui, b);
+  expect(vorlage.validatoren).toEqual(LOS);
+  w.k.kette.hoehe = 150;
+  return { ...w, vorlage, vorlageText: JSON.stringify(vorlage) };
+}
+
+function stelleUmgebung(k: ReturnType<typeof knoten>, saat: string): Umgebung {
+  return { fetchFn: k.f, speicher: speicher(), ablage: speicher(), zufall: drbg(saat.repeat(32)), apiBasis: API, warten: async () => {}, jetzt: () => JETZT * 1000 };
+}
+
+/** Die Präparatorinnen beantworten Öffnungs-Anfragen (erst sehen, dann nach der Finalität herausgeben). */
+async function oeffnenLassen(w: Awaited<ReturnType<typeof bisVorlage>>, su: Umgebung, schl: string) {
+  await oeffnungenAnfordern(su, schl, w.vorlageText);
+  const r1 = await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups);
+  for (let x = 1; x <= V; x++) expect(r1[x].abgelehnt.map((a) => a.grund).join()).toContain('gesehen');
+  w.k.kette.final = w.k.kette.hoehe;
+  expect((await oeffnungenAnfordern(su, schl, w.vorlageText)).gesendet).toEqual([1, 2, 3, 4]);
+  const r2 = await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups);
+  for (let x = 1; x <= V; x++) expect(r2[x].geoeffnet).toEqual([K]);
+}
+
+describe('B4b-4c-2f-2b: Annahmestelle in Weg B', () => {
+  test('Gutfall Ende zu Ende: Öffnungen über den Briefkasten, dieselben Prüfungen wie Weg A, eingelöst', async () => {
+    const w = await bisVorlage(1);
+    const su = stelleUmgebung(w.k, '5b');
+    const netz: string[] = [];
+    const f = su.fetchFn;
+    su.fetchFn = (async (url: string, init?: RequestInit) => (netz.push(String(url)), f(url, init))) as typeof fetch;
+    await oeffnenLassen(w, su, STELLE_SCHL[1]);
+    const s1 = await oeffnungenSammeln(su, STELLE_SCHL[1]);
+    expect(s1.abgewiesen).toEqual([]);
+    expect(s1.fehlen).toEqual([]);
+    expect(s1.neu.sort()).toEqual([1, 2, 3, 4]);
+    const schritte: string[] = [];
+    const erg = await annehmenWegB(su, STELLE_SCHL[1], (s) => schritte.push(s));
+    expect(erg).toMatchObject({ k: K, stelle_nummer: 1, stelle: adresseVon(STELLE_SCHL[1]), vorab: 'besteht', urteil: 'eingeloest' });
+    expect(erg.stichprobe).toBeGreaterThan(0);
+    expect(schritte).toEqual(['pruefen', 'blaetter', 'oeffnung', 'anmelden', 'urteil']);
+    expect(w.k.kette.anmeldungen).toHaveLength(1);
+    // Der Adapter bleibt im Gerät: keine Anfrage an *.weg-b.invalid ging ans Netz.
+    expect(netz.filter((u) => u.includes('.invalid'))).toEqual([]);
+  });
+
+  test('Missbrauch: fremde, vertauschte und falsche Öffnungen werden nicht gesichert', async () => {
+    const w = await bisVorlage(0);
+    const su = stelleUmgebung(w.k, '5c');
+    await oeffnenLassen(w, su, STELLE_SCHL[0]);
+    // Echte Antwort 2 lesen (vor dem Sammeln), dann den Kasten leeren und Fälschungen einwerfen.
+    const ich = adresseVon(STELLE_SCHL[0]);
+    const zs = new Zusammensetzer();
+    const echt: Record<number, any> = {};
+    for (const b of w.k.kasten.filter((x) => x.an === ich)) {
+      const m = zs.hinzu(oeffnen(STELLE_SCHL[0], b.inhalt, JETZT), JETZT);
+      if (m) echt[JSON.parse(ethers.toUtf8String(m.nutzlast)).x] = JSON.parse(ethers.toUtf8String(m.nutzlast));
+    }
+    w.k.kasten.splice(0, w.k.kasten.length);
+    const an = { adresse: ich, pub: pubVon(STELLE_SCHL[0]) };
+    const werfen = (absender: string, inhalt: unknown, saat: string) => {
+      for (const b of einpacken(absender, an, 'oeffnung', ethers.toUtf8Bytes(JSON.stringify(inhalt)), JETZT, drbg(saat.repeat(32)))) w.k.einwerfen(adresseVon(absender), ich, b);
+    };
+    werfen(FREMD, echt[2], '91'); // echte Antwort 2, aber von einem Fremden
+    werfen(PRAEP[1], { ...echt[2], abschnitt: echt[3].abschnitt }, '92'); // Abschnitt einer anderen
+    werfen(PRAEP[1], { ...echt[2], oeffnung: echt[3].oeffnung }, '93'); // Öffnung einer anderen
+    werfen(PRAEP[1], { ...echt[2], k: 'd0'.repeat(32) }, '94'); // anderer Token
+    werfen(PRAEP[1], { ...echt[2], b: 1 }, '95'); // andere Stelle
+    werfen(PRAEP[1], { ...echt[2], mehr: 1 }, '96'); // fremdes Feld
+    const s = await oeffnungenSammeln(su, STELLE_SCHL[0]);
+    expect(s.neu).toEqual([]);
+    expect(s.fehlen).toEqual([1, 2, 3, 4]);
+    const grund = s.abgewiesen.join(' | ');
+    for (const g of ['nicht von der Gelosten 2', 'Abschnitt 2 hat nicht die Form', 'Oeffnung: passt nicht', 'anderen Token oder eine andere Stelle', 'Felder']) expect(grund).toContain(g);
+    expect(s.abgewiesen).toHaveLength(6);
+    await expect(annehmenWegB(su, STELLE_SCHL[0])).rejects.toThrow('fehlt noch');
+    expect(w.k.kette.anmeldungen).toHaveLength(0);
+    // Die echten werden angenommen.
+    for (const x of [1, 2, 3, 4]) werfen(LOS.includes(adresseVon(PRAEP[x - 1])) ? PRAEP[x - 1] : FREMD, echt[x], (0xa0 + x).toString(16));
+    expect((await oeffnungenSammeln(su, STELLE_SCHL[0])).fehlen).toEqual([]);
+    expect((await annehmenWegB(su, STELLE_SCHL[0])).urteil).toBe('eingeloest');
+  });
+
+  test('Missbrauch: Vorlage ohne Gelosten, falsche Liste, fremdes Konto, vor Bindung und Wahl', async () => {
+    const w = await bisVorlage(1);
+    const su = stelleUmgebung(w.k, '5d');
+    const { validatoren, ...ohne } = w.vorlage;
+    expect(validatoren).toHaveLength(4);
+    await expect(oeffnungenAnfordern(su, STELLE_SCHL[1], JSON.stringify(ohne))).rejects.toThrow('Weg A');
+    await expect(oeffnungenAnfordern(su, STELLE_SCHL[0], w.vorlageText)).rejects.toThrow('nicht dieses Konto');
+    for (const val of [[LOS[0], LOS[0], LOS[2], LOS[3]], [LOS[0].toUpperCase(), LOS[1], LOS[2], LOS[3]], [], Array(17).fill(LOS[0])]) {
+      await expect(oeffnungenAnfordern(su, STELLE_SCHL[1], JSON.stringify({ ...w.vorlage, validatoren: val }))).rejects.toThrow('Vorlage: Gelosten');
+    }
+    await expect(oeffnungenAnfordern(su, STELLE_SCHL[1], JSON.stringify({ ...w.vorlage, validatoren: LOS.slice(0, 3) }))).rejects.toThrow('v = 4');
+    await expect(oeffnungenAnfordern(su, STELLE_SCHL[1], JSON.stringify({ ...w.vorlage, x: '1' + w.vorlage.x.slice(1) === w.vorlage.x ? '0' + w.vorlage.x.slice(1) : '1' + w.vorlage.x.slice(1) }))).rejects.toThrow('nicht von der Inhaberin');
+    // Falsche Reihenfolge: die Gelosten antworten, aber keine Antwort passt zu ihrem Platz -- nichts gesichert, kein Einlösen.
+    const falsch = JSON.stringify({ ...w.vorlage, validatoren: [LOS[1], LOS[0], LOS[2], LOS[3]] });
+    w.k.kette.final = w.k.kette.hoehe;
+    await oeffnungenAnfordern(su, STELLE_SCHL[1], falsch);
+    await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups); // sehen
+    await oeffnungenAnfordern(su, STELLE_SCHL[1], falsch);
+    await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups); // herausgeben
+    const s = await oeffnungenSammeln(su, STELLE_SCHL[1]);
+    expect(s.neu.sort()).toEqual([3, 4]);
+    expect(s.fehlen).toEqual([1, 2]);
+    expect(s.abgewiesen.join()).toContain('nicht von der Gelosten');
+    // Vor Bindung und Wahl: ein Token, der noch nicht gewählt ist.
+    w.k.kette.token = { ...w.k.kette.token!, gewaehlt: false };
+    await expect(oeffnungenAnfordern(stelleUmgebung(w.k, '5e'), STELLE_SCHL[1], w.vorlageText)).rejects.toThrow('erst nach Bindung und Wahl');
   });
 });
