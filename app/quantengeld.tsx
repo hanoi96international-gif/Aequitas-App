@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -22,6 +22,9 @@ import {
 } from '@/lib/quantengeld';
 import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, type QuantenWErgebnis, type QuantenWUeberblick } from '@/lib/quantenW';
 import { holeRegister, meinStand, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
+import type { RundenBericht } from '@/lib/quantenSPraepAblauf';
+import { ibmZugangDa, ibmZugangLoeschen, ibmZugangSetzen, praepRundeJetzt } from '@/lib/quantenSPraepGeraet';
+import { unlockWallet } from '@/lib/wallet';
 import { withTimeout } from '@/lib/signer';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
@@ -351,6 +354,125 @@ function PraepKarte({ reg, signer, t, lang, neuLaden }: {
         >
           {laeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t(kannMelden ? 'node.qpMelden' : 'node.qpAbmelden')}</Text>}
         </TouchableOpacity>
+      ) : null}
+      {reg.aktiv && signer && mein && mein.art !== 'nicht_gemeldet' ? <PraepRunde t={t} /> : null}
+    </View>
+  );
+}
+
+// Weg B (4c-3a, lib/quantenSPraepGeraet.ts): die Praeparatorin arbeitet ihren
+// Briefkasten ab -- Auftraege mit dem eigenen IBM-Zugang messen und
+// beantworten, Bestaetigungen, Oeffnungen. Der IBM-Zugang liegt nur im
+// SecureStore dieses Geraets; die App zeigt ihn nie wieder an (nur "gespeichert").
+// Auch nach dem Abmelden sichtbar: Auftraege von vorher bleiben gueltig.
+function PraepRunde({ t }: { t: (k: any) => string }) {
+  const [da, setDa] = useState<boolean | null>(null);
+  const [apiKey, setApiKey] = useState('');
+  const [crn, setCrn] = useState('');
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
+  const [bericht, setBericht] = useState<RundenBericht | null>(null);
+
+  useEffect(() => {
+    let weg = false;
+    ibmZugangDa().then((d) => { if (!weg) setDa(d); }, () => { if (!weg) setDa(false); });
+    return () => { weg = true; };
+  }, []);
+
+  function fehler(e: any) {
+    setMeldung({ ok: false, text: t('node.qrFehler').replace('{meldung}', String(e?.message ?? e).slice(0, 200)) });
+  }
+
+  async function speichern() {
+    setLaeuft(true);
+    setMeldung(null);
+    try {
+      await ibmZugangSetzen({ apiKey, crn });
+      setApiKey('');
+      setCrn('');
+      setDa(true);
+      setMeldung({ ok: true, text: t('node.qrGespeichert') });
+    } catch (e: any) {
+      fehler(e);
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
+  function loeschen() {
+    Alert.alert(t('node.qpBestaetigenTitel'), t('node.qrLoeschenFrage'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('node.qrLoeschen'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await ibmZugangLoeschen();
+            setDa(false);
+            setBericht(null);
+          } catch (e: any) {
+            fehler(e);
+          }
+        },
+      },
+    ]);
+  }
+
+  async function rundeStarten() {
+    setLaeuft(true);
+    setMeldung(null);
+    try {
+      // Bewusst ohne kurze Frist: eine Messung bei IBM wartet bis zu 2 Stunden in
+      // der Schlange (FRIST_MS in quantenSPraepIbm.ts begrenzt sie).
+      setBericht(await praepRundeJetzt({ entsperren: unlockWallet }));
+    } catch (e: any) {
+      fehler(e);
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
+  return (
+    <View style={{ marginTop: 14 }}>
+      <Text style={S.sub}>{t('node.qrTitel')}</Text>
+      <Text style={S.muted}>{t('node.qrText')}</Text>
+      {da === null ? <ActivityIndicator color={theme.muted} style={{ marginTop: 8 }} /> : null}
+      {da === false ? (
+        <>
+          <Text style={S.label}>{t('node.qrApiKey')}</Text>
+          <TextInput style={S.input} value={apiKey} onChangeText={setApiKey} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off" textContentType="none" importantForAutofill="no" />
+          <Text style={S.label}>{t('node.qrCrn')}</Text>
+          <TextInput style={S.input} value={crn} onChangeText={setCrn} autoCapitalize="none" autoCorrect={false} autoComplete="off" placeholder="crn:v1:bluemix:public:quantum-computing:…" placeholderTextColor={theme.muted} />
+          <TouchableOpacity style={[S.btn, (laeuft || !apiKey || !crn) && { opacity: 0.6 }]} disabled={laeuft || !apiKey || !crn} onPress={speichern} activeOpacity={0.85} accessibilityRole="button">
+            <Text style={S.btnText}>{t('node.qrSpeichern')}</Text>
+          </TouchableOpacity>
+        </>
+      ) : null}
+      {da ? (
+        <>
+          <Text style={[S.ok, { marginTop: 8 }]}>{t('node.qrZugangDa')}</Text>
+          <TouchableOpacity style={[S.btn, laeuft && { opacity: 0.6 }]} disabled={laeuft} onPress={rundeStarten} activeOpacity={0.85} accessibilityRole="button">
+            {laeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qrRunde')}</Text>}
+          </TouchableOpacity>
+          {laeuft ? <Text style={[S.muted, { marginTop: 8 }]}>{t('node.qrLaeuft')}</Text> : null}
+          <TouchableOpacity onPress={loeschen} disabled={laeuft} accessibilityRole="button" style={{ marginTop: 10 }}>
+            <Text style={S.muted}>{t('node.qrLoeschen')}</Text>
+          </TouchableOpacity>
+        </>
+      ) : null}
+      {meldung ? <Text style={[meldung.ok ? S.ok : S.fehler, { marginTop: 8 }]}>{meldung.text}</Text> : null}
+      {bericht ? (
+        <View style={{ marginTop: 8 }}>
+          <Zeile k={t('node.qrBriefe')} v={String(bericht.briefe)} />
+          <Zeile k={t('node.qrBeantwortet')} v={String(bericht.beantwortet.length)} />
+          <Zeile k={t('node.qrBestaetigt')} v={String(bericht.bestaetigt.length)} />
+          <Zeile k={t('node.qrGeoeffnet')} v={String(bericht.geoeffnet.length)} />
+          <Zeile k={t('node.qrAbgelehnt')} v={String(bericht.abgelehnt.length + bericht.abgewiesen.length)} />
+          <Zeile k={t('node.qrOffen')} v={String(bericht.offen)} last />
+          {bericht.abgelehnt.slice(0, 5).map((a, i) => (
+            <Text key={i} style={[S.muted, { marginTop: 4 }]}>{`${a.k.slice(0, 12)}…: ${a.grund.slice(0, 120)}`}</Text>
+          ))}
+        </View>
       ) : null}
     </View>
   );
