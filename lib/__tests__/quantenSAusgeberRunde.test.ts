@@ -13,13 +13,14 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 import { abschnitt, adresseVon, antwortNachricht, basenHash, fuerInhaberinOeffnen, hashListe, merkleWurzel, probeHashV2, pubVon, unterschreiben, type Bestellung } from '../quantenS';
-import { ANTWORT, RAHMEN, bestellPfand, losRunde, vergessen, zustandLesen, zustandSchreiben, type AusgeberZustand } from '../quantenSAusgeber';
-import { ANTWORTEN_MAX, antwortenStand, auftraegeSenden, auftragBauen, beauftragen, type Rahmen } from '../quantenSAusgeberRunde';
+import { ANTWORT, BESTAETIGUNG, RAHMEN, bestellPfand, losRunde, vergessen, zustandLesen, zustandSchreiben, type AusgeberZustand } from '../quantenSAusgeber';
+import { ANTWORTEN_MAX, antwortenStand, auftraegeSenden, auftragBauen, beauftragen, bestaetigenAnfrageBauen, bestaetigungenAnfordern, bestaetigungenStand, type Rahmen } from '../quantenSAusgeberRunde';
 import { Zusammensetzer, einpacken, oeffnen, type Nachricht } from '../quantenSHuelle';
 import { neuWegB, type Speicher, type Umgebung } from '../quantenSInhaberin';
 import { runde, type Messer, type PraepUmgebung } from '../quantenSPraepAblauf';
 import { AUFTRAG_ALT, auftragLesen, auftragNachricht } from '../quantenSPraepAuftrag';
 import { drbg } from '../quantenSPraepTresor';
+import { sBestaetigungNachricht } from '../quantenSPraeparieren';
 
 const API = 'https://knoten.test/api';
 const K = 'c2'.repeat(32);
@@ -417,5 +418,177 @@ describe('B4b-4c-2c: Prüfvektor', () => {
     const alt = JSON.parse(fs.readFileSync(PFAD, 'utf8'));
     expect(neu).toEqual(alt);
     expect(alt.abschnitte).toHaveLength(V);
+  });
+});
+
+// ------------------------------------------------------------ B4b-4c-2d: Bestätigungen
+
+/** Bis zum Stand `beantwortet`; die Präparatorinnen behalten ihre Geräte (Tresor) für die Bestätigung. */
+async function bisBeantwortet(messer = ideal) {
+  const w = await welt();
+  await beauftragen(w.ua, wallet(AUSGEBER), w.best, TOL);
+  const ups: Record<number, PraepUmgebung> = {};
+  await praepAntworten(w.k, [1, 2, 3, 4], messer, ups);
+  await runde(w.ua, wallet(AUSGEBER), ideal);
+  expect((await zustandLesen(w.ua))!.stand).toBe('beantwortet');
+  return { ...w, ups };
+}
+
+/** Eine Bestätigung {k, x, sig} als Hülle von `absender` an den Ausgeber. */
+function bestaetigungEinwerfen(k: ReturnType<typeof knoten>, absender: string, inhalt: unknown, saat: string) {
+  for (const brief of einpacken(absender, { adresse: adresseVon(AUSGEBER), pub: pubVon(AUSGEBER) }, 'bestaetigung', ethers.toUtf8Bytes(JSON.stringify(inhalt)), JETZT, drbg(saat.repeat(32)))) {
+    k.einwerfen(adresseVon(absender), adresseVon(AUSGEBER), brief);
+  }
+}
+
+describe('B4b-4c-2d: Ausgeber holt die Bestätigungen', () => {
+  test('Gutfall Ende zu Ende: jede Geloste prüft die Bündel der anderen und bestätigt genau diese Ausgabe', async () => {
+    const w = await bisBeantwortet();
+    expect((await bestaetigungenAnfordern(w.ua, wallet(AUSGEBER))).gesendet).toEqual([1, 2, 3, 4]);
+    const p = await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups);
+    for (let x = 1; x <= V; x++) {
+      expect(p[x].abgelehnt).toEqual([]);
+      expect(p[x].bestaetigt).toEqual([K]);
+    }
+    const ra = await runde(w.ua, wallet(AUSGEBER), ideal);
+    expect(ra.abgelehnt).toEqual([]);
+    expect(ra.bestaetigungen.map((b) => b.x).sort()).toEqual([1, 2, 3, 4]);
+    expect(ra.bestaetigungen.filter((b) => b.fertig)).toHaveLength(1);
+    const z = (await zustandLesen(w.ua))!;
+    expect(z.stand).toBe('bestaetigt');
+    const st = await bestaetigungenStand(w.ua);
+    expect(st.fehlen).toEqual([]);
+    const r: Rahmen = JSON.parse(w.ua.ablage.daten.get(RAHMEN)!);
+    st.bestaetigungen!.forEach((sig, i) => {
+      expect(ethers.verifyMessage(sBestaetigungNachricht(K, z.wurzel!, N, T, LOS, i + 1, z.proben!, r.zeit, TOL), sig).toLowerCase()).toBe(LOS[i]);
+    });
+    await expect(bestaetigungenAnfordern(w.ua, wallet(AUSGEBER))).rejects.toThrow('alle Bestätigungen sind da');
+    // Spätere Antworten oder Bestätigungen derselben Gelosten (Netz wiederholt) stören nicht.
+    expect((await antwortenStand(w.ua)).wurzel).toBe(z.wurzel);
+  });
+
+  test('Wiederholung: nur an die Fehlenden, dieselbe Anfrage, dieselbe Bestätigung', async () => {
+    const w = await bisBeantwortet();
+    await bestaetigungenAnfordern(w.ua, wallet(AUSGEBER));
+    const z = (await zustandLesen(w.ua))!;
+    const r: Rahmen = JSON.parse(w.ua.ablage.daten.get(RAHMEN)!);
+    const antw = [1, 2, 3, 4].map((x) => JSON.parse(w.ua.ablage.daten.get(ANTWORT + x)!));
+    expect(JSON.stringify(bestaetigenAnfrageBauen(AUSGEBER, z, r, antw, 3))).toBe(JSON.stringify(bestaetigenAnfrageBauen(AUSGEBER, z, r, antw, 3)));
+    await praepAntworten(w.k, [1, 2], ideal, w.ups);
+    await runde(w.ua, wallet(AUSGEBER), ideal);
+    expect((await bestaetigungenStand(w.ua)).fehlen).toEqual([3, 4]);
+    expect((await bestaetigungenAnfordern(w.ua, wallet(AUSGEBER))).gesendet).toEqual([3, 4]);
+    const p = await praepAntworten(w.k, [3, 4], ideal, w.ups);
+    // 3 und 4 haben die Anfrage zweimal: einmal neu bestätigt, einmal wiederholt (dieselbe Unterschrift).
+    expect(p[3].bestaetigt).toEqual([K]);
+    expect(p[3].wiederholt).toEqual([K]);
+    const ra = await runde(w.ua, wallet(AUSGEBER), ideal);
+    expect(ra.abgelehnt).toEqual([]);
+    expect(ra.wiederholt).toEqual([K, K]);
+    expect((await zustandLesen(w.ua))!.stand).toBe('bestaetigt');
+  });
+
+  test('Missbrauch: fremde, vertauschte, für eine andere Ausgabe unterschriebene und zweite Bestätigungen', async () => {
+    const w = await bisBeantwortet();
+    const z = (await zustandLesen(w.ua))!;
+    const r: Rahmen = JSON.parse(w.ua.ablage.daten.get(RAHMEN)!);
+    const echt = (schl: string, x: number, wurzel = z.wurzel!) => unterschreiben(schl, sBestaetigungNachricht(K, wurzel, N, T, LOS, x, z.proben!, r.zeit, TOL));
+    const faelle: [string, string, Record<string, unknown>, string][] = [
+      ['ein Fremder als 2', FREMD, { k: K, x: 2, sig: echt(FREMD, 2) }, 'nicht von der Gelosten 2'],
+      ['Geloste 1 als 2', PRAEP[0], { k: K, x: 2, sig: echt(PRAEP[0], 2) }, 'nicht von der Gelosten 2'],
+      ['echte 2 in Hülle von 1', PRAEP[0], { k: K, x: 2, sig: echt(PRAEP[1], 2) }, 'nicht von der Gelosten 2'],
+      ['2 für Platz 3', PRAEP[1], { k: K, x: 2, sig: echt(PRAEP[1], 3) }, 'über diese Ausgabe'],
+      ['andere Wurzel', PRAEP[1], { k: K, x: 2, sig: echt(PRAEP[1], 2, 'ee'.repeat(32)) }, 'über diese Ausgabe'],
+      ['anderes K', PRAEP[1], { k: 'd0'.repeat(32), x: 2, sig: echt(PRAEP[1], 2) }, 'K oder Nummer'],
+      ['Nummer außerhalb', PRAEP[1], { k: K, x: 5, sig: echt(PRAEP[1], 2) }, 'K oder Nummer'],
+      ['Unterschrift kein Text', PRAEP[1], { k: K, x: 2, sig: 7 }, 'K oder Nummer'],
+    ];
+    for (const [i, [, absender, inhalt, grund]] of faelle.entries()) {
+      bestaetigungEinwerfen(w.k, absender, inhalt, (0x40 + i).toString(16));
+      const ra = await runde(w.ua, wallet(AUSGEBER), ideal);
+      expect(ra.bestaetigungen).toEqual([]);
+      expect(ra.abgelehnt.map((a) => a.grund).join()).toContain(grund);
+    }
+    expect(w.ua.ablage.daten.has(BESTAETIGUNG + 2)).toBe(false);
+    // Eine andere, schon gesicherte Bestätigung wird nie überschrieben.
+    w.ua.ablage.daten.set(BESTAETIGUNG + 2, '0x' + 'ab'.repeat(65));
+    bestaetigungEinwerfen(w.k, PRAEP[1], { k: K, x: 2, sig: echt(PRAEP[1], 2) }, '5f');
+    expect((await runde(w.ua, wallet(AUSGEBER), ideal)).abgelehnt.map((a) => a.grund).join()).toContain('schon eine andere');
+  });
+
+  test('Missbrauch: vor allen Antworten keine Bestätigung; veränderte Ablage hält die Anfragen auf', async () => {
+    const w = await welt();
+    await beauftragen(w.ua, wallet(AUSGEBER), w.best, TOL);
+    await expect(bestaetigungenAnfordern(w.ua, wallet(AUSGEBER))).rejects.toThrow('noch nicht alle Antworten');
+    bestaetigungEinwerfen(w.k, PRAEP[0], { k: K, x: 1, sig: '0x' + '11'.repeat(65) }, '61');
+    expect((await runde(w.ua, wallet(AUSGEBER), ideal)).abgelehnt.map((a) => a.grund)).toEqual(['keine offenen Bestätigungen']);
+
+    const b = await bisBeantwortet();
+    // Eine gesicherte Antwort verändert (Blatt): die Unterschrift der Gelosten passt nicht mehr.
+    const a2 = JSON.parse(b.ua.ablage.daten.get(ANTWORT + 2)!);
+    b.ua.ablage.daten.set(ANTWORT + 2, JSON.stringify({ ...a2, blaetter: [a2.blaetter[1], ...a2.blaetter.slice(1)] }));
+    await expect(bestaetigungenAnfordern(b.ua, wallet(AUSGEBER))).rejects.toThrow('nicht von der Gelosten unterschrieben');
+    b.ua.ablage.daten.set(ANTWORT + 2, JSON.stringify(a2));
+    // Wurzel im Zustand verändert: passt nicht zu den Antworten.
+    const z = (await zustandLesen(b.ua))!;
+    await zustandSchreiben(b.ua, { ...z, wurzel: 'ee'.repeat(32) });
+    await expect(bestaetigungenAnfordern(b.ua, wallet(AUSGEBER))).rejects.toThrow('Wurzel oder Proben');
+    await zustandSchreiben(b.ua, z);
+    // Fremde Wallet, zu spät.
+    await expect(bestaetigungenAnfordern(b.ua, wallet(FREMD))).rejects.toThrow('nicht die des Ausgebers');
+    await expect(bestaetigungenAnfordern({ ...b.ua, jetzt: () => (JETZT + AUFTRAG_ALT) * 1000 }, wallet(AUSGEBER))).rejects.toThrow('zu alt');
+    expect(b.k.kasten.filter((x) => LOS.includes(x.an))).toHaveLength(0);
+  });
+
+  test('Missbrauch: die Präparatorin lehnt eine Anfrage mit vertauschten Bündeln ab', async () => {
+    const w = await bisBeantwortet();
+    const z = (await zustandLesen(w.ua))!;
+    const r: Rahmen = JSON.parse(w.ua.ablage.daten.get(RAHMEN)!);
+    const antw = [1, 2, 3, 4].map((x) => JSON.parse(w.ua.ablage.daten.get(ANTWORT + x)!));
+    // Der Ausgeber reicht Geloster 2 das Bündel, das 1 für 3 gemacht hat (neu unterschrieben -- der Auftrag selbst ist echt).
+    const falsch = antw.map((a) => ({ ...a, buendel: [...a.buendel], buendel_sig: [...a.buendel_sig] }));
+    falsch[0].buendel[1] = antw[0].buendel[2];
+    falsch[0].buendel_sig[1] = antw[0].buendel_sig[2];
+    const q = bestaetigenAnfrageBauen(AUSGEBER, z, r, falsch, 2);
+    for (const brief of einpacken(AUSGEBER, { adresse: LOS[1], pub: pubVon(PRAEP[1]) }, 'bestaetigung', ethers.toUtf8Bytes(JSON.stringify(q)), JETZT, drbg('71'.repeat(32)))) {
+      w.k.einwerfen(adresseVon(AUSGEBER), LOS[1], brief);
+    }
+    const p = await praepAntworten(w.k, [2], ideal, w.ups);
+    expect(p[2].bestaetigt).toEqual([]);
+    expect(p[2].abgelehnt).toHaveLength(1);
+  });
+});
+
+// ------------------------------------------------------------ Prüfvektor 2d
+
+const PFAD_2D = path.join(__dirname, 'vektoren', 'quanten_s_ausgeber_bestaetigen_vektor.json');
+
+describe('B4b-4c-2d: Prüfvektor', () => {
+  test('Byte für Byte wie im Vektor (der Knoten prüft genau ihn)', async () => {
+    const w = await bisBeantwortet();
+    await bestaetigungenAnfordern(w.ua, wallet(AUSGEBER));
+    // Die Anfrage an Geloste 2 aus dem Kasten, bevor sie abholt.
+    const zs = new Zusammensetzer();
+    let m: Nachricht | null = null;
+    for (const b of w.k.kasten.filter((x) => x.an === LOS[1])) m = zs.hinzu(oeffnen(PRAEP[1], b.inhalt, JETZT), JETZT) ?? m;
+    const q = JSON.parse(ethers.toUtf8String(m!.nutzlast));
+    await praepAntworten(w.k, [1, 2, 3, 4], ideal, w.ups);
+    await runde(w.ua, wallet(AUSGEBER), ideal);
+    const z = (await zustandLesen(w.ua))!;
+    expect(z.stand).toBe('bestaetigt');
+    const neu = {
+      hinweis: 'Aus der App (lib/__tests__/quantenSAusgeberRunde.test.ts, Ende zu Ende); der Knoten prüft ihn mit eigenem Code. Bündel und Blätter nur als Hash (Größe).',
+      ausgeber_schluessel_nur_test: AUSGEBER,
+      los: LOS,
+      wurzel: z.wurzel,
+      blaetter_hash: hashListe(q.blaetter),
+      buendel_hash: hashListe(q.buendel),
+      // Die Anfrage an Geloste 2 mit allen Feldern; Blätter und Bündel geleert (ihre Hashes oben).
+      anfrage: { ...q, blaetter: [], buendel: [] },
+      bestaetigungen: (await bestaetigungenStand(w.ua)).bestaetigungen,
+    };
+    if (process.env.AEQUITAS_VEKTOR_SCHREIBEN === '1') fs.writeFileSync(PFAD_2D, JSON.stringify(neu, null, 1) + '\n');
+    expect(neu).toEqual(JSON.parse(fs.readFileSync(PFAD_2D, 'utf8')));
+    expect(merkleWurzel(q.blaetter)).toBe(z.wurzel);
   });
 });

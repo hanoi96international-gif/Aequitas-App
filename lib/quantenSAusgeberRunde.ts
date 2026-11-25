@@ -32,6 +32,17 @@
 //      Vorlage muss an BEIDEN Stellen bestehen (quantenSEhrlichBesteht), sonst
 //      Abbruch, bevor etwas auf die Kette geht. Stand `beantwortet`.
 //
+//   5. bestaetigungenAnfordern (B4b-4c-2d): je Geloster die Bestätigungs-Anfrage
+//      (QuantenWBestaetigenAnfrage, Art "s") als Hülle `bestaetigung`: alle
+//      Blätter, Wurzel, Proben und die Bündel der ANDEREN an sie (aus den
+//      gesicherten Antworten), vom Ausgeber über den Hash der Bündel
+//      unterschrieben (sAuftragNachricht). Die Geloste prüft alles selbst
+//      (bestaetigen) und antwortet mit {k, x, sig}.
+//   6. bestaetigungAufnehmen (aus der Runde): Hülle von der Gelosten x, ihre
+//      Unterschrift über die S-Bestätigung (sBestaetigungNachricht) mit Wurzel,
+//      Proben und Zeit DIESER Ausgabe. Nur die erste je x; sind alle da, Stand
+//      `bestaetigt` (dann 2e: Ausgabe gegen das Los).
+//
 // Was der Ausgeber NICHT kann: y lesen (an die Gelosten verschlüsselt) und die
 // Bündel öffnen (an die anderen Gelosten). Ob sie stimmen, prüft jede Geloste
 // beim Bestätigen (2d), die Annahmestellen beim Laden ihrer Stichprobe.
@@ -64,6 +75,7 @@ import {
 } from './quantenS';
 import {
   ANTWORT,
+  BESTAETIGUNG,
   RAHMEN,
   type AusgeberUmgebung,
   type AusgeberZustand,
@@ -78,7 +90,7 @@ import {
 import { einpacken, type Nachricht } from './quantenSHuelle';
 import { AUFTRAG_ALT, auftragNachricht, type AbschnittAuftrag } from './quantenSPraepAuftrag';
 import { registerLesen } from './quantenSPraeparator';
-import { BUENDEL_MAX, schluesselPruefen, type Antwort } from './quantenSPraeparieren';
+import { BUENDEL_MAX, sAuftragNachricht, sBestaetigungNachricht, schluesselPruefen, type Antwort, type BestaetigenAnfrage } from './quantenSPraeparieren';
 
 /** Eine Antwort, wie sie in der Ablage liegt (JSON). */
 export const ANTWORT_SPEICHER_MAX = 1024 * 1024;
@@ -258,7 +270,7 @@ async function antwortenLaden(u: AusgeberUmgebung, v: number): Promise<(string |
 export async function auftraegeSenden(u: AusgeberUmgebung, wallet: WalletSchluessel): Promise<{ gesendet: number[] }> {
   const z = await zustandLesen(u);
   if (!z) fehler('keine Bestellung');
-  if (z.stand !== 'beauftragt') fehler(z.stand === 'beantwortet' ? 'alle Antworten sind da' : 'noch nicht beauftragt');
+  if (z.stand !== 'beauftragt') fehler(z.stand === 'beantwortet' || z.stand === 'bestaetigt' ? 'alle Antworten sind da' : 'noch nicht beauftragt');
   const r = await rahmenLaden(u, z);
   const schluessel = schluesselAus((await wallet.entsperren()).privateKey);
   if (adresseVon(schluessel) !== z.ausgeber) fehler('Wallet ist nicht die des Ausgebers');
@@ -382,7 +394,7 @@ export async function antwortAufnehmen(u: AusgeberUmgebung, m: Nachricht): Promi
   if (m.art !== 'antwort') fehler('keine Antwort');
   const z = await zustandLesen(u);
   if (!z) fehler('keine Bestellung');
-  if (z.stand !== 'beauftragt' && z.stand !== 'beantwortet') fehler('keine offenen Aufträge');
+  if (z.stand !== 'beauftragt' && z.stand !== 'beantwortet' && z.stand !== 'bestaetigt') fehler('keine offenen Aufträge');
   const r = await rahmenLaden(u, z);
   const text = ethers.toUtf8String(m.nutzlast);
   const ans = antwortLesen(text);
@@ -413,8 +425,133 @@ export async function antwortAufnehmen(u: AusgeberUmgebung, m: Nachricht): Promi
 export async function antwortenStand(u: AusgeberUmgebung): Promise<{ fehlen: number[]; wurzel?: string; proben?: [string, string] }> {
   const z = await zustandLesen(u);
   if (!z) fehler('keine Bestellung');
-  if (z.stand !== 'beauftragt' && z.stand !== 'beantwortet') fehler('noch nicht beauftragt');
+  if (z.stand !== 'beauftragt' && z.stand !== 'beantwortet' && z.stand !== 'bestaetigt') fehler('noch nicht beauftragt');
   const da = await antwortenLaden(u, z.v);
   const fehlen = da.flatMap((d, i) => (d === null ? [i + 1] : []));
-  return z.stand === 'beantwortet' ? { fehlen, wurzel: z.wurzel, proben: z.proben } : { fehlen };
+  return z.stand === 'beauftragt' ? { fehlen } : { fehlen, wurzel: z.wurzel, proben: z.proben };
+}
+
+// ------------------------------------------------------------ Bestätigungen (B4b-4c-2d)
+
+/** Alle gesicherten Antworten, streng gelesen und noch einmal geprüft (in Losreihenfolge). */
+async function alleAntworten(u: AusgeberUmgebung, z: AusgeberZustand, r: Rahmen): Promise<Antwort[]> {
+  const da = await antwortenLaden(u, z.v);
+  return da.map((d, i) => {
+    if (d === null) fehler(`Antwort ${i + 1} fehlt`);
+    const a = antwortLesen(d);
+    if (a.x !== i + 1) fehler(`Antwort ${i + 1}: Nummer`);
+    antwortPruefen(a, z.los![i], z, r);
+    return a;
+  });
+}
+
+/** Die Bestätigungs-Anfrage an die Geloste x (feste Reihenfolge der Felder, wie bestaetigenAnfrageLesen sie verlangt). */
+export function bestaetigenAnfrageBauen(schluessel: string, z: AusgeberZustand, r: Rahmen, antworten: Antwort[], x: number): BestaetigenAnfrage {
+  const los = z.los!;
+  if (!Number.isInteger(x) || x < 1 || x > los.length) fehler('Nummer');
+  if (adresseVon(schluessel) !== z.ausgeber) fehler('Wallet ist nicht die des Ausgebers');
+  if (!z.wurzel || !z.proben) fehler('noch keine Wurzel');
+  const buendel = antworten.map((a) => a.buendel[x - 1]);
+  const buendelSig = antworten.map((a) => a.buendel_sig[x - 1]);
+  const q: BestaetigenAnfrage = {
+    art: 's', blaetter: antworten.flatMap((a) => a.blaetter), buendel, buendel_sig: buendelSig, k: z.k, n: r.n, praeger: z.ausgeber, praeger_sig: '',
+    proben: [...z.proben], t: z.t, tol: r.tol, validatoren: [...los], wurzel: z.wurzel, x, zeit: r.zeit,
+  };
+  q.praeger_sig = unterschreiben(schluessel, sAuftragNachricht(q.praeger, q.k, q.n, q.t, q.tol, q.x, q.wurzel, q.validatoren, q.proben, q.zeit, hashListe(q.buendel)));
+  return q;
+}
+
+/** Bestätigungen, die schon gesichert sind (x -> Unterschrift). */
+async function bestaetigungenLaden(u: AusgeberUmgebung, v: number): Promise<(string | null)[]> {
+  const out: (string | null)[] = [];
+  for (let x = 1; x <= v; x++) out.push(await u.ablage.lesen(BESTAETIGUNG + x));
+  return out;
+}
+
+/**
+ * Die Bestätigungs-Anfragen an jede Geloste senden, deren Bestätigung noch
+ * fehlt (auch noch einmal: dieselbe Anfrage, dieselbe Bestätigung). Gibt die Nummern.
+ */
+export async function bestaetigungenAnfordern(u: AusgeberUmgebung, wallet: WalletSchluessel): Promise<{ gesendet: number[] }> {
+  const z = await zustandLesen(u);
+  if (!z) fehler('keine Bestellung');
+  if (z.stand !== 'beantwortet') fehler(z.stand === 'bestaetigt' ? 'alle Bestätigungen sind da' : 'noch nicht alle Antworten da');
+  const r = await rahmenLaden(u, z);
+  const schluessel = schluesselAus((await wallet.entsperren()).privateKey);
+  if (adresseVon(schluessel) !== z.ausgeber) fehler('Wallet ist nicht die des Ausgebers');
+  const jetzt = Math.floor(u.jetzt() / 1000);
+  if (z.frist === undefined || jetzt > z.frist) fehler('Bestellung verfallen');
+  if (jetzt > r.zeit + AUFTRAG_ALT - SENDEN_RESERVE) fehler('die Ausgabezeit ist zu alt für die Kette -- diese Ausgabe neu bestellen');
+  const antworten = await alleAntworten(u, z, r);
+  // Wurzel und Proben aus den Antworten noch einmal: sie müssen die gespeicherten sein.
+  const e = auswerten(antworten, z, r);
+  if (e.wurzel !== z.wurzel || e.proben.join() !== z.proben!.join()) fehler('Zustand: Wurzel oder Proben passen nicht zu den Antworten');
+  const da = await bestaetigungenLaden(u, z.v);
+  const signer = { signMessage: async (m: string) => unterschreiben(schluessel, m) };
+  const gesendet: number[] = [];
+  for (let x = 1; x <= z.v; x++) {
+    if (da[x - 1] !== null) continue;
+    const q = bestaetigenAnfrageBauen(schluessel, z, r, antworten, x);
+    const an = { adresse: z.los![x - 1], pub: r.schluessel[x - 1] };
+    for (const brief of einpacken(schluessel, an, 'bestaetigung', ethers.toUtf8Bytes(JSON.stringify(q)), jetzt, u.zufall)) {
+      await ablegen(z.ausgeber, an.adresse, brief, signer, jetzt, u.fetchFn, u.apiBasis);
+    }
+    gesendet.push(x);
+  }
+  return { gesendet };
+}
+
+/** Ist die Nutzlast einer Hülle `bestaetigung` eine Bestätigung (Antwort einer Gelosten) statt einer Anfrage? Genau die Felder k, sig, x. */
+export function istBestaetigung(nutzlast: Uint8Array): boolean {
+  if (nutzlast.length > 1024) return false;
+  try {
+    const o = JSON.parse(ethers.toUtf8String(nutzlast)) as unknown;
+    return !!o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).sort().join(',') === 'k,sig,x';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Eine fertige Hülle `bestaetigung` mit {k, x, sig} aufnehmen (aus der Runde):
+ * von der Gelosten x, ihre Unterschrift über genau diese Ausgabe.
+ */
+export async function bestaetigungAufnehmen(u: AusgeberUmgebung, m: Nachricht): Promise<{ k: string; x: number; art: 'neu' | 'wiederholt'; fertig: boolean }> {
+  if (m.art !== 'bestaetigung' || !istBestaetigung(m.nutzlast)) fehler('keine Bestätigung');
+  const b = JSON.parse(ethers.toUtf8String(m.nutzlast)) as { k: unknown; x: unknown; sig: unknown };
+  const z = await zustandLesen(u);
+  if (!z) fehler('keine Bestellung');
+  if (z.stand !== 'beantwortet' && z.stand !== 'bestaetigt') fehler('keine offenen Bestätigungen');
+  const r = await rahmenLaden(u, z);
+  const los = z.los!;
+  const x = b.x;
+  if (b.k !== z.k || typeof x !== 'number' || !Number.isInteger(x) || x < 1 || x > los.length || typeof b.sig !== 'string') fehler('Bestätigung: K oder Nummer');
+  if (m.von !== los[x - 1]) fehler(`Bestätigung ${x}: nicht von der Gelosten ${x}`);
+  const nachricht = sBestaetigungNachricht(z.k, z.wurzel!, r.n, z.t, los, x, z.proben!, r.zeit, r.tol);
+  if (!unterschriftVon(nachricht, b.sig, los[x - 1])) fehler(`Bestätigung ${x}: nicht von der Gelosten über diese Ausgabe unterschrieben`);
+  const da = await bestaetigungenLaden(u, z.v);
+  const alt = da[x - 1];
+  if (alt !== null) {
+    if (alt !== b.sig) fehler(`Bestätigung ${x}: schon eine andere gesichert`);
+    return { k: z.k, x, art: 'wiederholt', fertig: z.stand === 'bestaetigt' };
+  }
+  await u.ablage.schreiben(BESTAETIGUNG + x, b.sig, false);
+  da[x - 1] = b.sig;
+  if (da.some((d) => d === null)) return { k: z.k, x, art: 'neu', fertig: false };
+  // Alle da: jede noch einmal aus der Ablage gegen die Ausgabe prüfen.
+  da.forEach((sig, i) => {
+    if (!unterschriftVon(sBestaetigungNachricht(z.k, z.wurzel!, r.n, z.t, los, i + 1, z.proben!, r.zeit, r.tol), sig!, los[i])) fehler(`Bestätigung ${i + 1} in der Ablage passt nicht`);
+  });
+  await zustandSchreiben(u, { ...z, stand: 'bestaetigt' });
+  return { k: z.k, x, art: 'neu', fertig: true };
+}
+
+/** Die Bestätigungen in Losreihenfolge (erst ab `bestaetigt` vollständig); fehlende als Nummern. */
+export async function bestaetigungenStand(u: AusgeberUmgebung): Promise<{ fehlen: number[]; bestaetigungen?: string[] }> {
+  const z = await zustandLesen(u);
+  if (!z) fehler('keine Bestellung');
+  if (z.stand !== 'beantwortet' && z.stand !== 'bestaetigt') fehler('noch nicht alle Antworten da');
+  const da = await bestaetigungenLaden(u, z.v);
+  const fehlen = da.flatMap((d, i) => (d === null ? [i + 1] : []));
+  return z.stand === 'bestaetigt' ? { fehlen, bestaetigungen: da as string[] } : { fehlen };
 }

@@ -42,6 +42,8 @@ const ZUSTAND = 'aequitas.quantenS.ausgeber.zustand';
 /** Rahmen der Aufträge und die Antworten je Geloster (B4b-4c-2c, lib/quantenSAusgeberRunde.ts). */
 export const RAHMEN = 'aequitas.quantenS.ausgeber.rahmen';
 export const ANTWORT = 'aequitas.quantenS.ausgeber.antwort.';
+/** Bestätigung je Geloster (B4b-4c-2d). */
+export const BESTAETIGUNG = 'aequitas.quantenS.ausgeber.bestaetigung.';
 const FRIST_MS = 20_000;
 const DRAND_FRIST_MS = 10_000;
 const DRAND_MAX = 4096;
@@ -116,10 +118,10 @@ export function losRunde(bestellZeit: number): number {
 
 // ------------------------------------------------------------ Zustand
 
-export type Stand = 'eingereicht' | 'bestellt' | 'gelost' | 'beauftragt' | 'beantwortet';
+export type Stand = 'eingereicht' | 'bestellt' | 'gelost' | 'beauftragt' | 'beantwortet' | 'bestaetigt';
 
 /** Stände, in denen das Los feststeht. */
-const MIT_LOS: Stand[] = ['gelost', 'beauftragt', 'beantwortet'];
+const MIT_LOS: Stand[] = ['gelost', 'beauftragt', 'beantwortet', 'bestaetigt'];
 
 /** Was das Gerät zur eigenen Bestellung aufbewahrt (nichts Geheimes). */
 export interface AusgeberZustand {
@@ -137,7 +139,7 @@ export interface AusgeberZustand {
   frist?: number;
   /** die Gelosten in Losreihenfolge (ab `gelost`) */
   los?: string[];
-  /** ab `beantwortet` (B4b-4c-2c): Wurzel und Bindungen der Stichproben v2 */
+  /** ab `beantwortet` (B4b-4c-2c): Wurzel und Bindungen der Stichproben v2 (auch `bestaetigt`) */
   wurzel?: string;
   proben?: [string, string];
 }
@@ -173,7 +175,7 @@ function zustandPruefen(o: unknown): AusgeberZustand {
       fehler('Zustand des Ausgebers unlesbar');
     }
   } else if (z.los !== undefined) fehler('Zustand des Ausgebers unlesbar');
-  if (z.stand === 'beantwortet') {
+  if (z.stand === 'beantwortet' || z.stand === 'bestaetigt') {
     const p = z.proben;
     if (typeof z.wurzel !== 'string' || !HEX64.test(z.wurzel) || !Array.isArray(p) || p.length !== 2 || !p.every((h) => typeof h === 'string' && HEX64.test(h))) {
       fehler('Zustand des Ausgebers unlesbar');
@@ -209,7 +211,10 @@ export async function vergessen(u: AusgeberUmgebung): Promise<void> {
 
 /** Rahmen und Antworten einer früheren Runde löschen (vor einer neuen Bestellung oder Beauftragung). */
 export async function rundeLoeschen(u: AusgeberUmgebung): Promise<void> {
-  for (let x = 1; x <= LOS_V_MAX; x++) await u.ablage.loeschen(ANTWORT + x);
+  for (let x = 1; x <= LOS_V_MAX; x++) {
+    await u.ablage.loeschen(ANTWORT + x);
+    await u.ablage.loeschen(BESTAETIGUNG + x);
+  }
   await u.ablage.loeschen(RAHMEN);
 }
 
