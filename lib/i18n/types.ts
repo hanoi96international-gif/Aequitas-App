@@ -562,6 +562,11 @@ export interface Translations {
     req5: string;
     setupTitle: string;
     setupDesc: string;
+    knotenTitel: string;
+    knotenText: string;
+    knotenPorts: string;
+    knotenGuideBtn: string;
+    einzelHinweis: string;
     copyBtn: string;
     cmdCopiedMsg: string;
     portNote: string;
