@@ -8,7 +8,7 @@ jest.mock('../config', () => ({ API_BASE: 'https://knoten.test/api' }));
 
 import { ethers } from 'ethers';
 import vektor from './vektoren/quanten_s_inhaberin_vektor.json';
-import { abholen, apiPruefen, einloesen, neu, stelleSchluesselPruefen, vergessen, WARTEN_MAX_MS, zustandAnzeigen, type Umgebung } from '../quantenSInhaberin';
+import { abholen, apiPruefen, einloesen, ipfandNachricht, ipfandZurueck, neu, pfandVorBindung, stelleSchluesselPruefen, vergessen, WARTEN_MAX_MS, zustandAnzeigen, type Umgebung } from '../quantenSInhaberin';
 
 const V = vektor as any;
 const API = 'https://knoten.test/api';
@@ -268,5 +268,72 @@ describe('App als Inhaberin: Eingaben der Seite', () => {
     expect(() => validatorenLesen(`${VAL[0].adresse}`)).toThrow('Form');
     expect(() => validatorenLesen(`kein=https://v.test`)).toThrow('Form');
     expect(() => validatorenLesen(`${VAL[0].adresse}=http://v.test`)).toThrow('nur https');
+  });
+});
+
+// P3/P5b: Pfand der Inhaberin -- die Menschen-Wallet gibt es (Knoten #675).
+describe('App als Inhaberin: Pfand bei der Bindung', () => {
+  const mensch = new ethers.Wallet('0x' + '77'.repeat(32));
+  const geber = { adresse: mensch.address, unterschreiben: (m: string) => mensch.signMessage(m) };
+  const D = 10_000_000;
+
+  test('Nachricht wie im Knoten (quantenSIPfandNachricht)', () => {
+    expect(ipfandNachricht('0xAB' + '00'.repeat(19), 'a'.repeat(64), '0xCD' + '00'.repeat(19), D)).toBe(
+      `aequitas-quanten-s-ipfand-v1|chain:1926|0xab${'00'.repeat(19)}|${'a'.repeat(64)}|0xcd${'00'.repeat(19)}|10000000`,
+    );
+  });
+
+  test('bindet mit Pfandgeber: genau die Deckung der Kette, Unterschrift der Menschen-Wallet', async () => {
+    const w = welt();
+    await bestellt(w);
+    await abholen(w.u, V.k, VAL);
+    w.kette = { ...w.kette!, deckung: D };
+    await einloesen(w.u, V.stelle, () => {}, { deckung: D, geber });
+    const q = w.posts[0].body.quanten_w;
+    expect(q.pfand_von).toBe(mensch.address.toLowerCase());
+    expect(ethers.verifyMessage(ipfandNachricht(mensch.address, V.k, V.inhaberin, D), q.pfand_sig).toLowerCase()).toBe(mensch.address.toLowerCase());
+    expect(q.wallet_sig).toBe(V.binden_sig); // die Bindung selbst unveraendert
+  });
+
+  test('bindet nicht, wenn Betrag, Pfandgeber oder Unterschrift nicht passen', async () => {
+    const fall = async (kette: Record<string, unknown>, pfand: any, grund: string) => {
+      const w = welt();
+      await bestellt(w);
+      await abholen(w.u, V.k, VAL);
+      w.kette = { ...w.kette!, ...kette };
+      await expect(einloesen(w.u, V.stelle, () => {}, pfand)).rejects.toThrow(grund);
+      expect(w.posts).toHaveLength(0);
+    };
+    await fall({ deckung: D }, { deckung: D + 1, geber }, 'Betrag passt nicht');
+    await fall({}, { deckung: D, geber }, 'Betrag passt nicht'); // Kette nennt keine Deckung
+    const fremd = new ethers.Wallet('0x' + '78'.repeat(32));
+    await fall({ deckung: D }, { deckung: D, geber: { adresse: mensch.address, unterschreiben: (m: string) => fremd.signMessage(m) } }, 'Unterschrift passt nicht');
+    await fall({ deckung: D }, { deckung: D, geber: { adresse: V.inhaberin, unterschreiben: (m: string) => mensch.signMessage(m) } }, 'Pfandgeber');
+    await fall({ deckung: D }, { deckung: D, geber: { adresse: '0x12', unterschreiben: (m: string) => mensch.signMessage(m) } }, 'Pfandgeber');
+  });
+
+  test('pfandVorBindung: nur ab dem Stichtag, nur ungebunden, fail-closed ohne Deckung', async () => {
+    const w = welt();
+    await bestellt(w);
+    await abholen(w.u, V.k, VAL);
+    const status = (ab: unknown) => (w.antwort = (url) => (url === `${API}/status` ? { status: 200, text: JSON.stringify({ quanten_w: ab === undefined ? {} : { pfaender_ab: ab } }) } : null));
+    status(undefined);
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, deckung: 0 });
+    status(5); // w.zeit = 0 ms -> 0 s < 5: noch nicht
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, deckung: 0 });
+    w.zeit = 5000;
+    w.kette = { ...w.kette!, deckung: D };
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: true, deckung: D });
+    w.kette = { ...w.kette!, deckung: undefined };
+    await expect(pfandVorBindung(w.u)).rejects.toThrow('Deckung');
+    w.kette = { ...w.kette!, deckung: D, gebunden: true };
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, deckung: 0 });
+  });
+
+  test('ipfandZurueck: ohne Wallet und Unterschrift, nur K', async () => {
+    const w = welt();
+    await ipfandZurueck(w.u, V.k);
+    expect(w.posts[0]).toEqual({ url: `${API}/quanten-w/s_ipfand_zurueck`, body: { wallet: '', zeit: 0, quanten_w: { k: V.k } } });
+    await expect(ipfandZurueck(w.u, 'xyz')).rejects.toThrow('K');
   });
 });
