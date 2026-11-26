@@ -641,7 +641,7 @@ export interface Pfandgeber {
 /** Was vor der Bindung zu sagen ist: braucht sie ein Pfand (Stichtag erreicht), und wie hoch (= Deckung)? */
 export interface PfandVorBindung {
   noetig: boolean;
-  deckung: number; // Mikro-AEQ; 0, wenn nicht noetig oder schon gebunden
+  betrag: number; // Mikro-AEQ (Deckung + 10 %, pfand_bindung der Kette); 0, wenn nicht noetig oder schon gebunden
 }
 
 function ganzPositiv(x: unknown): x is number {
@@ -659,11 +659,12 @@ export async function pfandVorBindung(u: Umgebung): Promise<PfandVorBindung> {
   if (!z?.k) fehler('noch kein Token abgeholt');
   const st = await stand(u, z.k);
   if (!st) fehler('der Token steht nicht (mehr) auf der Kette -- eingeloest oder tot');
-  if (st.gebunden === true) return { noetig: false, deckung: 0 };
+  if (st.gebunden === true) return { noetig: false, betrag: 0 };
   const ab = await holePfaenderAb(u.fetchFn, u.apiBasis);
-  if (ab === null || Math.floor(u.jetzt() / 1000) < ab) return { noetig: false, deckung: 0 };
-  if (!ganzPositiv(st.deckung)) fehler('Pfand: die Kette nennt die Deckung nicht');
-  return { noetig: true, deckung: st.deckung };
+  if (ab === null || Math.floor(u.jetzt() / 1000) < ab) return { noetig: false, betrag: 0 };
+  // Pfand = Deckung + 10 % (Entscheidung 26.11.); die Kette nennt den Betrag.
+  if (!ganzPositiv(st.pfand_bindung) || !ganzPositiv(st.deckung) || st.pfand_bindung <= st.deckung) fehler('Pfand: die Kette nennt den Betrag nicht');
+  return { noetig: true, betrag: st.pfand_bindung };
 }
 
 /**
@@ -685,7 +686,7 @@ export async function einloesen(
   u: Umgebung,
   b: 0 | 1,
   fortschritt: (schritt: 'binden' | 'waehlen' | 'vorlage') => void = () => {},
-  pfand?: { deckung: number; geber: Pfandgeber },
+  pfand?: { betrag: number; geber: Pfandgeber },
 ): Promise<Vorlage> {
   if (b !== 0 && b !== 1) fehler('Stelle 0 oder 1');
   const z = await zustandLesen(u);
@@ -714,10 +715,10 @@ export async function einloesen(
     // der Inhaberin ist frisch und hat kein Guthaben). Nur genau die Deckung
     // der Kette, nur mit einer Unterschrift, die die App selbst nachprueft.
     if (pfand) {
-      if (!ganzPositiv(pfand.deckung) || pfand.deckung !== st.deckung) fehler('Pfand: Betrag passt nicht zur Deckung auf der Kette');
+      if (!ganzPositiv(pfand.betrag) || pfand.betrag !== st.pfand_bindung) fehler('Pfand: Betrag passt nicht zum Pfand der Kette');
       const von = pfand.geber.adresse.toLowerCase();
       if (!/^0x[0-9a-f]{40}$/.test(von) || von === inhaberin) fehler('Pfand: Pfandgeber');
-      const nachricht = ipfandNachricht(von, K, inhaberin, pfand.deckung);
+      const nachricht = ipfandNachricht(von, K, inhaberin, pfand.betrag);
       const sig = sigNormal(await pfand.geber.unterschreiben(nachricht));
       if (!kanonisch(sig) || !unterschriftVon(nachricht, sig, von)) fehler('Pfand: Unterschrift passt nicht zur Wallet');
       satz.pfand_von = von;

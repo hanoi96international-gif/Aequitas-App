@@ -764,7 +764,7 @@ const pt: Translations = {
     qtAbgeholt: "Token verificado e aceite.",
     qtSchritt3: "3 · RESGATAR",
     qtPfandTitel: "Depósito da titular",
-    qtPfandText: "A partir de agora, a vinculação toma a cobertura como depósito: {aeq} AEQ da tua carteira. Volta 7 dias depois do fim do token; se for provado que o apresentaste duas vezes, vai para o ponto de aceitação lesado. Continuar?",
+    qtPfandText: "A partir de agora, a vinculação toma um depósito da tua carteira: a cobertura mais 10 %, ou seja {aeq} AEQ. Volta 7 dias depois do fim do token; se for provado que o apresentaste duas vezes, vai para o ponto de aceitação lesado. Continuar?",
     qtPfandGeben: "Dar depósito e vincular",
     qtPfandLaeuft: "Depósito de {aeq} AEQ retido enquanto o token estiver ativo.",
     qtPfandNach: "Depósito {aeq} AEQ – volta a partir de {datum}.",

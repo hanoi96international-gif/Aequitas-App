@@ -764,7 +764,7 @@ const it: Translations = {
     qtAbgeholt: "Token controllato e accettato.",
     qtSchritt3: "3 · RISCUOTERE",
     qtPfandTitel: "Deposito della titolare",
-    qtPfandText: "Da ora il vincolo prende la copertura come deposito: {aeq} AEQ dal tuo wallet. Torna 7 giorni dopo la fine del token; se si dimostra che l'hai presentato due volte, va al punto di accettazione danneggiato. Continuare?",
+    qtPfandText: "Da ora il vincolo prende un deposito dal tuo wallet: la copertura più il 10 %, cioè {aeq} AEQ. Torna 7 giorni dopo la fine del token; se si dimostra che l'hai presentato due volte, va al punto di accettazione danneggiato. Continuare?",
     qtPfandGeben: "Dai deposito e vincola",
     qtPfandLaeuft: "Deposito di {aeq} AEQ trattenuto finché il token è attivo.",
     qtPfandNach: "Deposito {aeq} AEQ – torna dal {datum}.",
