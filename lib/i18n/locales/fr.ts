@@ -764,7 +764,7 @@ const fr: Translations = {
     qtAbgeholt: "Jeton vérifié et accepté.",
     qtSchritt3: "3 · ENCAISSER",
     qtPfandTitel: "Caution de la détentrice",
-    qtPfandText: "Désormais, le lien prend la couverture comme caution : {aeq} AEQ de ton portefeuille. Elle revient 7 jours après la fin du jeton ; s'il est prouvé que tu l'as présenté deux fois, elle va au point d'acceptation lésé. Continuer ?",
+    qtPfandText: "Désormais, le lien prend une caution sur ton portefeuille : la couverture plus 10 %, soit {aeq} AEQ. Elle revient 7 jours après la fin du jeton ; s'il est prouvé que tu l'as présenté deux fois, elle va au point d'acceptation lésé. Continuer ?",
     qtPfandGeben: "Donner la caution et lier",
     qtPfandLaeuft: "Caution de {aeq} AEQ bloquée tant que le jeton est actif.",
     qtPfandNach: "Caution {aeq} AEQ – retour à partir du {datum}.",

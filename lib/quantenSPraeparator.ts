@@ -168,6 +168,20 @@ export function meinStand(reg: Register, adresse: string, jetzt: number, pfaende
  * darum, dass die App das Pfand VOR dem Melden nennt.
  */
 export async function holePfaenderAb(fetchFn: typeof fetch = fetch, api: string = API_BASE): Promise<number | null> {
+  return statusAb('pfaender_ab', fetchFn, api);
+}
+
+/**
+ * Stichtag des Pfands je Präparatorin (quanten_w.praep_pfand_ab). Seit dem
+ * Befund vom 26.11. hat es einen eigenen Stichtag (schlafend): der Stichtag der
+ * Pfänder schaltet es nicht ein -- die Karte der Präparatorin richtet sich nur
+ * nach diesem.
+ */
+export async function holePraepPfandAb(fetchFn: typeof fetch = fetch, api: string = API_BASE): Promise<number | null> {
+  return statusAb('praep_pfand_ab', fetchFn, api);
+}
+
+async function statusAb(feld: 'pfaender_ab' | 'praep_pfand_ab', fetchFn: typeof fetch, api: string): Promise<number | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FRIST_MS);
   try {
@@ -175,7 +189,7 @@ export async function holePfaenderAb(fetchFn: typeof fetch = fetch, api: string 
     if (!r.ok) return null;
     const text = await r.text();
     if (text.length > REGISTER_MAX) return null;
-    const ab = (JSON.parse(text) as { quanten_w?: { pfaender_ab?: unknown } })?.quanten_w?.pfaender_ab;
+    const ab = (JSON.parse(text) as { quanten_w?: Record<string, unknown> })?.quanten_w?.[feld];
     return ganz(ab) ? ab : null;
   } catch {
     return null;

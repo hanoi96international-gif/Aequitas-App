@@ -764,7 +764,7 @@ const en: Translations = {
     qtAbgeholt: "Token checked and accepted.",
     qtSchritt3: "3 · REDEEM",
     qtPfandTitel: "Holder's deposit",
-    qtPfandText: "From now on, binding takes the coverage as a deposit: {aeq} AEQ from your wallet. It returns 7 days after the token ends – if it is proven that you presented it twice, it goes to the harmed acceptance point. Continue?",
+    qtPfandText: "From now on, binding takes a deposit from your wallet: the coverage plus 10 %, i.e. {aeq} AEQ. It returns 7 days after the token ends – if it is proven that you presented it twice, it goes to the harmed acceptance point. Continue?",
     qtPfandGeben: "Give deposit and bind",
     qtPfandLaeuft: "Deposit {aeq} AEQ is held while the token runs.",
     qtPfandNach: "Deposit {aeq} AEQ – back from {datum}.",

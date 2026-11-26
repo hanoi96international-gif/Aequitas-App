@@ -9,6 +9,7 @@ import {
   PRAEP_PFAND_MIKRO,
   REGISTER_MAX,
   holePfaenderAb,
+  holePraepPfandAb,
   holeRegister,
   meinStand,
   praepEinreichen,
@@ -234,6 +235,9 @@ describe('Pfand (P2)', () => {
     expect(await holePfaenderAb(mitStatus('kein json'), API)).toBeNull();
     expect(await holePfaenderAb(mitStatus('{}', 500), API)).toBeNull();
     expect(await holePfaenderAb(mitStatus('x'.repeat(REGISTER_MAX + 1)), API)).toBeNull();
+    // Das Pfand je Präparatorin hat einen eigenen Stichtag: pfaender_ab allein schaltet es nicht ein.
+    expect(await holePraepPfandAb(mitStatus(JSON.stringify({ quanten_w: { pfaender_ab: 1_800_000_000 } })), API)).toBeNull();
+    expect(await holePraepPfandAb(mitStatus(JSON.stringify({ quanten_w: { pfaender_ab: 1, praep_pfand_ab: 1_900_000_000 } })), API)).toBe(1_900_000_000);
   });
 
   it('holt das Pfand zurück: ohne Wallet und Unterschrift, nur mit K des eigenen Eintrags', async () => {

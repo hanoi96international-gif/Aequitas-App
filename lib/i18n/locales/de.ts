@@ -764,7 +764,7 @@ const de: Translations = {
     qtAbgeholt: "Token geprüft und angenommen.",
     qtSchritt3: "3 · EINLÖSEN",
     qtPfandTitel: "Pfand der Inhaberin",
-    qtPfandText: "Ab jetzt nimmt die Bindung die Deckung als Pfand: {aeq} AEQ von deiner Wallet. Es kommt 7 Tage nach dem Ende des Tokens zurück – wird nachgewiesen, dass du ihn zweimal vorgelegt hast, geht es an die geschädigte Stelle. Fortfahren?",
+    qtPfandText: "Ab jetzt nimmt die Bindung ein Pfand von deiner Wallet: die Deckung plus 10 %, also {aeq} AEQ. Es kommt 7 Tage nach dem Ende des Tokens zurück – wird nachgewiesen, dass du ihn zweimal vorgelegt hast, geht es an die geschädigte Stelle. Fortfahren?",
     qtPfandGeben: "Pfand geben und binden",
     qtPfandLaeuft: "Pfand {aeq} AEQ liegt, solange der Token läuft.",
     qtPfandNach: "Pfand {aeq} AEQ – zurück ab {datum}.",

@@ -764,7 +764,7 @@ const zh: Translations = {
     qtAbgeholt: "代币已检查并接收。",
     qtSchritt3: "3 · 兑换",
     qtPfandTitel: "持有人押金",
-    qtPfandText: "从现在起，绑定会把保证金作为押金：从你的钱包扣 {aeq} AEQ。代币结束 7 天后退还；若证明你两次出示，则归受损的受理点。继续吗？",
+    qtPfandText: "从现在起，绑定会从你的钱包收取押金：保证金加 10%，即 {aeq} AEQ。代币结束 7 天后退还；若证明你两次出示，则归受损的受理点。继续吗？",
     qtPfandGeben: "交押金并绑定",
     qtPfandLaeuft: "代币有效期间押金 {aeq} AEQ 被冻结。",
     qtPfandNach: "押金 {aeq} AEQ——{datum} 起可退。",

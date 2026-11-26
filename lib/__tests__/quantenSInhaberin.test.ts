@@ -276,6 +276,7 @@ describe('App als Inhaberin: Pfand bei der Bindung', () => {
   const mensch = new ethers.Wallet('0x' + '77'.repeat(32));
   const geber = { adresse: mensch.address, unterschreiben: (m: string) => mensch.signMessage(m) };
   const D = 10_000_000;
+  const P = 11_000_000; // pfand_bindung = D + 10 %
 
   test('Nachricht wie im Knoten (quantenSIPfandNachricht)', () => {
     expect(ipfandNachricht('0xAB' + '00'.repeat(19), 'a'.repeat(64), '0xCD' + '00'.repeat(19), D)).toBe(
@@ -287,11 +288,11 @@ describe('App als Inhaberin: Pfand bei der Bindung', () => {
     const w = welt();
     await bestellt(w);
     await abholen(w.u, V.k, VAL);
-    w.kette = { ...w.kette!, deckung: D };
-    await einloesen(w.u, V.stelle, () => {}, { deckung: D, geber });
+    w.kette = { ...w.kette!, deckung: D, pfand_bindung: P };
+    await einloesen(w.u, V.stelle, () => {}, { betrag: P, geber });
     const q = w.posts[0].body.quanten_w;
     expect(q.pfand_von).toBe(mensch.address.toLowerCase());
-    expect(ethers.verifyMessage(ipfandNachricht(mensch.address, V.k, V.inhaberin, D), q.pfand_sig).toLowerCase()).toBe(mensch.address.toLowerCase());
+    expect(ethers.verifyMessage(ipfandNachricht(mensch.address, V.k, V.inhaberin, P), q.pfand_sig).toLowerCase()).toBe(mensch.address.toLowerCase());
     expect(q.wallet_sig).toBe(V.binden_sig); // die Bindung selbst unveraendert
   });
 
@@ -304,12 +305,12 @@ describe('App als Inhaberin: Pfand bei der Bindung', () => {
       await expect(einloesen(w.u, V.stelle, () => {}, pfand)).rejects.toThrow(grund);
       expect(w.posts).toHaveLength(0);
     };
-    await fall({ deckung: D }, { deckung: D + 1, geber }, 'Betrag passt nicht');
-    await fall({}, { deckung: D, geber }, 'Betrag passt nicht'); // Kette nennt keine Deckung
+    await fall({ deckung: D, pfand_bindung: P }, { betrag: D, geber }, 'Betrag passt nicht'); // ohne Aufschlag
+    await fall({ deckung: D }, { betrag: P, geber }, 'Betrag passt nicht'); // Kette nennt keinen Betrag
     const fremd = new ethers.Wallet('0x' + '78'.repeat(32));
-    await fall({ deckung: D }, { deckung: D, geber: { adresse: mensch.address, unterschreiben: (m: string) => fremd.signMessage(m) } }, 'Unterschrift passt nicht');
-    await fall({ deckung: D }, { deckung: D, geber: { adresse: V.inhaberin, unterschreiben: (m: string) => mensch.signMessage(m) } }, 'Pfandgeber');
-    await fall({ deckung: D }, { deckung: D, geber: { adresse: '0x12', unterschreiben: (m: string) => mensch.signMessage(m) } }, 'Pfandgeber');
+    await fall({ deckung: D, pfand_bindung: P }, { betrag: P, geber: { adresse: mensch.address, unterschreiben: (m: string) => fremd.signMessage(m) } }, 'Unterschrift passt nicht');
+    await fall({ deckung: D, pfand_bindung: P }, { betrag: P, geber: { adresse: V.inhaberin, unterschreiben: (m: string) => mensch.signMessage(m) } }, 'Pfandgeber');
+    await fall({ deckung: D, pfand_bindung: P }, { betrag: P, geber: { adresse: '0x12', unterschreiben: (m: string) => mensch.signMessage(m) } }, 'Pfandgeber');
   });
 
   test('pfandVorBindung: nur ab dem Stichtag, nur ungebunden, fail-closed ohne Deckung', async () => {
@@ -318,16 +319,18 @@ describe('App als Inhaberin: Pfand bei der Bindung', () => {
     await abholen(w.u, V.k, VAL);
     const status = (ab: unknown) => (w.antwort = (url) => (url === `${API}/status` ? { status: 200, text: JSON.stringify({ quanten_w: ab === undefined ? {} : { pfaender_ab: ab } }) } : null));
     status(undefined);
-    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, deckung: 0 });
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, betrag: 0 });
     status(5); // w.zeit = 0 ms -> 0 s < 5: noch nicht
-    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, deckung: 0 });
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, betrag: 0 });
     w.zeit = 5000;
-    w.kette = { ...w.kette!, deckung: D };
-    expect(await pfandVorBindung(w.u)).toEqual({ noetig: true, deckung: D });
-    w.kette = { ...w.kette!, deckung: undefined };
-    await expect(pfandVorBindung(w.u)).rejects.toThrow('Deckung');
-    w.kette = { ...w.kette!, deckung: D, gebunden: true };
-    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, deckung: 0 });
+    w.kette = { ...w.kette!, deckung: D, pfand_bindung: P };
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: true, betrag: P });
+    w.kette = { ...w.kette!, pfand_bindung: undefined };
+    await expect(pfandVorBindung(w.u)).rejects.toThrow('Betrag');
+    w.kette = { ...w.kette!, pfand_bindung: D }; // ohne Aufschlag: unplausibel
+    await expect(pfandVorBindung(w.u)).rejects.toThrow('Betrag');
+    w.kette = { ...w.kette!, deckung: D, pfand_bindung: P, gebunden: true };
+    expect(await pfandVorBindung(w.u)).toEqual({ noetig: false, betrag: 0 });
   });
 
   test('ipfandZurueck: ohne Wallet und Unterschrift, nur K', async () => {

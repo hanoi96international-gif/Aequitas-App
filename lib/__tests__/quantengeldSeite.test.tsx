@@ -43,7 +43,7 @@ jest.mock('@/lib/quantenSPraeparator', () => ({
   ...jest.requireActual('@/lib/quantenSPraeparator'),
   holeRegister: async () => mockRegister,
   praepEinreichen: (...a: any[]) => (mockEinreichen as any)(...a),
-  holePfaenderAb: async () => mockPfaenderAb,
+  holePraepPfandAb: async () => mockPfaenderAb,
   pfandZurueckEinreichen: (...a: any[]) => (mockPfandZurueck as any)(...a),
 }));
 // P2: Stichtag der Pfaender (null = schlafend) und Rueckgabe gezaehlt.

@@ -21,7 +21,7 @@ import {
   type QuantenStimmErgebnis,
 } from '@/lib/quantengeld';
 import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, type QuantenWErgebnis, type QuantenWUeberblick } from '@/lib/quantenW';
-import { PRAEP_PFAND_MIKRO, holePfaenderAb, holeRegister, meinStand, pfandZurueckEinreichen, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
+import { PRAEP_PFAND_MIKRO, holePraepPfandAb, holeRegister, meinStand, pfandZurueckEinreichen, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
 import type { RundenBericht } from '@/lib/quantenSPraepAblauf';
 import { ibmZugangDa, ibmZugangLoeschen, ibmZugangSetzen, praepRundeJetzt } from '@/lib/quantenSPraepGeraet';
 import { unlockWallet } from '@/lib/wallet';
@@ -63,7 +63,7 @@ export default function Quantengeld() {
   const [pfaenderAb, setPfaenderAb] = useState<number | null>(null);
 
   const laden = useCallback(async () => {
-    const [s, a, r, u, reg, pab] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand(), holeQuantenWUeberblick(), holeRegister(), holePfaenderAb()]);
+    const [s, a, r, u, reg, pab] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand(), holeQuantenWUeberblick(), holeRegister(), holePraepPfandAb()]);
     setStand(s);
     setUeberblick(u);
     setRegister(reg);

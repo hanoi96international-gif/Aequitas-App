@@ -146,9 +146,9 @@ export default function QuantenToken() {
       const pv = await pfandVorBindung(u);
       let pfand: Parameters<typeof einloesen>[3];
       if (pv.noetig) {
-        if (!(await bestaetigt(t('node.qtPfandTitel'), t('node.qtPfandText').replace('{aeq}', aeq(pv.deckung)), t('node.qtPfandGeben')))) return;
+        if (!(await bestaetigt(t('node.qtPfandTitel'), t('node.qtPfandText').replace('{aeq}', aeq(pv.betrag)), t('node.qtPfandGeben')))) return;
         const mensch = await unlockWallet();
-        pfand = { deckung: pv.deckung, geber: { adresse: mensch.address, unterschreiben: (m: string) => mensch.signMessage(m) } };
+        pfand = { betrag: pv.betrag, geber: { adresse: mensch.address, unterschreiben: (m: string) => mensch.signMessage(m) } };
       }
       const vl = await einloesen(
         u,

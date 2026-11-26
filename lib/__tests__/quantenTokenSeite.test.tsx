@@ -60,7 +60,7 @@ jest.mock('@/lib/quantenSInhaberin', () => ({
   stand: (...a: any[]) => (mockStand as any)(...a),
   ipfandZurueck: (...a: any[]) => (mockIPfandZurueck as any)(...a),
 }));
-const mockPfandVor = jest.fn(async (_u: any): Promise<any> => ({ noetig: false, deckung: 0 }));
+const mockPfandVor = jest.fn(async (_u: any): Promise<any> => ({ noetig: false, betrag: 0 }));
 const mockStand = jest.fn(async (_u: any, _k: string): Promise<any> => null);
 const mockIPfandZurueck = jest.fn(async (_u: any, _k: string) => {});
 
@@ -354,7 +354,7 @@ test('Pfand der Inhaberin (P5b): vor der Bindung genannt, nur nach Bestaetigung;
   mockZustand.mockResolvedValue({ n: 10, v: 2, k: K, stellen: ['0x1', '0x2'], gebunden: false });
   mockEinloesen.mockReset();
   mockEinloesen.mockResolvedValue({ k: K, b: 0, x: '1', vorlage: '0x' + '1'.repeat(130) });
-  mockPfandVor.mockResolvedValue({ noetig: true, deckung: 10_000_000 });
+  mockPfandVor.mockResolvedValue({ noetig: true, betrag: 11_000_000 });
   let antwort = 0; // 0 = abbrechen, 1 = Pfand geben
   const alert = jest.spyOn(RN.Alert, 'alert').mockImplementation((_t: any, _m: any, k: any) => k?.[antwort]?.onPress?.());
   let root = await zeigen();
@@ -364,14 +364,14 @@ test('Pfand der Inhaberin (P5b): vor der Bindung genannt, nur nach Bestaetigung;
   antwort = 1;
   await act(async () => knoepfe(root, 'node.qtStelle')[0].props.onPress());
   const pfand = mockEinloesen.mock.calls[0][3];
-  expect(pfand.deckung).toBe(10_000_000);
+  expect(pfand.betrag).toBe(11_000_000);
   expect(pfand.geber.adresse).toBe(new (require('ethers').Wallet)('0x' + '81'.repeat(32)).address);
   expect(typeof (await pfand.geber.unterschreiben('x'))).toBe('string');
   alert.mockRestore();
   act(() => root.unmount?.());
   // Ohne Pfand (vor dem Stichtag): keine Frage, kein Pfandgeber.
   mockEinloesen.mockClear();
-  mockPfandVor.mockResolvedValue({ noetig: false, deckung: 0 });
+  mockPfandVor.mockResolvedValue({ noetig: false, betrag: 0 });
   root = await zeigen();
   await act(async () => knoepfe(root, 'node.qtStelle')[0].props.onPress());
   expect(mockEinloesen.mock.calls[0][3]).toBeUndefined();
@@ -385,5 +385,5 @@ test('Pfand der Inhaberin (P5b): vor der Bindung genannt, nur nach Bestaetigung;
   await act(async () => knoepfe(root, 'node.qtPfandZurueckBtn')[0].props.onPress());
   expect(mockIPfandZurueck.mock.calls[0][1]).toBe(K);
   mockStand.mockResolvedValue(null);
-  mockPfandVor.mockResolvedValue({ noetig: false, deckung: 0 });
+  mockPfandVor.mockResolvedValue({ noetig: false, betrag: 0 });
 });

@@ -764,7 +764,7 @@ const tr: Translations = {
     qtAbgeholt: "Jeton denetlendi ve kabul edildi.",
     qtSchritt3: "3 · BOZDUR",
     qtPfandTitel: "Sahibin teminatı",
-    qtPfandText: "Bundan böyle bağlama, karşılığı teminat olarak alır: cüzdanından {aeq} AEQ. Token bittikten 7 gün sonra geri döner; iki kez sunduğun kanıtlanırsa zarar gören kabul noktasına gider. Devam edilsin mi?",
+    qtPfandText: "Bundan böyle bağlama cüzdanından teminat alır: karşılık artı %10, yani {aeq} AEQ. Token bittikten 7 gün sonra geri döner; iki kez sunduğun kanıtlanırsa zarar gören kabul noktasına gider. Devam edilsin mi?",
     qtPfandGeben: "Teminat ver ve bağla",
     qtPfandLaeuft: "Token sürdükçe {aeq} AEQ teminat tutulur.",
     qtPfandNach: "Teminat {aeq} AEQ – {datum} tarihinden itibaren geri.",

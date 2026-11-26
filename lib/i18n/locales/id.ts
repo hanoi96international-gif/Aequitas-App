@@ -764,7 +764,7 @@ const id: Translations = {
     qtAbgeholt: "Token diperiksa dan diterima.",
     qtSchritt3: "3 · TUKAR",
     qtPfandTitel: "Jaminan pemegang",
-    qtPfandText: "Mulai sekarang pengikatan mengambil cakupan sebagai jaminan: {aeq} AEQ dari dompetmu. Kembali 7 hari setelah token berakhir; jika terbukti kamu menyerahkannya dua kali, jaminan diberikan ke titik penerimaan yang dirugikan. Lanjutkan?",
+    qtPfandText: "Mulai sekarang pengikatan mengambil jaminan dari dompetmu: cakupan ditambah 10 %, yaitu {aeq} AEQ. Kembali 7 hari setelah token berakhir; jika terbukti kamu menyerahkannya dua kali, jaminan diberikan ke titik penerimaan yang dirugikan. Lanjutkan?",
     qtPfandGeben: "Beri jaminan dan ikat",
     qtPfandLaeuft: "Jaminan {aeq} AEQ ditahan selama token berjalan.",
     qtPfandNach: "Jaminan {aeq} AEQ – kembali mulai {datum}.",
