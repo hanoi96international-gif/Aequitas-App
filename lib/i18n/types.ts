@@ -679,6 +679,14 @@ export interface Translations {
     qrZugangDa: string;
     qrRunde: string;
     qrLaeuft: string;
+    qAutoAn: string;
+    qAutoAus: string;
+    qAutoLaeuft: string;
+    qAutoEnde_gestoppt: string;
+    qAutoEnde_fertig: string;
+    qAutoEnde_grenze: string;
+    qAutoEnde_fehler: string;
+    qAutoEnde_bestaetigen: string;
     qrLoeschen: string;
     qrLoeschenFrage: string;
     qrFehler: string;
