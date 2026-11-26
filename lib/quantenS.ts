@@ -114,6 +114,55 @@ export function merkleWurzel(blaetterHex: string[]): string {
   return hexOhne(ebene[0]);
 }
 
+/**
+ * quantenWMerklePfad fuer mehrere Stellen auf einmal: je Stelle die Nachbarn
+ * von unten nach oben (hex), wie der Knoten sie in quantenWMerklePruefen
+ * erwartet. Die Ebenen werden einmal gebaut.
+ */
+export function merklePfade(blaetterHex: string[], stellen: number[]): Map<number, string[]> {
+  if (blaetterHex.length === 0) fehler('keine Blaetter');
+  let ebene = blaetterHex.map((h) => {
+    if (!HEX64.test(h)) fehler('Blatt');
+    return ethers.getBytes('0x' + h);
+  });
+  const ebenen: Uint8Array[][] = [];
+  while (ebene.length > 1) {
+    if (ebene.length % 2 === 1) ebene.push(ebene[ebene.length - 1]);
+    ebenen.push(ebene);
+    const naechste: Uint8Array[] = [];
+    for (let i = 0; i < ebene.length; i += 2) {
+      naechste.push(ethers.getBytes(ethers.sha256(ethers.concat([new Uint8Array([1]), ebene[i], ebene[i + 1]]))));
+    }
+    ebene = naechste;
+  }
+  const out = new Map<number, string[]>();
+  for (const s of stellen) {
+    if (!Number.isInteger(s) || s < 0 || s >= blaetterHex.length) fehler('Merkle-Pfad: Stelle');
+    const pfad: string[] = [];
+    let i = s;
+    for (const e of ebenen) {
+      pfad.push(hexOhne(e[i ^ 1]));
+      i >>= 1;
+    }
+    out.set(s, pfad);
+  }
+  return out;
+}
+
+/** quantenWMerklePruefen: passt das Blatt mit diesem Pfad zur Wurzel? */
+export function merklePruefen(wurzelHex: string, blattHex: string, i: number, pfad: string[], n: number): boolean {
+  let tiefe = 0;
+  for (let m = n; m > 1; m = Math.floor((m + 1) / 2)) tiefe++;
+  if (!Number.isInteger(i) || i < 0 || i >= n || pfad.length !== tiefe || !HEX64.test(blattHex) || !pfad.every((h) => HEX64.test(h))) return false;
+  let x = ethers.getBytes('0x' + blattHex);
+  for (const h of pfad) {
+    const nachbar = ethers.getBytes('0x' + h);
+    x = ethers.getBytes(ethers.sha256(ethers.concat([new Uint8Array([1]), i % 2 === 0 ? x : nachbar, i % 2 === 0 ? nachbar : x])));
+    i = Math.floor(i / 2);
+  }
+  return hexOhne(x) === wurzelHex;
+}
+
 /** quantenSProbeHashV2: Bindung der Stichprobe von Stelle b aus den Teil-Hashes. */
 export function probeHashV2(K: string, b: number, teileHex: string[]): string {
   if (teileHex.length === 0) fehler('keine Teil-Hashes');

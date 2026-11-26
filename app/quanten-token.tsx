@@ -27,6 +27,8 @@ import { annahmeWegBStand, annehmenWegB, istWegBVorlage, oeffnungenAnfordern, oe
 import { annehmenAlsStelle, stelleKennung, stelleSchluesselHolen, validatorKennung, type AnnahmeErgebnis, type AnnahmeSchritt } from '@/lib/quantenSStelle';
 import { adresseVon } from '@/lib/quantenS';
 import { nachweisAbwarten } from '@/lib/quantenSNachweis';
+import { nachweisFuehren, nachweiseAufraeumen, type NachweisLage, type NachweisSchritt } from '@/lib/quantenSStelleNachweis';
+import { aeqText } from '@/lib/quantenW';
 import { hasStoredWallet, unlockWallet } from '@/lib/wallet';
 import { QrScanner } from '@/components/QrScanner';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
@@ -41,7 +43,7 @@ type Anzeige = Awaited<ReturnType<typeof zustandAnzeigen>>;
 const QR_MAX = 2900;
 
 export default function QuantenToken() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const u = React.useMemo(() => standardUmgebung(), []);
   const [zustand, setZustand] = useState<Anzeige>(null);
   const [n, setN] = useState('1104');
@@ -68,6 +70,8 @@ export default function QuantenToken() {
   const [scanB, setScanB] = useState(false);
   // P3/P5b: Pfand der Inhaberin auf der Kette (nach dem Ende zurueckholbar).
   const [pfandI, setPfandI] = useState<{ k: string; betrag: number; nach?: number } | null>(null);
+  // P5c: Nachweise einer Faelschung, die diese Stelle fuehren kann (null = noch nicht geprueft).
+  const [nachweise, setNachweise] = useState<{ k: string; lage: NachweisLage }[] | null>(null);
 
   const laden = useCallback(async () => {
     try {
@@ -241,6 +245,31 @@ export default function QuantenToken() {
           .replace('{fs}', String(ber.fehler_stelle)).replace('{ts}', String(ber.treffer_stelle)),
       });
     });
+
+  // P5c: Faelschung nachweisen (lib/quantenSStelleNachweis.ts). Erst auf Knopfdruck,
+  // denn der Schluessel der Stelle wird dafuer entsperrt.
+  const nachweisePruefen = () =>
+    schritt('nachweise', async () => {
+      const liste = await nachweiseAufraeumen(u, await stelleSchluessel());
+      setNachweise(liste);
+      setMeldung({ ok: true, text: liste.length ? t('node.qfGefunden').replace('{n}', String(liste.length)) : t('node.qfKeine') });
+    });
+  const NACHWEIS_TEXT: Record<NachweisSchritt, string> = { pruefen: 'node.qfSPruefen', anmelden: 'node.qfSAnmelden', offenlegen: 'node.qfSOffenlegen' };
+  const nachweisFragen = (K: string) =>
+    Alert.alert(t('node.qfTitel'), t('node.qfFrage'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('node.qfFuehren'),
+        onPress: () =>
+          void schritt('faelschung', async () => {
+            const erg = await nachweisFuehren(u, await stelleSchluessel(), K, (s, teil) =>
+              setMeldung({ ok: true, text: t(NACHWEIS_TEXT[s] as any).replace('{offen}', String(teil?.offen ?? 0)).replace('{von}', String(teil?.von ?? 0)) }),
+            );
+            setMeldung(erg.urteil === 'faelschung' ? { ok: true, text: t('node.qfOk').replace('{pfand}', aeqText(erg.pfand)) } : { ok: false, text: t('node.qfAbgewiesen') });
+            setNachweise((alt) => (alt ? alt.filter((x) => x.k !== K || erg.urteil !== 'faelschung') : alt));
+          }),
+      },
+    ]);
 
   const loeschen = () =>
     Alert.alert(t('node.qtVergessen'), t('node.qtVergessenFrage'), [
@@ -469,6 +498,24 @@ export default function QuantenToken() {
               </TouchableOpacity>
             </View>
           ) : null}
+          <View style={{ marginTop: 16 }}>
+            <Text style={S.label}>{t('node.qfTitel')}</Text>
+            <Text style={S.muted}>{t('node.qfText')}</Text>
+            <TouchableOpacity style={S.btnZweit} onPress={nachweisePruefen} disabled={beschaeftigt} accessibilityRole="button">
+              {laeuft === 'nachweise' ? <ActivityIndicator color={theme.text} /> : <Text style={S.btnZweitText}>{t('node.qfPruefen')}</Text>}
+            </TouchableOpacity>
+            {(nachweise ?? []).map(({ k: K, lage }) => (
+              <View key={K} style={{ marginTop: 10 }}>
+                <Text style={S.muted}>
+                  {t('node.qfEintrag').replace('{k}', K.slice(0, 12) + '…').replace('{datum}', 'bis' in lage ? new Date(lage.bis * 1000).toLocaleString(lang) : '–')}
+                  {lage.art === 'angemeldet' ? ' · ' + t('node.qfAngemeldet').replace('{offen}', String(lage.offen)) : ''}
+                </Text>
+                <TouchableOpacity style={[S.btn, beschaeftigt && { opacity: 0.5 }]} onPress={() => nachweisFragen(K)} disabled={beschaeftigt} activeOpacity={0.85} accessibilityRole="button">
+                  {laeuft === 'faelschung' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qfFuehren')}</Text>}
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
         </View>
         <QrScanner visible={scannen} onScanned={annehmen} onClose={() => setScannen(false)} />
 
