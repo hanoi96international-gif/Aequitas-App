@@ -1113,7 +1113,7 @@ const pt: Translations = {
   marke: {
     titel: "Infalsificável",
     leitsatz: "O dinheiro infalsificável mais justo – de uma pessoa para todas as pessoas",
-    p1: "Cada pessoa existe uma só vez: ninguém pode criar dinheiro para pessoas inventadas.",
+    p1: "Cada pessoa deve existir uma só vez: uma comparação facial impede uma segunda conta. Na beta isso é feito por um único serviço de comparação; serviços independentes e o escaneamento da íris devem vir depois.",
     p2: "A tua carteira pode ser protegida contra futuros computadores quânticos; as novas ficam protegidas automaticamente.",
     p3: "Dinheiro quântico: desde 17/11/2026 o primeiro token quântico real funciona na rede principal – a cadeia rejeitou uma segunda apresentação do mesmo token.",
     mehr: "Mais no site",

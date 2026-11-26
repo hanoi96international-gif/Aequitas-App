@@ -1113,7 +1113,7 @@ const tr: Translations = {
   marke: {
     titel: "Sahteciliğe karşı",
     leitsatz: "En adil, sahteciliğe karşı korunan para – bir insandan tüm insanlara",
-    p1: "Her insan yalnızca bir kez var – kimse uydurma insanlar için para yaratamaz.",
+    p1: "Her insan yalnızca bir kez var olmalı: yüz eşleştirmesi ikinci bir hesabı engeller. Betada bunu tek bir eşleştirme hizmeti yapıyor; bağımsız hizmetler ve iris taraması gelecek.",
     p2: "Cüzdanın gelecekteki kuantum bilgisayarlara karşı korunabilir; yeni cüzdanlar otomatik korunur.",
     p3: "Kuantum parası: 17.11.2026'dan beri ilk gerçek kuantum token ana ağda çalışıyor – zincir aynı token'ın ikinci kez sunulmasını reddetti.",
     mehr: "Web sitesinde daha fazlası",

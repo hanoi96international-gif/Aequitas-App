@@ -1113,7 +1113,7 @@ const fr: Translations = {
   marke: {
     titel: "Infalsifiable",
     leitsatz: "La monnaie infalsifiable la plus juste – d’une personne pour toutes les personnes",
-    p1: "Chaque personne n’existe qu’une fois : personne ne peut créer de l’argent pour des personnes inventées.",
+    p1: "Chaque personne ne doit exister qu’une fois : une comparaison du visage empêche un second compte. En bêta, un seul service de comparaison s’en charge ; des services indépendants et le scan de l’iris doivent suivre.",
     p2: "Ton portefeuille peut être protégé contre les futurs ordinateurs quantiques ; les nouveaux le sont automatiquement.",
     p3: "Monnaie quantique : depuis le 17/11/2026, le premier vrai jeton quantique fonctionne sur le réseau principal – la chaîne a rejeté une seconde présentation du même jeton.",
     mehr: "En savoir plus sur le site",

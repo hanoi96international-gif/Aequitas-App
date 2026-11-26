@@ -1113,7 +1113,7 @@ const de: Translations = {
   marke: {
     titel: "Fälschungssicher",
     leitsatz: "Das fairste fälschungssichere Geld – von einem Menschen für alle Menschen",
-    p1: "Jeder Mensch existiert nur einmal – niemand kann Geld für erfundene Menschen erschaffen.",
+    p1: "Jeder Mensch soll nur einmal existieren: Ein Gesichtsabgleich verhindert ein zweites Konto. In der Beta macht das ein einziger Abgleichdienst; unabhängige Dienste und der Iris-Scan sollen folgen.",
     p2: "Deine Wallet lässt sich gegen künftige Quantencomputer schützen; neue Wallets sind es automatisch.",
     p3: "Quantengeld: Seit 17.11.2026 läuft der erste echte Quanten-Token im Hauptnetz – eine zweite Vorlage desselben Tokens hat die Kette abgewiesen.",
     mehr: "Mehr auf der Website",
