@@ -73,6 +73,13 @@ const mockWalletDa = jest.fn(async () => true);
 jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => new (require('ethers').Wallet)('0x' + '81'.repeat(32)), hasStoredWallet: () => mockWalletDa() }));
 const mockNachweis = jest.fn();
 jest.mock('@/lib/quantenSNachweis', () => ({ nachweisAbwarten: (...a: any[]) => mockNachweis(...a) }));
+// P5c: Faelschung nachweisen.
+const mockAufraeumen = jest.fn(async (..._a: any[]): Promise<any[]> => []);
+const mockFuehren = jest.fn(async (..._a: any[]): Promise<any> => ({ k: 'k', urteil: 'faelschung', pfand: 11_000_000 }));
+jest.mock('@/lib/quantenSStelleNachweis', () => ({
+  nachweiseAufraeumen: (...a: any[]) => mockAufraeumen(...a),
+  nachweisFuehren: (...a: any[]) => mockFuehren(...a),
+}));
 jest.mock('@/components/QrScanner', () => ({ QrScanner: (p: any) => require('react').createElement('Scanner', p) }));
 
 import QuantenToken from '../../app/quanten-token';
@@ -386,4 +393,28 @@ test('Pfand der Inhaberin (P5b): vor der Bindung genannt, nur nach Bestaetigung;
   expect(mockIPfandZurueck.mock.calls[0][1]).toBe(K);
   mockStand.mockResolvedValue(null);
   mockPfandVor.mockResolvedValue({ noetig: false, betrag: 0 });
+});
+
+test('P5c: Nachweise erst auf Knopfdruck pruefen; Faelschung nachweisen erst nach Bestaetigung', async () => {
+  mockZustand.mockResolvedValue(null);
+  const alert = jest.spyOn(RN.Alert, 'alert').mockImplementation(() => {});
+  const root = await zeigen();
+  expect(mockAufraeumen).not.toHaveBeenCalled(); // kein Entsperren beim Oeffnen der Seite
+  expect(knoepfe(root, 'node.qfFuehren').length).toBe(0);
+  const K1 = 'c1'.repeat(32);
+  mockAufraeumen.mockResolvedValueOnce([{ k: K1, lage: { art: 'moeglich', bis: 1_900_000_000, fehl: 0 } }]);
+  await act(async () => knopf(root, 'node.qfPruefen').props.onPress());
+  expect(mockAufraeumen).toHaveBeenCalledTimes(1);
+  expect(texte(root)).toContain('node.qfGefunden');
+  await act(async () => knopf(root, 'node.qfFuehren').props.onPress());
+  expect(mockFuehren).not.toHaveBeenCalled();
+  const [titel, , wahl] = alert.mock.calls.at(-1) as any[];
+  expect(titel).toBe('node.qfTitel');
+  await act(async () => wahl[1].onPress());
+  await act(async () => {});
+  expect(mockFuehren).toHaveBeenCalledTimes(1);
+  expect(mockFuehren.mock.calls[0][2]).toBe(K1);
+  expect(texte(root)).toContain('node.qfOk');
+  expect(knoepfe(root, 'node.qfFuehren').length).toBe(0); // erledigt
+  alert.mockRestore();
 });

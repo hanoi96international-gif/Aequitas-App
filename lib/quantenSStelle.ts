@@ -34,6 +34,7 @@ import {
   adresseVon,
   bestuende,
   eciesOeffnen,
+  eciesVerschluesseln,
   kNote,
   merkleWurzel,
   probeHashV2,
@@ -428,6 +429,8 @@ export interface AnnahmeErgebnis {
   /** Wurzel und Proben der Ausgabe, vor dem Anmelden von der Kette gelesen (fuer den Nachweis nach dem Ende). */
   wurzel: string;
   proben: string[];
+  /** P5c: der Stoff fuer einen Nachweis einer Faelschung liegt im Geraet (nachweisSichern). */
+  nachweisGesichert?: boolean;
 }
 
 export type AnnahmeSchritt = 'pruefen' | 'blaetter' | 'oeffnung' | 'anmelden' | 'urteil';
@@ -585,6 +588,20 @@ export async function annehmenAlsStelle(
   }
   if (bestuende(erg.treffer, erg.fehler, tol)) erg.vorab = 'besteht';
 
+  // P5c: den Stoff fuer einen Nachweis sichern, BEVOR angemeldet wird. Loest
+  // die Inhaberin denselben Token an der anderen Stelle ein, kann diese Stelle
+  // damit beweisen, dass die Vorlage ihre Stichprobe bestanden hat
+  // (quanten_w_s_faelschung_*). Ein Fehler hier haelt das Einloesen nicht auf:
+  // es ist Beweismaterial der Stelle, keine Pruefung.
+  try {
+    erg.nachweisGesichert = await nachweisSichern(u, schluesselHex, {
+      k: K, b: b as 0 | 1, stelle, n, x: vl.x, vorlage: vl.vorlage, probe, d: dText, c: c as 0 | 1, tol, blaetter, wurzel, vorab: erg.vorab,
+      werte: probe.map((i) => oe.get(i) as bigint), salze,
+    });
+  } catch {
+    erg.nachweisGesichert = false;
+  }
+
   // Anmelden, dann das Urteil.
   fortschritt('anmelden');
   const vorher = await stand(u, K);
@@ -599,7 +616,139 @@ export async function annehmenAlsStelle(
   if (erg.urteil !== 'frist' && (erg.vorab === 'besteht') !== (erg.urteil === 'eingeloest')) {
     fehler(`BEFUND: vorab ${erg.vorab}, die Kette urteilt ${erg.urteil}`);
   }
+  // An dieser Stelle eingeloest: einen Nachweis gibt es dann nicht.
+  if (erg.urteil === 'eingeloest') await nachweisVergessen(u, K).catch(() => {});
   return erg;
+}
+
+// ------------------------------------------------------------ Stoff fuer den Nachweis (P5c)
+//
+// Loest die Inhaberin einen Token an der ANDEREN Stelle ein, nachdem ihre
+// Vorlage hier die Stichprobe bestanden hat, kann diese Stelle es beweisen
+// (Knoten quanten_s_faelschung.go, P4b): die Vorlage samt Unterschrift der
+// Inhaberin, Stichprobe und Salze, und je Stelle der Stichprobe den Wert w mit
+// seinem Merkle-Pfad. Die Werte kennt nur diese Stelle (aus den Oeffnungen);
+// sie liegen darum mit ECIES auf ihren eigenen Schluessel verschluesselt in
+// der Ablage. Blaetter, Vorlage und Stichprobe sind nicht geheim.
+//
+// Grenzen: hoechstens NACHWEISE_MAX Eintraege (der aelteste faellt heraus),
+// jeder hoechstens NACHWEIS_MAX Zeichen (sonst wird nichts gesichert -- das
+// Einloesen laeuft trotzdem). Gelesen wird fail-closed: jeder Wert passt zu
+// seinem Blatt, die Blaetter zur Wurzel.
+
+export const NACHWEIS = 'aequitas.quantenS.stelle.nachweis.';
+export const NACHWEISE = 'aequitas.quantenS.stelle.nachweise';
+export const NACHWEISE_MAX = 32;
+export const NACHWEIS_MAX = 1_500_000;
+
+export interface NachweisStoff {
+  k: string;
+  b: 0 | 1;
+  /** Adresse dieser Stelle (der Nachweis wird von ihr unterschrieben) */
+  stelle: string;
+  n: number;
+  x: string;
+  /** Unterschrift der Inhaberin ueber vorlageText(K, b, x) */
+  vorlage: string;
+  /** sortiert */
+  probe: number[];
+  d: string;
+  c: 0 | 1;
+  tol: number;
+  blaetter: string[];
+  wurzel: string;
+  vorab: 'besteht' | 'abgewiesen';
+  /** geheim: die Werte der Stichprobe, in der Reihenfolge von probe */
+  werte: bigint[];
+  /** geheim bis zum Ende des Tokens: ein Salz je Abschnitt */
+  salze: string[];
+}
+
+async function nachweiseListe(ablage: NonNullable<Umgebung['ablage']>): Promise<string[]> {
+  const roh = await ablage.lesen(NACHWEISE);
+  if (roh === null) return [];
+  try {
+    const l = JSON.parse(roh) as unknown;
+    if (Array.isArray(l)) return l.filter((k): k is string => typeof k === 'string' && HEX64.test(k)).slice(-NACHWEISE_MAX);
+  } catch {
+    // unlesbar: neu beginnen (der Stoff selbst wird streng gelesen)
+  }
+  return [];
+}
+
+/** Die K, zu denen Stoff fuer einen Nachweis im Geraet liegt (aelteste zuerst). */
+export async function nachweiseGesichert(u: Umgebung): Promise<string[]> {
+  return u.ablage ? nachweiseListe(u.ablage) : [];
+}
+
+/** Den Stoff sichern; false = nicht gesichert (keine Ablage oder zu gross). */
+export async function nachweisSichern(u: Umgebung, schluesselHex: string, s: NachweisStoff): Promise<boolean> {
+  if (!u.ablage) return false;
+  if (!HEX64.test(s.k) || s.werte.length !== s.probe.length || s.stelle !== adresseVon(schluesselHex)) fehler('Nachweis: Stoff');
+  const geheim = eciesVerschluesseln(pubVon(schluesselHex), utf8(JSON.stringify({ werte: s.werte.map((w) => w.toString(16)), salze: s.salze })), u.zufall);
+  const text = JSON.stringify({
+    v: 1, k: s.k, b: s.b, stelle: s.stelle, n: s.n, x: s.x, vorlage: s.vorlage, probe: s.probe, d: s.d, c: s.c, tol: s.tol,
+    blaetter: s.blaetter, wurzel: s.wurzel, vorab: s.vorab, geheim,
+  });
+  if (text.length > NACHWEIS_MAX) return false;
+  await u.ablage.schreiben(NACHWEIS + s.k, text, false);
+  const liste = (await nachweiseListe(u.ablage)).filter((k) => k !== s.k);
+  liste.push(s.k);
+  while (liste.length > NACHWEISE_MAX) await u.ablage.loeschen(NACHWEIS + (liste.shift() as string));
+  await u.ablage.schreiben(NACHWEISE, JSON.stringify(liste), false);
+  return true;
+}
+
+export async function nachweisVergessen(u: Umgebung, K: string): Promise<void> {
+  if (!u.ablage || !HEX64.test(K)) return;
+  await u.ablage.loeschen(NACHWEIS + K);
+  const liste = await nachweiseListe(u.ablage);
+  if (liste.includes(K)) await u.ablage.schreiben(NACHWEISE, JSON.stringify(liste.filter((k) => k !== K)), false);
+}
+
+/** Den Stoff lesen und entschluesseln; null = keiner. Fail-closed: jeder Wert gegen sein Blatt, die Blaetter gegen die Wurzel. */
+export async function nachweisLaden(u: Umgebung, schluesselHex: string, K: string): Promise<NachweisStoff | null> {
+  if (!u.ablage || !HEX64.test(K)) return null;
+  const roh = await u.ablage.lesen(NACHWEIS + K);
+  if (roh === null) return null;
+  if (roh.length > NACHWEIS_MAX) fehler('Nachweis im Geraet zu gross');
+  let o: any;
+  try {
+    o = JSON.parse(roh);
+  } catch {
+    fehler('Nachweis im Geraet unlesbar');
+  }
+  const felder = 'b,blaetter,c,d,geheim,k,n,probe,stelle,tol,v,vorab,vorlage,wurzel,x';
+  if (!o || typeof o !== 'object' || Object.keys(o).sort().join(',') !== felder || o.v !== 1 || o.k !== K) fehler('Nachweis im Geraet: Felder');
+  const n = o.n;
+  if (!Number.isInteger(n) || n < 2 || n > N_MAX || (o.b !== 0 && o.b !== 1) || (o.c !== 0 && o.c !== 1) || o.stelle !== adresseVon(schluesselHex)) fehler('Nachweis im Geraet: Form');
+  if (typeof o.x !== 'string' || o.x.length !== n || !/^[01]+$/.test(o.x) || typeof o.d !== 'string' || o.d.length !== n || !/^[01]+$/.test(o.d)) fehler('Nachweis im Geraet: x oder d');
+  if (typeof o.vorlage !== 'string' || !kanonisch(o.vorlage) || !Number.isInteger(o.tol) || (o.vorab !== 'besteht' && o.vorab !== 'abgewiesen')) fehler('Nachweis im Geraet: Vorlage');
+  if (!Array.isArray(o.blaetter) || o.blaetter.length !== n || typeof o.wurzel !== 'string' || merkleWurzel(o.blaetter) !== o.wurzel) fehler('Nachweis im Geraet: Blaetter passen nicht zur Wurzel');
+  const probe = o.probe;
+  if (!Array.isArray(probe) || probe.length === 0 || probe.length > n || !probe.every((p: unknown, i: number) => Number.isInteger(p) && (p as number) >= 0 && (p as number) < n && (i === 0 || (p as number) > probe[i - 1]))) {
+    fehler('Nachweis im Geraet: Stichprobe');
+  }
+  let g: any;
+  try {
+    g = JSON.parse(ethers.toUtf8String(eciesOeffnen(schluesselHex, o.geheim)));
+  } catch {
+    fehler('Nachweis im Geraet: nicht mit dem Schluessel dieser Stelle lesbar');
+  }
+  if (!g || !Array.isArray(g.werte) || g.werte.length !== probe.length || !Array.isArray(g.salze) || !g.salze.every((z: unknown) => typeof z === 'string' && HEX64.test(z))) {
+    fehler('Nachweis im Geraet: Werte oder Salze');
+  }
+  const grenze = 1n << BigInt(SALZ_BITS + 2);
+  const werte = (g.werte as unknown[]).map((w, j) => {
+    if (typeof w !== 'string' || !/^[0-9a-f]{1,32}$/.test(w)) fehler('Nachweis im Geraet: Wert');
+    const v = BigInt('0x' + w);
+    if (v >= grenze || pruefsumme(K, probe[j], v) !== o.blaetter[probe[j]]) fehler(`Nachweis im Geraet: Stelle ${probe[j]} passt nicht zu ihrem Blatt`);
+    return v;
+  });
+  return {
+    k: K, b: o.b, stelle: o.stelle, n, x: o.x, vorlage: o.vorlage, probe, d: o.d, c: o.c, tol: o.tol, blaetter: o.blaetter, wurzel: o.wurzel, vorab: o.vorab,
+    werte, salze: g.salze,
+  };
 }
 
 /**

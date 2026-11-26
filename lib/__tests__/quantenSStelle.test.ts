@@ -11,9 +11,12 @@ import { ethers } from 'ethers';
 import vektor from './vektoren/quanten_s_stelle_vektor.json';
 import { unterschreiben, vorlageText } from '../quantenS';
 import type { Umgebung } from '../quantenSInhaberin';
+import { drbg } from '../quantenSPraepTresor';
 import {
+  NACHWEIS,
   anmeldenNachricht,
   annehmenAlsStelle,
+  nachweisLaden,
   oeffnungLaden,
   oeffnungLesen,
   probeV2Pruefen,
@@ -158,7 +161,7 @@ describe('Annahmestelle: der ganze Weg', () => {
     const erg = await annehmenAlsStelle(w.u, SCHL, vorlageText_(), VALIDATOREN, (s) => schritte.push(s));
     expect(erg).toEqual({
       k: V.k, stelle_nummer: V.b, stelle: V.stelle, inhaberin: V.inhaberin, stichprobe: 552, treffer: V.treffer, fehler: V.fehler, vorab: 'besteht', urteil: 'eingeloest',
-      wurzel: V.stand.wurzel, proben: V.stand.proben,
+      wurzel: V.stand.wurzel, proben: V.stand.proben, nachweisGesichert: false, // ohne Ablage
     });
     expect(schritte).toEqual(['pruefen', 'blaetter', 'oeffnung', 'anmelden', 'urteil']);
     expect(w.posts).toHaveLength(1);
@@ -168,6 +171,33 @@ describe('Annahmestelle: der ganze Weg', () => {
       zeit: 0,
       quanten_w: { k: V.k, b: String(V.b), x: V.vorlage.x, probe: V.probe, vorlage: V.vorlage.vorlage, salze: V.salze, wallet_sig: V.anmelden_sig },
     });
+  });
+
+  it('P5c: der Stoff fuer einen Nachweis liegt VOR dem Anmelden im Geraet; nach dem eigenen Einloesen ist er weg, solange der Token lebt bleibt er', async () => {
+    for (const urteil of ['eingeloest', 'frist'] as const) {
+      const w = welt();
+      w.urteil = urteil;
+      const daten = new Map<string, string>();
+      w.u.ablage = { lesen: async (k) => daten.get(k) ?? null, schreiben: async (k, v) => void daten.set(k, v), loeschen: async (k) => void daten.delete(k) };
+      w.u.zufall = drbg('33'.repeat(32));
+      const echt = w.u.fetchFn;
+      let beimAnmelden = false;
+      w.u.fetchFn = (async (url: string, init?: any) => {
+        if (init?.method === 'POST') beimAnmelden = daten.has(NACHWEIS + V.k);
+        return echt(url, init);
+      }) as typeof fetch;
+      const erg = await annehmenAlsStelle(w.u, SCHL, vorlageText_(), VALIDATOREN);
+      expect(erg.nachweisGesichert).toBe(true);
+      expect(beimAnmelden).toBe(true);
+      if (urteil === 'eingeloest') {
+        expect(daten.has(NACHWEIS + V.k)).toBe(false);
+        continue;
+      }
+      // Der Token lebt (Frist): der Stoff bleibt und ist gegen Blaetter und Wurzel lesbar.
+      const st = await nachweisLaden(w.u, SCHL, V.k);
+      expect(st && [st.probe, st.salze, st.vorab, st.wurzel, st.x]).toEqual([V.probe, V.salze, 'besteht', V.stand.wurzel, V.vorlage.x]);
+      expect(st!.werte.map((x, j) => pruefsumme(V.k, V.probe[j], x))).toEqual(V.probe.map((i: number) => V.abschnitt.blaetter[i]));
+    }
   });
 
   it('BEFUND, wenn die Kette anders urteilt als die eigene Rechnung', async () => {
