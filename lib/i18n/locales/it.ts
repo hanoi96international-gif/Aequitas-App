@@ -1113,7 +1113,7 @@ const it: Translations = {
   marke: {
     titel: "Non falsificabile",
     leitsatz: "Il denaro non falsificabile più equo – da una persona per tutte le persone",
-    p1: "Ogni persona deve esistere una sola volta: un confronto del volto impedisce un secondo account. Nella beta lo fa un unico servizio di confronto; servizi indipendenti e la scansione dell’iride seguiranno.",
+    p1: "Ogni persona deve esistere una sola volta: un confronto del volto impedisce un secondo account. Nella beta lo fa un unico servizio di confronto. Dal secondo verificatore indipendente in poi, l’operatore da solo non può più registrare nessuno: lo controlla ogni nodo.",
     p2: "Il tuo wallet si può proteggere dai futuri computer quantistici; i nuovi lo sono in automatico.",
     p3: "Denaro quantistico: dal 17/11/2026 il primo vero token quantistico funziona sulla rete principale – la catena ha respinto una seconda presentazione dello stesso token.",
     mehr: "Di più sul sito",

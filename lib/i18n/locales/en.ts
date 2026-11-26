@@ -1113,7 +1113,7 @@ const en: Translations = {
   marke: {
     titel: "Counterfeit-proof",
     leitsatz: "The fairest counterfeit-proof money – from one person for all people",
-    p1: "Every person should exist only once: a face check blocks a second account. In the beta a single matching service does this; independent services and the iris scan are to follow.",
+    p1: "Every person should exist only once: a face check blocks a second account. In the beta a single matching service does this. From the second independent verifier on, the operator alone can no longer register anyone – every node checks this.",
     p2: "Your wallet can be protected against future quantum computers; new wallets are protected automatically.",
     p3: "Quantum money: since 17 Nov 2026 the first real quantum token runs on the main network – the chain rejected a second presentation of the same token.",
     mehr: "More on the website",
