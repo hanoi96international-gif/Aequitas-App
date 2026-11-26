@@ -199,6 +199,14 @@ export async function unlockWallet(): Promise<LocalSigner> {
   return wallet;
 }
 
+/**
+ * Der schon entsperrte Schluessel oder null -- fragt NIE nach Biometrie
+ * (fuer die Automatik im Quantengeld, lib/quantenSAutomatik.ts).
+ */
+export function entsperrterSchluessel(): { privateKey: string } | null {
+  return cachedSigner ? { privateKey: cachedSigner.privateKey } : null;
+}
+
 /** Drops the in-memory unlocked signer; the next operation will re-prompt. */
 export function lockWallet() {
   cachedSigner = null;

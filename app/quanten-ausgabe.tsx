@@ -11,7 +11,10 @@ import { ausgeberBriefkasten, BESTELLUNG_TEXT_MAX, bestellungAusText } from '@/l
 import type { RundenBericht } from '@/lib/quantenSPraepAblauf';
 import { praepUmgebung } from '@/lib/quantenSPraepGeraet';
 import { aeqText } from '@/lib/quantenW';
-import { unlockWallet } from '@/lib/wallet';
+import { entsperrterSchluessel, unlockWallet } from '@/lib/wallet';
+import { ausgeberSchritt, walletNurEntsperrt } from '@/lib/quantenSAutomatik';
+import { useQuantenSAutomatik } from '@/lib/useQuantenSAutomatik';
+import { QuantenSAutomatik } from '@/components/QuantenSAutomatik';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
 // Quantengeld Weg B (4c-3b): die App als Ausgeber. Schritte nach dem Stand der
@@ -147,13 +150,21 @@ export default function QuantenAusgabe() {
       { text: t('node.qaVergessen'), style: 'destructive', onPress: () => void schritt('vergessen', async () => { await vergessen(u); setBericht(null); }) },
     ]);
 
+  // Automatik: Los abwarten, Briefkasten, Bestätigungen anfordern, Paket
+  // senden -- solange die Seite offen ist. Ausgeben bestätigt ein Mensch.
+  const schrittFabrik = useCallback(() => {
+    const w = walletNurEntsperrt(entsperrterSchluessel);
+    return ausgeberSchritt(u, w, async () => setBericht(await ausgeberBriefkasten(w, u)));
+  }, [u]);
+  const auto = useQuantenSAutomatik(schrittFabrik, () => void laden());
+
   const jetzt = Math.floor(Date.now() / 1000);
   const abgelaufen = !!z && z.frist !== undefined && jetzt > z.frist;
   const knopf = (name: string, text: string, onPress: () => void, aus = false) => (
     <TouchableOpacity
       key={name}
-      style={[S.btn, (laeuft !== null || aus) && { opacity: 0.6 }]}
-      disabled={laeuft !== null || aus}
+      style={[S.btn, (laeuft !== null || auto.an || aus) && { opacity: 0.6 }]}
+      disabled={laeuft !== null || auto.an || aus}
       onPress={onPress}
       activeOpacity={0.85}
       accessibilityRole="button"
@@ -246,6 +257,7 @@ export default function QuantenAusgabe() {
             {z.stand === 'bestaetigt' ? knopf('ausgeben', t('node.qaAusgeben'), ausgebenFragen) : null}
             {z.stand === 'ausgegeben' ? knopf('paket', t('node.qaPaket'), paket) : null}
             {abgelaufen ? knopf('vergessen', t('node.qaVergessen'), vergessenFragen) : null}
+            {z.stand !== 'gelost' && !abgelaufen ? <QuantenSAutomatik a={auto} t={t} gesperrt={laeuft !== null} /> : null}
           </View>
         )}
 

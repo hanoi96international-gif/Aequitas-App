@@ -24,7 +24,10 @@ import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, typ
 import { PRAEP_PFAND_MIKRO, holePraepPfandAb, holeRegister, meinStand, pfandZurueckEinreichen, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
 import type { RundenBericht } from '@/lib/quantenSPraepAblauf';
 import { ibmZugangDa, ibmZugangLoeschen, ibmZugangSetzen, praepRundeJetzt } from '@/lib/quantenSPraepGeraet';
-import { unlockWallet } from '@/lib/wallet';
+import { entsperrterSchluessel, unlockWallet } from '@/lib/wallet';
+import { walletNurEntsperrt } from '@/lib/quantenSAutomatik';
+import { useQuantenSAutomatik } from '@/lib/useQuantenSAutomatik';
+import { QuantenSAutomatik } from '@/components/QuantenSAutomatik';
 import { withTimeout } from '@/lib/signer';
 import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 
@@ -408,6 +411,16 @@ function PraepRunde({ t }: { t: (k: any) => string }) {
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
   const [bericht, setBericht] = useState<RundenBericht | null>(null);
+  // Automatik: dieselbe Runde, solange die Seite offen ist; nur mit schon
+  // entsperrter Wallet (fragt nie selbst nach Biometrie).
+  const schrittFabrik = useCallback(() => {
+    const wallet = walletNurEntsperrt(entsperrterSchluessel);
+    return async () => {
+      setBericht(await praepRundeJetzt(wallet));
+      return 'weiter' as const;
+    };
+  }, []);
+  const auto = useQuantenSAutomatik(schrittFabrik);
 
   useEffect(() => {
     let weg = false;
@@ -487,11 +500,12 @@ function PraepRunde({ t }: { t: (k: any) => string }) {
       {da ? (
         <>
           <Text style={[S.ok, { marginTop: 8 }]}>{t('node.qrZugangDa')}</Text>
-          <TouchableOpacity style={[S.btn, laeuft && { opacity: 0.6 }]} disabled={laeuft} onPress={rundeStarten} activeOpacity={0.85} accessibilityRole="button">
+          <TouchableOpacity style={[S.btn, (laeuft || auto.an) && { opacity: 0.6 }]} disabled={laeuft || auto.an} onPress={rundeStarten} activeOpacity={0.85} accessibilityRole="button">
             {laeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qrRunde')}</Text>}
           </TouchableOpacity>
           {laeuft ? <Text style={[S.muted, { marginTop: 8 }]}>{t('node.qrLaeuft')}</Text> : null}
-          <TouchableOpacity onPress={loeschen} disabled={laeuft} accessibilityRole="button" style={{ marginTop: 10 }}>
+          <QuantenSAutomatik a={auto} t={t} gesperrt={laeuft} />
+          <TouchableOpacity onPress={loeschen} disabled={laeuft || auto.an} accessibilityRole="button" style={{ marginTop: 10 }}>
             <Text style={S.muted}>{t('node.qrLoeschen')}</Text>
           </TouchableOpacity>
         </>
