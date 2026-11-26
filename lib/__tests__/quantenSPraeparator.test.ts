@@ -6,11 +6,14 @@ import vektor from './vektoren/quanten_s_praep_vektor.json';
 import { CHAIN_ID, QuantenSFehler, unterschreiben } from '../quantenS';
 import {
   EINTRAEGE_MAX,
+  PRAEP_PFAND_MIKRO,
   REGISTER_MAX,
+  holePfaenderAb,
   holeRegister,
   meinStand,
   praepEinreichen,
   praepK,
+  pfandZurueckEinreichen,
   praepNachricht,
   pubPasst,
   registerLesen,
@@ -179,5 +182,68 @@ describe('Register lesen', () => {
     expect(meinStand(r, vektor.konto, 87399)).toEqual({ art: 'wartet', imLosAb: 87400 });
     expect(meinStand(r, vektor.konto, 87400)).toEqual({ art: 'im_los', seit: 87400 });
     expect(meinStand(r, zweitesKonto, 9e9)).toEqual({ art: 'abgemeldet', neuAb: 2000 + 695160 });
+  });
+});
+
+// P2 (Knoten quanten_s_pfaender.go): Pfand je Präparatorin.
+describe('Pfand (P2)', () => {
+  const basis = { aktiv: true, vorlauf: 86400, nachlauf: 695160, hoechstens: 256, bestellungen: [] };
+  const mit = (x: Record<string, unknown>) => ({ ...basis, praeparatoren: [{ konto: vektor.konto, pub: vektor.pub, gemeldet: 1000, im_los_ab: 87400, ...x }] });
+
+  it('liest Pfand und Rückgabezeit', () => {
+    const r = registerLesen(mit({ pfand: PRAEP_PFAND_MIKRO, abgemeldet: 5000, pfand_zurueck_ab: 5000 + 30 * 86400 })) as Register;
+    expect(r.eintraege[0]).toMatchObject({ pfand: PRAEP_PFAND_MIKRO, abgemeldet: 5000, pfandZurueckAb: 5000 + 30 * 86400 });
+    expect(registerLesen(mit({ pfand: 9_000_000 }))?.eintraege[0].pfand).toBe(9_000_000); // nach einem Nachweis
+  });
+
+  it('weist unmögliche Pfänder ab (fail-closed)', () => {
+    for (const x of [
+      { pfand: 0 },
+      { pfand: -1 },
+      { pfand: PRAEP_PFAND_MIKRO + 1 },
+      { pfand: 1.5 },
+      { pfand: '10' },
+      { pfand_zurueck_ab: 9_999_999 }, // ohne Pfand
+      { pfand: PRAEP_PFAND_MIKRO, pfand_zurueck_ab: 9_999_999 }, // nicht abgemeldet
+      { pfand: PRAEP_PFAND_MIKRO, abgemeldet: 5000, pfand_zurueck_ab: 4999 }, // vor der Abmeldung
+    ]) {
+      expect(registerLesen(mit(x))).toBeNull();
+    }
+  });
+
+  it('bestimmt den Stand mit Pfand', () => {
+    const jetzt = 100_000;
+    const stand = (x: Record<string, unknown>, aktiv: boolean) => meinStand(registerLesen(mit(x)) as Register, vektor.konto, jetzt, aktiv);
+    expect(stand({}, true)).toEqual({ art: 'nachlegen' }); // ohne Pfand nicht im Los
+    expect(stand({}, false)).toEqual({ art: 'im_los', seit: 87400 }); // vor dem Stichtag wie bisher
+    expect(stand({ pfand: PRAEP_PFAND_MIKRO }, true)).toEqual({ art: 'im_los', seit: 87400 });
+    expect(stand({ pfand: PRAEP_PFAND_MIKRO, abgemeldet: 5000, pfand_zurueck_ab: jetzt + 1 }, true)).toEqual({ art: 'pfand_wartet', zurueckAb: jetzt + 1 });
+    expect(stand({ pfand: PRAEP_PFAND_MIKRO, abgemeldet: 5000, pfand_zurueck_ab: jetzt }, true)).toEqual({ art: 'pfand_zurueck', pfand: PRAEP_PFAND_MIKRO });
+    // Abgemeldet mit Pfand, aber ohne Rückgabezeit: nie "zurück" (fail-closed).
+    expect(stand({ pfand: PRAEP_PFAND_MIKRO, abgemeldet: 5000 }, true).art).toBe('pfand_wartet');
+    expect(stand({ abgemeldet: 5000 }, true)).toEqual({ art: 'abgemeldet', neuAb: 5000 + 695160 });
+  });
+
+  it('liest den Stichtag der Pfänder aus dem Status', async () => {
+    const mitStatus = (body: string, status = 200) => jest.fn(async () => antwort(status, body)) as unknown as typeof fetch;
+    expect(await holePfaenderAb(mitStatus(JSON.stringify({ quanten_w: { pfaender_ab: 1_800_000_000 } })), API)).toBe(1_800_000_000);
+    expect(await holePfaenderAb(mitStatus(JSON.stringify({ quanten_w: {} })), API)).toBeNull(); // schlafend
+    expect(await holePfaenderAb(mitStatus(JSON.stringify({ quanten_w: { pfaender_ab: '1' } })), API)).toBeNull();
+    expect(await holePfaenderAb(mitStatus(JSON.stringify({ quanten_w: { pfaender_ab: 1.5 } })), API)).toBeNull();
+    expect(await holePfaenderAb(mitStatus(JSON.stringify({ quanten_w: { pfaender_ab: -1 } })), API)).toBeNull();
+    expect(await holePfaenderAb(mitStatus('kein json'), API)).toBeNull();
+    expect(await holePfaenderAb(mitStatus('{}', 500), API)).toBeNull();
+    expect(await holePfaenderAb(mitStatus('x'.repeat(REGISTER_MAX + 1)), API)).toBeNull();
+  });
+
+  it('holt das Pfand zurück: ohne Wallet und Unterschrift, nur mit K des eigenen Eintrags', async () => {
+    const fetchFn = jest.fn(async () => antwort(200, '{"ok":true}'));
+    await pfandZurueckEinreichen(ethers.getAddress(vektor.konto), fetchFn as unknown as typeof fetch, API);
+    const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${API}/quanten-w/s_pfand_zurueck`);
+    expect(JSON.parse(init.body as string)).toEqual({ wallet: '', zeit: 0, quanten_w: { k: vektor.k } });
+    const abgewiesen = jest.fn(async () => antwort(409, JSON.stringify({ error: 'rejected: quanten_s_pfand_gebunden: steht im Los' })));
+    await expect(pfandZurueckEinreichen(vektor.konto, abgewiesen as unknown as typeof fetch, API)).rejects.toThrow('quanten_s_pfand_gebunden');
+    await expect(pfandZurueckEinreichen('0x12', fetchFn as unknown as typeof fetch, API)).rejects.toThrow(QuantenSFehler);
   });
 });

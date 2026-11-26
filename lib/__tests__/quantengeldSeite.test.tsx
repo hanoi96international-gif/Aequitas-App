@@ -43,7 +43,12 @@ jest.mock('@/lib/quantenSPraeparator', () => ({
   ...jest.requireActual('@/lib/quantenSPraeparator'),
   holeRegister: async () => mockRegister,
   praepEinreichen: (...a: any[]) => (mockEinreichen as any)(...a),
+  holePfaenderAb: async () => mockPfaenderAb,
+  pfandZurueckEinreichen: (...a: any[]) => (mockPfandZurueck as any)(...a),
 }));
+// P2: Stichtag der Pfaender (null = schlafend) und Rueckgabe gezaehlt.
+let mockPfaenderAb: number | null = null;
+const mockPfandZurueck = jest.fn(async () => {});
 
 // Weg B, Runde der Praeparatorin (lib/quantenSPraepGeraet.ts): als Attrappe.
 let mockZugangDa = false;
@@ -183,6 +188,69 @@ describe('Quantengeld-Seite', () => {
     expect(t).toContain('node.qpImLos');
     expect(t).toContain('node.qpAbmelden');
     expect(t).not.toContain('node.qpMelden');
+    act(() => r.unmount());
+    mockRegister = null;
+  });
+
+  it('Pfand (P2): nennt die 10 AEQ vor dem Melden, bietet Nachlegen und Rueckgabe an', async () => {
+    mockPruefer = [];
+    mockPfaenderAb = 1; // Pfaender gelten
+    const alert = jest.spyOn(RN.Alert, 'alert').mockImplementation(() => {});
+    // Nicht gemeldet: die Bestaetigung nennt das Pfand.
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [] };
+    let r = await rendern();
+    let knopf = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qpMelden'));
+    await act(async () => { knopf.props.onPress(); });
+    expect((alert.mock.calls[0] as any[])[1]).toContain('node.qpPfandHinweis');
+    act(() => r.unmount());
+    // Gemeldet ohne Pfand: nicht im Los, Nachlegen (= Melden).
+    alert.mockClear();
+    mockEinreichen.mockClear();
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [{ konto: mockIch, gemeldet: 1000, imLosAb: 87400 }] };
+    r = await rendern();
+    let t = texte(r);
+    expect(t.join(' ')).toContain('node.qpNachlegen');
+    expect(t).not.toContain('node.qpImLos');
+    knopf = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qpNachlegenBtn'));
+    await act(async () => { knopf.props.onPress(); });
+    const [, text, knoepfe] = alert.mock.calls[0] as any[];
+    expect(text).toContain('node.qpPfandHinweis');
+    await act(async () => { knoepfe[1].onPress(); });
+    expect((mockEinreichen.mock.calls[0] as any[])[0]).toBe('melden');
+    act(() => r.unmount());
+    // Abgemeldet, Pfand liegt, Rueckgabe noch nicht faellig: nur Anzeige.
+    const zukunft = Math.floor(Date.now() / 1000) + 86400;
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [{ konto: mockIch, gemeldet: 1000, imLosAb: 87400, abgemeldet: 2000, pfand: 10_000_000, pfandZurueckAb: zukunft }] };
+    r = await rendern();
+    t = texte(r);
+    expect(t.join(' ')).toContain('node.qpPfandWartet');
+    expect(t).not.toContain('node.qpPfandZurueckBtn');
+    act(() => r.unmount());
+    // Faellig: Rueckgabe ohne Unterschrift, mit der eigenen Adresse.
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [{ konto: mockIch, gemeldet: 1000, imLosAb: 87400, abgemeldet: 2000, pfand: 10_000_000, pfandZurueckAb: 3000 }] };
+    r = await rendern();
+    t = texte(r);
+    expect(t.join(' ')).toContain('node.qpPfandZurueckMoeglich');
+    knopf = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qpPfandZurueckBtn'));
+    await act(async () => { knopf.props.onPress(); });
+    expect(mockPfandZurueck).toHaveBeenCalledWith(mockIch);
+    act(() => r.unmount());
+    // Stichtag gesetzt, aber noch nicht erreicht: wie vorher.
+    mockPfaenderAb = Math.floor(Date.now() / 1000) + 3600;
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [{ konto: mockIch, gemeldet: 1000, imLosAb: 87400 }] };
+    r = await rendern();
+    t = texte(r);
+    expect(t).toContain('node.qpImLos');
+    expect(t.join(' ')).not.toContain('node.qpNachlegen');
+    act(() => r.unmount());
+    // Vor dem Stichtag: kein Hinweis, gemeldet ohne Pfand ist im Los.
+    mockPfaenderAb = null;
+    mockRegister = { aktiv: true, vorlauf: 86400, nachlauf: 695160, eintraege: [{ konto: mockIch, gemeldet: 1000, imLosAb: 87400 }] };
+    r = await rendern();
+    t = texte(r);
+    expect(t).toContain('node.qpImLos');
+    expect(t.join(' ')).not.toContain('node.qpNachlegen');
+    alert.mockRestore();
     act(() => r.unmount());
     mockRegister = null;
   });

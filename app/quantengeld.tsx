@@ -21,7 +21,7 @@ import {
   type QuantenStimmErgebnis,
 } from '@/lib/quantengeld';
 import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, type QuantenWErgebnis, type QuantenWUeberblick } from '@/lib/quantenW';
-import { holeRegister, meinStand, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
+import { PRAEP_PFAND_MIKRO, holePfaenderAb, holeRegister, meinStand, pfandZurueckEinreichen, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
 import type { RundenBericht } from '@/lib/quantenSPraepAblauf';
 import { ibmZugangDa, ibmZugangLoeschen, ibmZugangSetzen, praepRundeJetzt } from '@/lib/quantenSPraepGeraet';
 import { unlockWallet } from '@/lib/wallet';
@@ -59,12 +59,15 @@ export default function Quantengeld() {
   const [ueberblick, setUeberblick] = useState<QuantenWUeberblick | null>(null);
   // Register der Praeparatoren (Weg B); null: Knoten meldet es nicht.
   const [register, setRegister] = useState<Register | null>(null);
+  // Stichtag der Pfaender (P2); null: schlafend oder nicht lesbar.
+  const [pfaenderAb, setPfaenderAb] = useState<number | null>(null);
 
   const laden = useCallback(async () => {
-    const [s, a, r, u, reg] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand(), holeQuantenWUeberblick(), holeRegister()]);
+    const [s, a, r, u, reg, pab] = await Promise.all([holeQuantenStand(), holeQuantenAbstimmungen(), holeRegisterStand(), holeQuantenWUeberblick(), holeRegister(), holePfaenderAb()]);
     setStand(s);
     setUeberblick(u);
     setRegister(reg);
+    setPfaenderAb(pab);
     setAbst(a);
     setPruefer(r ? r.pruefer : null);
     setGeladen(true);
@@ -235,7 +238,7 @@ export default function Quantengeld() {
           </View>
         ) : null}
 
-        {register ? <PraepKarte reg={register} signer={signer} t={t} lang={lang} neuLaden={laden} /> : null}
+        {register ? <PraepKarte reg={register} pfaenderAb={pfaenderAb} signer={signer} t={t} lang={lang} neuLaden={laden} /> : null}
 
         <View style={S.card}>
           <Text style={S.title}>{t('node.qwTitel')}</Text>
@@ -296,8 +299,9 @@ export default function Quantengeld() {
 // Weg B (lib/quantenSPraeparator.ts): sich als Praeparatorin melden oder
 // abmelden -- mit der Menschen-Wallet, erst nach ausdruecklicher Bestaetigung.
 // Solange Weg B im Knoten schlaeft (aktiv = false), nur Anzeige.
-function PraepKarte({ reg, signer, t, lang, neuLaden }: {
+function PraepKarte({ reg, pfaenderAb, signer, t, lang, neuLaden }: {
   reg: Register;
+  pfaenderAb: number | null;
   signer: { address: string; signMessage(m: string): Promise<string> } | null | undefined;
   t: (k: any) => string;
   lang: string;
@@ -306,15 +310,21 @@ function PraepKarte({ reg, signer, t, lang, neuLaden }: {
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
   const jetzt = Math.floor(Date.now() / 1000);
-  const mein = signer ? meinStand(reg, signer.address, jetzt) : null;
+  // P2: ab dem Stichtag der Pfaender kostet Melden 10 AEQ Pfand (die Kette nimmt
+  // es selbst; die App nennt es VORHER und laesst es bestaetigen).
+  const pfaenderAktiv = pfaenderAb !== null && jetzt >= pfaenderAb;
+  const mein = signer ? meinStand(reg, signer.address, jetzt, pfaenderAktiv) : null;
+  const eigenerEintrag = signer ? reg.eintraege.find((e) => e.konto === signer.address.toLowerCase()) : undefined;
+  const aeq = (mikro: number) => (mikro / 1_000_000).toLocaleString(lang, { maximumFractionDigits: 6 });
   const aktiv = reg.eintraege.filter((e) => e.abgemeldet === undefined).length;
 
-  async function einreichen(art: 'melden' | 'abmelden') {
+  async function einreichen(art: 'melden' | 'abmelden' | 'zurueck') {
     if (!signer) return;
     setLaeuft(true);
     setMeldung(null);
     try {
-      await withTimeout(praepEinreichen(art, signer.address, signer, Math.floor(Date.now() / 1000)), TIMEOUT_MS, t('trade.signTimeout'));
+      if (art === 'zurueck') await withTimeout(pfandZurueckEinreichen(signer.address), TIMEOUT_MS, t('trade.signTimeout'));
+      else await withTimeout(praepEinreichen(art, signer.address, signer, Math.floor(Date.now() / 1000)), TIMEOUT_MS, t('trade.signTimeout'));
       setMeldung({ ok: true, text: t('node.qpOk') });
       await neuLaden();
     } catch (e: any) {
@@ -325,7 +335,10 @@ function PraepKarte({ reg, signer, t, lang, neuLaden }: {
   }
 
   function bestaetigen(art: 'melden' | 'abmelden') {
-    Alert.alert(t('node.qpBestaetigenTitel'), t(art === 'melden' ? 'node.qpBestaetigenMelden' : 'node.qpBestaetigenAbmelden'), [
+    let text = t(art === 'melden' ? 'node.qpBestaetigenMelden' : 'node.qpBestaetigenAbmelden');
+    if (art === 'melden' && pfaenderAktiv) text += '\n\n' + t('node.qpPfandHinweis').replace('{aeq}', aeq(PRAEP_PFAND_MIKRO));
+    if (art === 'abmelden' && eigenerEintrag?.pfand) text += '\n\n' + t('node.qpPfandAbmelden');
+    Alert.alert(t('node.qpBestaetigenTitel'), text, [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t(art === 'melden' ? 'node.qpMelden' : 'node.qpAbmelden'), onPress: () => einreichen(art) },
     ]);
@@ -336,7 +349,12 @@ function PraepKarte({ reg, signer, t, lang, neuLaden }: {
   else if (mein?.art === 'wartet') standText = t('node.qpWartet').replace('{datum}', datum(mein.imLosAb, lang));
   else if (mein?.art === 'im_los') standText = t('node.qpImLos');
   else if (mein?.art === 'abgemeldet') standText = t('node.qpAbgemeldet').replace('{datum}', datum(mein.neuAb, lang));
-  const kannMelden = reg.aktiv && !!signer && mein?.art === 'nicht_gemeldet';
+  else if (mein?.art === 'nachlegen') standText = t('node.qpNachlegen').replace('{aeq}', aeq(PRAEP_PFAND_MIKRO));
+  else if (mein?.art === 'pfand_wartet') standText = t('node.qpPfandWartet').replace('{datum}', datum(mein.zurueckAb, lang));
+  else if (mein?.art === 'pfand_zurueck') standText = t('node.qpPfandZurueckMoeglich').replace('{aeq}', aeq(mein.pfand));
+  if (eigenerEintrag?.pfand && mein?.art !== 'pfand_zurueck') standText += ' ' + t('node.qpPfandLiegt').replace('{aeq}', aeq(eigenerEintrag.pfand));
+  const kannMelden = reg.aktiv && !!signer && (mein?.art === 'nicht_gemeldet' || mein?.art === 'nachlegen');
+  const kannZurueck = reg.aktiv && !!signer && mein?.art === 'pfand_zurueck';
   const kannAbmelden = reg.aktiv && !!signer && (mein?.art === 'wartet' || mein?.art === 'im_los');
 
   return (
@@ -355,7 +373,22 @@ function PraepKarte({ reg, signer, t, lang, neuLaden }: {
           activeOpacity={0.85}
           accessibilityRole="button"
         >
-          {laeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t(kannMelden ? 'node.qpMelden' : 'node.qpAbmelden')}</Text>}
+          {laeuft ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={S.btnText}>{t(kannMelden ? (mein?.art === 'nachlegen' ? 'node.qpNachlegenBtn' : 'node.qpMelden') : 'node.qpAbmelden')}</Text>
+          )}
+        </TouchableOpacity>
+      ) : null}
+      {kannZurueck ? (
+        <TouchableOpacity
+          style={[S.btn, laeuft && { opacity: 0.6 }]}
+          disabled={laeuft}
+          onPress={() => einreichen('zurueck')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+        >
+          {laeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qpPfandZurueckBtn')}</Text>}
         </TouchableOpacity>
       ) : null}
       {reg.aktiv && signer && mein && mein.art !== 'nicht_gemeldet' ? <PraepRunde t={t} /> : null}
