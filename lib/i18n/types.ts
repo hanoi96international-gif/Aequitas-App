@@ -658,6 +658,14 @@ export interface Translations {
     qpAbmelden: string;
     qpBestaetigenTitel: string;
     qpBestaetigenMelden: string;
+    qpPfandHinweis: string;
+    qpPfandAbmelden: string;
+    qpNachlegen: string;
+    qpNachlegenBtn: string;
+    qpPfandWartet: string;
+    qpPfandZurueckMoeglich: string;
+    qpPfandLiegt: string;
+    qpPfandZurueckBtn: string;
     qpBestaetigenAbmelden: string;
     qpOk: string;
     qpFehler: string;
