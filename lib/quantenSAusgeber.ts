@@ -34,7 +34,7 @@
 import { ethers } from 'ethers';
 import { CHAIN_ID, QuantenSFehler, adresseVon, kanonisch, unterschreiben, unterschriftVon } from './quantenS';
 import type { Speicher } from './quantenSInhaberin';
-import { REGISTER_MAX } from './quantenSPraeparator';
+import { REGISTER_MAX, holePraepPfandAb, holeRegister, type Register } from './quantenSPraeparator';
 import type { Zufall } from './quantenSPraeparieren';
 
 const DOM_BESTELLEN = 'aequitas-quanten-s-bestellen-v1';
@@ -361,6 +361,45 @@ export function schluesselAus(privateKey: string): string {
  * Mikro-AEQ. Es gibt höchstens eine offene Bestellung je Gerät (die Kette
  * erlaubt ohnehin nur eine je Mensch).
  */
+/**
+ * Die Kette nimmt eine Bestellung nur an, wenn ihr Abbild mindestens
+ * LOS_POOL_FAKTOR · v Konten hat (Knoten quantenSLosPoolFaktor,
+ * quanten_s_bestellung.go) -- für v = 7 also 21, für v = 4 zwölf.
+ */
+export const LOS_POOL_FAKTOR = 3;
+
+export function losNoetig(v: number): number {
+  return LOS_POOL_FAKTOR * v;
+}
+
+/**
+ * Wie viele Gemeldete zur Zeit jetzt (Sekunden) im Abbild einer Bestellung
+ * stünden -- dieselbe Auswahl wie quantenSPraepAbbildLocked im Knoten: „im Los
+ * ab“ (Meldung + Vorlauf) erreicht, nicht abgemeldet, ab dem Stichtag des
+ * Pfands je Präparatorin (quanten_w.praep_pfand_ab) nur mit Pfand, nie der
+ * Ausgeber selbst. Eine Obergrenze: ob jedes Konto noch ein Mensch ist, prüft
+ * nur die Kette.
+ */
+export function losGroesse(reg: Register, ausgeber: string, jetzt: number, pfandNoetig: boolean): number {
+  const ich = ausgeber.toLowerCase();
+  let n = 0;
+  for (const e of reg.eintraege) {
+    if (e.konto === ich || e.imLosAb > jetzt) continue;
+    if (e.abgemeldet !== undefined && e.abgemeldet <= jetzt) continue;
+    if (pfandNoetig && e.pfand === undefined) continue;
+    n++;
+  }
+  return n;
+}
+
+/** losGroesse mit dem Register vom Knoten; null = nicht lesbar (die Kette prüft dann selbst). */
+export async function losGroesseHolen(u: AusgeberUmgebung, ausgeber: string): Promise<number | null> {
+  const [reg, pfandAb] = await Promise.all([holeRegister(u.fetchFn, u.apiBasis), holePraepPfandAb(u.fetchFn, u.apiBasis)]);
+  if (!reg) return null;
+  const jetzt = Math.floor(u.jetzt() / 1000);
+  return losGroesse(reg, ausgeber, jetzt, pfandAb !== null && jetzt >= pfandAb);
+}
+
 export async function bestellen(u: AusgeberUmgebung, wallet: WalletSchluessel, v: number, t: number, deckung: number): Promise<AusgeberZustand> {
   if (!groessenGehen(v, t)) fehler(`v (${LOS_V_MIN}..${LOS_V_MAX}) oder t (1..v)`);
   if (!ganz(deckung) || deckung < DECKUNG_MIN) fehler(`Deckung mindestens ${DECKUNG_MIN} Mikro-AEQ`);
