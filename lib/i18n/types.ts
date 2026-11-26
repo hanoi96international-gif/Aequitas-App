@@ -777,6 +777,13 @@ export interface Translations {
     qtAbholen: string;
     qtAbgeholt: string;
     qtSchritt3: string;
+    qtPfandTitel: string;
+    qtPfandText: string;
+    qtPfandGeben: string;
+    qtPfandLaeuft: string;
+    qtPfandNach: string;
+    qtPfandZurueckBtn: string;
+    qtPfandZurueckOk: string;
     qtEinloesenText: string;
     qtBinden: string;
     qtWaehlen: string;

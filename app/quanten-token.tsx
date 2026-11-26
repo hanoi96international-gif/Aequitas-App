@@ -9,7 +9,10 @@ import {
   abholen,
   bestellungAnzeigen,
   einloesen,
+  ipfandZurueck,
   neu,
+  pfandVorBindung,
+  stand,
   neuWegB,
   standardUmgebung,
   stelleLesen,
@@ -63,6 +66,8 @@ export default function QuantenToken() {
   const [annahmeB, setAnnahmeB] = useState<{ k: string; b: 0 | 1; v: number } | null>(null);
   const [fehlenB, setFehlenB] = useState<number[] | null>(null);
   const [scanB, setScanB] = useState(false);
+  // P3/P5b: Pfand der Inhaberin auf der Kette (nach dem Ende zurueckholbar).
+  const [pfandI, setPfandI] = useState<{ k: string; betrag: number; nach?: number } | null>(null);
 
   const laden = useCallback(async () => {
     try {
@@ -70,6 +75,16 @@ export default function QuantenToken() {
       setZustand(z);
       // Eine offene Bestellung (noch kein Token) wieder zeigen, etwa nach einem Neustart.
       if (z && !z.k) setBestellung(await bestellungAnzeigen(u));
+      // Pfand der Inhaberin: nur zur Anzeige und fuer den Knopf "zurueckholen";
+      // die Kette prueft Frist und Empfaenger selbst.
+      const st = z?.k ? await stand(u, z.k) : null;
+      const betrag = st?.pfand_inhaberin;
+      const nach = st?.pfand_inhaberin_zurueck_nach;
+      setPfandI(
+        z?.k && typeof betrag === 'number' && Number.isSafeInteger(betrag) && betrag > 0
+          ? { k: z.k, betrag, ...(typeof nach === 'number' && Number.isSafeInteger(nach) ? { nach } : {}) }
+          : null,
+      );
     } catch {
       setZustand(null);
     }
@@ -116,12 +131,38 @@ export default function QuantenToken() {
       const r = await paketAbholen(u);
       setMeldung(r.stand === 'angenommen' ? { ok: true, text: t('node.qtAbgeholt') } : { ok: false, text: t('node.qbPaketWarten').replace('{grund}', r.grund.slice(0, 200)) });
     });
+  const aeq = (mikro: number) => (mikro / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 6 });
+  const bestaetigt = (titel: string, text: string, knopf: string) =>
+    new Promise<boolean>((fertig) =>
+      Alert.alert(titel, text, [
+        { text: t('common.cancel'), style: 'cancel', onPress: () => fertig(false) },
+        { text: knopf, onPress: () => fertig(true) },
+      ]),
+    );
   const vorlegen = (b: 0 | 1) =>
     schritt('einloesen', async () => {
-      const vl = await einloesen(u, b, (s) =>
-        setMeldung({ ok: true, text: t(s === 'binden' ? 'node.qtBinden' : s === 'waehlen' ? 'node.qtWaehlen' : 'node.qtVorlageFertig') }),
+      // P3/P5b: ab dem Stichtag der Pfaender nimmt die Bindung die Deckung als
+      // Pfand -- von der Menschen-Wallet, erst nach ausdruecklicher Bestaetigung.
+      const pv = await pfandVorBindung(u);
+      let pfand: Parameters<typeof einloesen>[3];
+      if (pv.noetig) {
+        if (!(await bestaetigt(t('node.qtPfandTitel'), t('node.qtPfandText').replace('{aeq}', aeq(pv.deckung)), t('node.qtPfandGeben')))) return;
+        const mensch = await unlockWallet();
+        pfand = { deckung: pv.deckung, geber: { adresse: mensch.address, unterschreiben: (m: string) => mensch.signMessage(m) } };
+      }
+      const vl = await einloesen(
+        u,
+        b,
+        (s) => setMeldung({ ok: true, text: t(s === 'binden' ? 'node.qtBinden' : s === 'waehlen' ? 'node.qtWaehlen' : 'node.qtVorlageFertig') }),
+        pfand,
       );
       setVorlage(vl);
+    });
+  const pfandZurueckholen = () =>
+    schritt('ipfand', async () => {
+      if (!pfandI) return;
+      await ipfandZurueck(u, pfandI.k);
+      setMeldung({ ok: true, text: t('node.qtPfandZurueckOk') });
     });
   // Eingabehilfen: der Validator-Dienst des eigenen Knotens (C1) und das eigene Konto.
   const c1 = (ziel: 'stelle0' | 'validatoren' | 'stelleValidatoren') =>
@@ -326,6 +367,22 @@ export default function QuantenToken() {
             <TouchableOpacity style={[S.btn, (beschaeftigt || k.length !== 64) && { opacity: 0.5 }]} disabled={beschaeftigt || k.length !== 64} onPress={holen} activeOpacity={0.85}>
               {laeuft === 'abholen' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qtAbholen')}</Text>}
             </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {pfandI ? (
+          <View style={S.card}>
+            <Text style={S.title}>{t('node.qtPfandTitel')}</Text>
+            <Text style={S.body}>
+              {pfandI.nach === undefined
+                ? t('node.qtPfandLaeuft').replace('{aeq}', aeq(pfandI.betrag))
+                : t('node.qtPfandNach').replace('{aeq}', aeq(pfandI.betrag)).replace('{datum}', new Date(pfandI.nach * 1000).toLocaleString())}
+            </Text>
+            {pfandI.nach !== undefined && Date.now() / 1000 > pfandI.nach ? (
+              <TouchableOpacity style={[S.btn, beschaeftigt && { opacity: 0.5 }]} disabled={beschaeftigt} onPress={pfandZurueckholen} activeOpacity={0.85} accessibilityRole="button">
+                {laeuft === 'ipfand' ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qtPfandZurueckBtn')}</Text>}
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
 

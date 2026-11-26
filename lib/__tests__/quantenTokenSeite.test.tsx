@@ -55,7 +55,14 @@ jest.mock('@/lib/quantenSInhaberin', () => ({
   einloesen: (...a: any[]) => mockEinloesen(...a),
   bestellungAnzeigen: (...a: any[]) => mockBestellung(...a),
   vergessen: jest.fn(),
+  // P3/P5b: Pfand der Inhaberin.
+  pfandVorBindung: (...a: any[]) => (mockPfandVor as any)(...a),
+  stand: (...a: any[]) => (mockStand as any)(...a),
+  ipfandZurueck: (...a: any[]) => (mockIPfandZurueck as any)(...a),
 }));
+const mockPfandVor = jest.fn(async (_u: any): Promise<any> => ({ noetig: false, deckung: 0 }));
+const mockStand = jest.fn(async (_u: any, _k: string): Promise<any> => null);
+const mockIPfandZurueck = jest.fn(async (_u: any, _k: string) => {});
 
 jest.mock('@/lib/quantenSStelle', () => ({
   ...jest.requireActual('@/lib/quantenSStelle'),
@@ -63,7 +70,7 @@ jest.mock('@/lib/quantenSStelle', () => ({
   validatorKennung: (...a: any[]) => mockValidatorKennung(...a),
 }));
 const mockWalletDa = jest.fn(async () => true);
-jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '81'.repeat(32) }), hasStoredWallet: () => mockWalletDa() }));
+jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => new (require('ethers').Wallet)('0x' + '81'.repeat(32)), hasStoredWallet: () => mockWalletDa() }));
 const mockNachweis = jest.fn();
 jest.mock('@/lib/quantenSNachweis', () => ({ nachweisAbwarten: (...a: any[]) => mockNachweis(...a) }));
 jest.mock('@/components/QrScanner', () => ({ QrScanner: (p: any) => require('react').createElement('Scanner', p) }));
@@ -340,4 +347,43 @@ describe('Weg B (4c-3c/d)', () => {
     expect(mockAnnehmenB.mock.calls[0][1]).toBe('81'.repeat(32));
     expect(texte(r).join(' ')).toContain('node.qtAErgebnis');
   });
+});
+
+test('Pfand der Inhaberin (P5b): vor der Bindung genannt, nur nach Bestaetigung; Rueckgabe nach der Frist', async () => {
+  const K = 'ab'.repeat(32);
+  mockZustand.mockResolvedValue({ n: 10, v: 2, k: K, stellen: ['0x1', '0x2'], gebunden: false });
+  mockEinloesen.mockReset();
+  mockEinloesen.mockResolvedValue({ k: K, b: 0, x: '1', vorlage: '0x' + '1'.repeat(130) });
+  mockPfandVor.mockResolvedValue({ noetig: true, deckung: 10_000_000 });
+  let antwort = 0; // 0 = abbrechen, 1 = Pfand geben
+  const alert = jest.spyOn(RN.Alert, 'alert').mockImplementation((_t: any, _m: any, k: any) => k?.[antwort]?.onPress?.());
+  let root = await zeigen();
+  await act(async () => knoepfe(root, 'node.qtStelle')[0].props.onPress());
+  expect(alert.mock.calls.some((c: any[]) => c[0] === 'node.qtPfandTitel' && String(c[1]).includes('node.qtPfandText'))).toBe(true);
+  expect(mockEinloesen).not.toHaveBeenCalled(); // abgebrochen: keine Bindung
+  antwort = 1;
+  await act(async () => knoepfe(root, 'node.qtStelle')[0].props.onPress());
+  const pfand = mockEinloesen.mock.calls[0][3];
+  expect(pfand.deckung).toBe(10_000_000);
+  expect(pfand.geber.adresse).toBe(new (require('ethers').Wallet)('0x' + '81'.repeat(32)).address);
+  expect(typeof (await pfand.geber.unterschreiben('x'))).toBe('string');
+  alert.mockRestore();
+  act(() => root.unmount?.());
+  // Ohne Pfand (vor dem Stichtag): keine Frage, kein Pfandgeber.
+  mockEinloesen.mockClear();
+  mockPfandVor.mockResolvedValue({ noetig: false, deckung: 0 });
+  root = await zeigen();
+  await act(async () => knoepfe(root, 'node.qtStelle')[0].props.onPress());
+  expect(mockEinloesen.mock.calls[0][3]).toBeUndefined();
+  // Pfand liegt: Frist noch offen -> nur Anzeige; vorbei -> Rueckgabe mit K.
+  mockStand.mockResolvedValue({ k: K, pfand_inhaberin: 10_000_000, pfand_inhaberin_zurueck_nach: Math.floor(Date.now() / 1000) + 3600 });
+  root = await zeigen();
+  expect(texte(root)).toContain('node.qtPfandTitel');
+  expect(knoepfe(root, 'node.qtPfandZurueckBtn').length).toBe(0);
+  mockStand.mockResolvedValue({ k: K, pfand_inhaberin: 10_000_000, pfand_inhaberin_zurueck_nach: 1000 });
+  root = await zeigen();
+  await act(async () => knoepfe(root, 'node.qtPfandZurueckBtn')[0].props.onPress());
+  expect(mockIPfandZurueck.mock.calls[0][1]).toBe(K);
+  mockStand.mockResolvedValue(null);
+  mockPfandVor.mockResolvedValue({ noetig: false, deckung: 0 });
 });

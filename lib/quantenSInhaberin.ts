@@ -35,6 +35,9 @@ import {
   binden,
   bindenNachricht,
   bitsZuHex,
+  CHAIN_ID,
+  kanonisch,
+  unterschriftVon,
   hexZuBits,
   N_MAX,
   V_MAX,
@@ -48,7 +51,7 @@ import {
   type PaketAbschnitt,
 } from './quantenS';
 import { bestellungenLesen } from './quantenSPraepAuftrag';
-import { REGISTER_MAX, registerLesen } from './quantenSPraeparator';
+import { REGISTER_MAX, holePfaenderAb, registerLesen, sigNormal } from './quantenSPraeparator';
 
 const SCHLUESSEL = 'aequitas.quantenS.inhaberin.schluessel';
 /** Schluessel der Annahmestelle, wenn das Geraet keine eigene Wallet hat (quantenSStelle.ts). */
@@ -267,7 +270,7 @@ export async function validatorSchluessel(u: Umgebung, api: string): Promise<str
   return s.toLowerCase().replace(/^0x/, '');
 }
 
-const ART_TEXT = { s_binden: 'Bindung', s_waehlen: 'Wahl', s_anmelden: 'Anmeldung' } as const;
+const ART_TEXT = { s_binden: 'Bindung', s_waehlen: 'Wahl', s_anmelden: 'Anmeldung', s_ipfand_zurueck: 'Rückgabe des Pfands' } as const;
 
 export async function einreichen(u: Umgebung, art: keyof typeof ART_TEXT, wallet: string, quantenW: Record<string, unknown>): Promise<void> {
   const ctrl = new AbortController();
@@ -620,12 +623,70 @@ export interface Vorlage {
   validatoren?: string[];
 }
 
+// ------------------------------------------------------------ P3/P5b: Pfand der Inhaberin
+
+const DOM_IPFAND = 'aequitas-quanten-s-ipfand-v1';
+
+/** quantenSIPfandNachricht (Knoten): was der Pfandgeber fuer genau diesen Token unterschreibt. */
+export function ipfandNachricht(pfandVon: string, K: string, inhaber: string, betrag: number): string {
+  return `${DOM_IPFAND}|chain:${CHAIN_ID}|${pfandVon.toLowerCase()}|${K}|${inhaber.toLowerCase()}|${betrag}`;
+}
+
+/** Wer das Pfand der Inhaberin gibt: die Menschen-Wallet der App. */
+export interface Pfandgeber {
+  adresse: string;
+  unterschreiben(nachricht: string): Promise<string>;
+}
+
+/** Was vor der Bindung zu sagen ist: braucht sie ein Pfand (Stichtag erreicht), und wie hoch (= Deckung)? */
+export interface PfandVorBindung {
+  noetig: boolean;
+  deckung: number; // Mikro-AEQ; 0, wenn nicht noetig oder schon gebunden
+}
+
+function ganzPositiv(x: unknown): x is number {
+  return typeof x === 'number' && Number.isSafeInteger(x) && x > 0;
+}
+
+/**
+ * pfandVorBindung: ist der Token noch nicht gebunden und gelten die Pfaender
+ * (Stichtag des Knotens erreicht), nimmt die Bindung die Deckung D als Pfand.
+ * Fail-closed: kann die App das nicht sicher sagen (Status unlesbar, Deckung
+ * fehlt), wirft sie -- sie bindet nicht ins Blaue.
+ */
+export async function pfandVorBindung(u: Umgebung): Promise<PfandVorBindung> {
+  const z = await zustandLesen(u);
+  if (!z?.k) fehler('noch kein Token abgeholt');
+  const st = await stand(u, z.k);
+  if (!st) fehler('der Token steht nicht (mehr) auf der Kette -- eingeloest oder tot');
+  if (st.gebunden === true) return { noetig: false, deckung: 0 };
+  const ab = await holePfaenderAb(u.fetchFn, u.apiBasis);
+  if (ab === null || Math.floor(u.jetzt() / 1000) < ab) return { noetig: false, deckung: 0 };
+  if (!ganzPositiv(st.deckung)) fehler('Pfand: die Kette nennt die Deckung nicht');
+  return { noetig: true, deckung: st.deckung };
+}
+
+/**
+ * ipfandZurueck: das Pfand der Inhaberin nach dem Ende des Tokens und der
+ * Frist zurueckholen (quanten_w_s_ipfand_zurueck, ohne Unterschrift; die
+ * Kette zahlt an den Pfandgeber bzw. seine Nullifier-Wallet).
+ */
+export async function ipfandZurueck(u: Umgebung, K: string): Promise<void> {
+  if (!/^[0-9a-f]{64}$/.test(K)) fehler('K');
+  await einreichen(u, 's_ipfand_zurueck', '', { k: K });
+}
+
 /**
  * einloesen: bindet und waehlt (je nur, wenn es noch nicht auf der Kette
  * steht) und unterschreibt die Vorlage fuer Stelle b. Ist die andere Stelle
  * gewaehlt, unterschreibt die App NICHT (Doppelvorlage = Fehlversuch).
  */
-export async function einloesen(u: Umgebung, b: 0 | 1, fortschritt: (schritt: 'binden' | 'waehlen' | 'vorlage') => void = () => {}): Promise<Vorlage> {
+export async function einloesen(
+  u: Umgebung,
+  b: 0 | 1,
+  fortschritt: (schritt: 'binden' | 'waehlen' | 'vorlage') => void = () => {},
+  pfand?: { deckung: number; geber: Pfandgeber },
+): Promise<Vorlage> {
   if (b !== 0 && b !== 1) fehler('Stelle 0 oder 1');
   const z = await zustandLesen(u);
   if (!z?.k || !z.x) fehler('noch kein Token abgeholt');
@@ -648,7 +709,21 @@ export async function einloesen(u: Umgebung, b: 0 | 1, fortschritt: (schritt: 'b
     }
     fortschritt('binden');
     const d = binden(y, zustand.z!);
-    await einreichen(u, 's_binden', inhaberin, { k: K, d, wallet_sig: unterschreiben(schl, bindenNachricht(inhaberin, K, d)) });
+    const satz: Record<string, unknown> = { k: K, d, wallet_sig: unterschreiben(schl, bindenNachricht(inhaberin, K, d)) };
+    // P3/P5b: das Pfand der Inhaberin gibt die Menschen-Wallet (der Schluessel
+    // der Inhaberin ist frisch und hat kein Guthaben). Nur genau die Deckung
+    // der Kette, nur mit einer Unterschrift, die die App selbst nachprueft.
+    if (pfand) {
+      if (!ganzPositiv(pfand.deckung) || pfand.deckung !== st.deckung) fehler('Pfand: Betrag passt nicht zur Deckung auf der Kette');
+      const von = pfand.geber.adresse.toLowerCase();
+      if (!/^0x[0-9a-f]{40}$/.test(von) || von === inhaberin) fehler('Pfand: Pfandgeber');
+      const nachricht = ipfandNachricht(von, K, inhaberin, pfand.deckung);
+      const sig = sigNormal(await pfand.geber.unterschreiben(nachricht));
+      if (!kanonisch(sig) || !unterschriftVon(nachricht, sig, von)) fehler('Pfand: Unterschrift passt nicht zur Wallet');
+      satz.pfand_von = von;
+      satz.pfand_sig = sig;
+    }
+    await einreichen(u, 's_binden', inhaberin, satz);
     st = await wartenAuf(u, K, (s) => s != null && s.gebunden === true, 'Bindung');
   }
   if (zustand.z === undefined) fehler('BEFUND: der Token ist gebunden, aber im Geraet fehlt die Maske');
