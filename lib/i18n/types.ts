@@ -694,6 +694,9 @@ export interface Translations {
     qaNeu: string;
     qaV: string;
     qaT: string;
+    qaLosGroesse: string;
+    qaLosZuKlein: string;
+    qaLosUnbekannt: string;
     qaDeckung: string;
     qaBestellen: string;
     qaBestellenFrage: string;

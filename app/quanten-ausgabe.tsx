@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { bestellen, bestellPfand, losStand, vergessen, zustandLesen, type AusgeberZustand } from '@/lib/quantenSAusgeber';
+import { useWallet } from '@/contexts/WalletContext';
+import { bestellen, bestellPfand, losGroesseHolen, losNoetig, losStand, vergessen, zustandLesen, type AusgeberZustand } from '@/lib/quantenSAusgeber';
 import { antwortenStand, auftraegeSenden, ausgeben, beauftragen, bestaetigungenAnfordern, bestaetigungenStand, paketSenden } from '@/lib/quantenSAusgeberRunde';
 import { ausgeberBriefkasten, BESTELLUNG_TEXT_MAX, bestellungAusText } from '@/lib/quantenSAusgeberGeraet';
 import type { RundenBericht } from '@/lib/quantenSPraepAblauf';
@@ -26,6 +27,8 @@ function datum(s: number, lang: string): string {
 
 export default function QuantenAusgabe() {
   const { t, lang } = useLanguage();
+  const { signer } = useWallet();
+  const ich = signer?.address ?? '';
   const u = useMemo(() => praepUmgebung(), []);
   const wallet = useMemo(() => ({ entsperren: unlockWallet }), []);
   const [z, setZ] = useState<AusgeberZustand | null>(null);
@@ -40,12 +43,15 @@ export default function QuantenAusgabe() {
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null);
   const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  // Wie viele Gemeldete im Los wären (Kettenregel: mindestens 3 · v); null = nicht lesbar.
+  const [imLos, setImLos] = useState<number | null>(null);
 
   const laden = useCallback(async () => {
     try {
       setLadeFehler(null);
       const neu = await zustandLesen(u);
       setZ(neu);
+      if (!neu) setImLos(ich ? await losGroesseHolen(u, ich) : null);
       if (neu?.stand === 'beauftragt') setFehlen((await antwortenStand(u)).fehlen);
       else if (neu?.stand === 'beantwortet') setFehlen((await bestaetigungenStand(u)).fehlen);
       else setFehlen(null);
@@ -53,7 +59,7 @@ export default function QuantenAusgabe() {
       // Ohne t: laden hängt nur an u (sonst lädt jede neue t-Funktion die Seite neu).
       setLadeFehler(String(e?.message ?? '').slice(0, 200));
     }
-  }, [u]);
+  }, [u, ich]);
   useFocusEffect(useCallback(() => void laden(), [laden]));
 
   const schritt = async (name: string, f: () => Promise<void>) => {
@@ -72,6 +78,9 @@ export default function QuantenAusgabe() {
   };
 
   const deckung = Math.round(Number(aeq) * 1_000_000);
+  const vZahl = Number(v);
+  const noetig = Number.isSafeInteger(vZahl) && vZahl > 0 ? losNoetig(vZahl) : null;
+  const zuWenige = imLos !== null && noetig !== null && imLos < noetig;
   const bestellenFragen = () => {
     if (!Number.isFinite(deckung) || deckung <= 0) return;
     Alert.alert(t('node.qpBestaetigenTitel'), t('node.qaBestellenFrage').replace('{deckung}', aeqText(deckung)).replace('{pfand}', aeqText(bestellPfand(deckung))), [
@@ -170,7 +179,17 @@ export default function QuantenAusgabe() {
             <TextInput style={S.input} value={schwelle} onChangeText={(x) => setSchwelle(x.replace(/[^0-9]/g, '').slice(0, 2))} keyboardType="number-pad" />
             <Text style={S.label}>{t('node.qaDeckung')}</Text>
             <TextInput style={S.input} value={aeq} onChangeText={(x) => setAeq(x.replace(/[^0-9.]/g, '').slice(0, 12))} keyboardType="decimal-pad" />
-            {knopf('bestellen', t('node.qaBestellen'), bestellenFragen, !(deckung > 0))}
+            {noetig !== null ? (
+              <Text style={[S.body, zuWenige ? S.warnung : null]}>
+                {imLos === null
+                  ? t('node.qaLosUnbekannt')
+                  : t(zuWenige ? 'node.qaLosZuKlein' : 'node.qaLosGroesse')
+                      .replace('{n}', String(imLos))
+                      .replace('{v}', String(vZahl))
+                      .replace('{noetig}', String(noetig))}
+              </Text>
+            ) : null}
+            {knopf('bestellen', t('node.qaBestellen'), bestellenFragen, !(deckung > 0) || zuWenige)}
           </View>
         ) : (
           <View style={S.card}>
@@ -275,6 +294,7 @@ const S = StyleSheet.create({
   card: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 20, marginTop: 16, borderWidth: 1, borderColor: theme.border },
   title: { fontSize: 11, color: theme.muted, letterSpacing: 3, marginBottom: 12, fontWeight: '600' },
   body: { color: theme.text, fontSize: 13, lineHeight: 19 },
+  warnung: { color: theme.red },
   sub: { color: theme.muted, fontSize: 11, marginBottom: 6, fontWeight: '600' },
   muted: { color: theme.muted, fontSize: 12, lineHeight: 17 },
   hinweisKarte: { backgroundColor: goldTint, borderColor: goldTintBorder },

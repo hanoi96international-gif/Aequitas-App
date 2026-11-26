@@ -99,7 +99,8 @@ export function registerLesen(roh: unknown): Register | null {
     const p = e as Record<string, unknown>;
     if (typeof p.konto !== 'string' || !ADRESSE.test(p.konto) || !pubPasst(p.pub, p.konto) || !ganz(p.gemeldet) || !ganz(p.im_los_ab) || p.im_los_ab < p.gemeldet) return null;
     if (p.abgemeldet !== undefined && (!ganz(p.abgemeldet) || p.abgemeldet < p.gemeldet)) return null;
-    // P2: Pfand 1..10 AEQ (der Nachweis einer Fälschung nimmt je 10 %); die
+    // P2: Pfand 1..10 AEQ (der Nachweis einer Fälschung belastet die Gelosten
+    // nicht mehr, Prüfung 26.11.2026; streng bleibt die Obergrenze); die
     // Rückgabezeit nur bei Abgemeldeten mit Pfand.
     if (p.pfand !== undefined && (!ganz(p.pfand) || p.pfand <= 0 || p.pfand > PRAEP_PFAND_MIKRO)) return null;
     if (p.pfand_zurueck_ab !== undefined && (!ganz(p.pfand_zurueck_ab) || p.pfand === undefined || p.abgemeldet === undefined || p.pfand_zurueck_ab < (p.abgemeldet as number))) return null;

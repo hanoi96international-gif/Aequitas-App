@@ -16,8 +16,12 @@ jest.mock('@/contexts/LanguageContext', () => ({ useLanguage: () => ({ t: (k: st
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(async () => true), getStringAsync: async () => '' }));
 jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '11'.repeat(32) }) }));
 jest.mock('@/lib/quantenSPraepGeraet', () => ({ praepUmgebung: () => ({}) }));
+jest.mock('@/contexts/WalletContext', () => ({ useWallet: () => ({ signer: { address: '0x' + '9'.repeat(40) } }) }));
 
 let mockZ: any = null;
+// Wie viele im Los wären (Prüfung 26.11.: die Kette verlangt 3 · v); null = Register nicht lesbar.
+let mockImLos: number | null = 30;
+const mockLosGroesseHolen = jest.fn(async (..._a: any[]) => mockImLos);
 const mockBestellen = jest.fn(async (..._a: any[]) => {});
 const mockBeauftragen = jest.fn(async (..._a: any[]) => ({ gesendet: [1, 2, 3, 4, 5, 6, 7] }));
 const mockAusgeben = jest.fn(async (..._a: any[]) => ({ stand: 'ausgegeben' }));
@@ -26,6 +30,8 @@ const mockBriefkasten = jest.fn(async (..._a: any[]) => ({ briefe: 2, abgewiesen
 jest.mock('@/lib/quantenSAusgeber', () => ({
   bestellen: (...a: any[]) => mockBestellen(...a),
   bestellPfand: (d: number) => d / 10,
+  losGroesseHolen: (...a: any[]) => mockLosGroesseHolen(...a),
+  losNoetig: (v: number) => 3 * v,
   losStand: async () => ({ stand: 'warten', ab: 1_900_000_000, zustand: mockZ }),
   vergessen: async () => { mockZ = null; },
   zustandLesen: async () => mockZ,
@@ -81,6 +87,26 @@ describe('Ausgabe-Seite (Weg B)', () => {
     expect(mockBestellen).toHaveBeenCalledTimes(1);
     expect(mockBestellen.mock.calls[0].slice(2)).toEqual([7, 4, 1_000_000]);
     act(() => r.unmount());
+  });
+
+  it('zu wenige im Los (Kettenregel 3 · v): Hinweis, Bestellen gesperrt; mit kleinerem v wieder frei', async () => {
+    mockZ = null;
+    mockImLos = 20;
+    const r = await rendern();
+    expect(mockLosGroesseHolen.mock.calls.at(-1)?.[1]).toBe('0x' + '9'.repeat(40));
+    expect(texteIn(r.root)).toContain('node.qaLosZuKlein');
+    expect(knopf(r, 'node.qaBestellen').props.disabled).toBe(true);
+    const vFeld = r.root.findAllByType(RN.TextInput)[0];
+    await act(async () => { vFeld.props.onChangeText('6'); });
+    expect(texteIn(r.root)).toContain('node.qaLosGroesse');
+    expect(knopf(r, 'node.qaBestellen').props.disabled).toBe(false);
+    act(() => r.unmount());
+    mockImLos = null;
+    const r2 = await rendern();
+    expect(texteIn(r2.root)).toContain('node.qaLosUnbekannt');
+    expect(knopf(r2, 'node.qaBestellen').props.disabled).toBe(false); // die Kette prüft dann selbst
+    act(() => r2.unmount());
+    mockImLos = 30;
   });
 
   it('gelost: eine kaputte Bestellung der Inhaberin wird nie beauftragt; eine gute schon', async () => {
