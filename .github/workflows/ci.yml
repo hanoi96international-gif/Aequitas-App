@@ -43,3 +43,5 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx expo lint
       - run: npx jest
+      # Pruefung vor dem Veroeffentlichen (release-apk.yml) mit Missbrauchsfaellen.
+      - run: bash scripts/test_release_lauf_pruefen.sh
