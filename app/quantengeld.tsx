@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -23,7 +23,8 @@ import {
 import { aeqText, holeQuantenWStand, holeQuantenWUeberblick, kennungGueltig, type QuantenWErgebnis, type QuantenWUeberblick } from '@/lib/quantenW';
 import { PRAEP_PFAND_MIKRO, holePraepPfandAb, holeRegister, meinStand, pfandZurueckEinreichen, praepEinreichen, type Register } from '@/lib/quantenSPraeparator';
 import type { RundenBericht } from '@/lib/quantenSPraepAblauf';
-import { ibmZugangDa, ibmZugangLoeschen, ibmZugangSetzen, praepRundeJetzt } from '@/lib/quantenSPraepGeraet';
+import { ibmZugangDa, ibmZugangLoeschen, ibmZugangPruefenUndSetzen, praepRundeJetzt } from '@/lib/quantenSPraepGeraet';
+import { IbmTestFehler, type IbmTestGrund } from '@/lib/quantenSPraepIbm';
 import { entsperrterSchluessel, unlockWallet } from '@/lib/wallet';
 import { walletNurEntsperrt } from '@/lib/quantenSAutomatik';
 import { useQuantenSAutomatik } from '@/lib/useQuantenSAutomatik';
@@ -35,6 +36,15 @@ import { theme, goldTint, goldTintBorder } from '@/constants/aequitas-theme';
 // Pruefer ueber die Freischaltung eines Parametersatzes abstimmen. Gezaehlt
 // wird in der Kette; die Seite zeigt nur, was der Knoten meldet.
 const TIMEOUT_MS = 90_000;
+// Feste Adresse (kein Text aus Netz oder Nutzereingabe): die Seite von IBM Quantum.
+const IBM_QUANTUM_URL = 'https://quantum.cloud.ibm.com/';
+const IBM_GRUND_TEXT: Record<IbmTestGrund, string> = {
+  schluessel: 'node.qrFSchluessel',
+  instanz: 'node.qrFInstanz',
+  kein_geraet: 'node.qrFGeraet',
+  netz: 'node.qrFNetz',
+  form: 'node.qrFForm',
+};
 const NACHLADEN_MS = 15_000;
 
 function datum(s: number, lang: string): string {
@@ -436,13 +446,18 @@ function PraepRunde({ t }: { t: (k: any) => string }) {
     setLaeuft(true);
     setMeldung(null);
     try {
-      await ibmZugangSetzen({ apiKey, crn });
+      // Erst bei IBM pruefen (ohne Rechenzeit), nur dann speichern.
+      const { geraete } = await ibmZugangPruefenUndSetzen({ apiKey: apiKey.trim(), crn: crn.trim() });
       setApiKey('');
       setCrn('');
       setDa(true);
-      setMeldung({ ok: true, text: t('node.qrGespeichert') });
+      setMeldung({ ok: true, text: t('node.qrGeprueft').replace('{n}', String(geraete)) });
     } catch (e: any) {
-      fehler(e);
+      if (e instanceof IbmTestFehler) {
+        setMeldung({ ok: false, text: t(IBM_GRUND_TEXT[e.grund]) });
+      } else {
+        fehler(e);
+      }
     } finally {
       setLaeuft(false);
     }
@@ -493,7 +508,13 @@ function PraepRunde({ t }: { t: (k: any) => string }) {
           <Text style={S.label}>{t('node.qrCrn')}</Text>
           <TextInput style={S.input} value={crn} onChangeText={setCrn} autoCapitalize="none" autoCorrect={false} autoComplete="off" placeholder="crn:v1:bluemix:public:quantum-computing:…" placeholderTextColor={theme.muted} />
           <TouchableOpacity style={[S.btn, (laeuft || !apiKey || !crn) && { opacity: 0.6 }]} disabled={laeuft || !apiKey || !crn} onPress={speichern} activeOpacity={0.85} accessibilityRole="button">
-            <Text style={S.btnText}>{t('node.qrSpeichern')}</Text>
+            {laeuft ? <ActivityIndicator color="#fff" /> : <Text style={S.btnText}>{t('node.qrSpeichern')}</Text>}
+          </TouchableOpacity>
+          {laeuft ? <Text style={[S.muted, { marginTop: 8 }]}>{t('node.qrPruefen')}</Text> : null}
+          <Text style={[S.label, { marginTop: 14 }]}>{t('node.qrAnleitungTitel')}</Text>
+          <Text style={S.muted}>{t('node.qrAnleitung')}</Text>
+          <TouchableOpacity onPress={() => Linking.openURL(IBM_QUANTUM_URL)} accessibilityRole="link" style={{ marginTop: 6 }}>
+            <Text style={[S.muted, { textDecorationLine: 'underline' }]}>{t('node.qrAnleitungLink')}</Text>
           </TouchableOpacity>
         </>
       ) : null}

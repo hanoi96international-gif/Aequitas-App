@@ -58,6 +58,54 @@ export async function ibmZugangLesen(geheim: Speicher): Promise<IbmZugang | null
   return zugangPruefen(o as IbmZugang);
 }
 
+/** Warum eine Prüfung des Zugangs scheiterte (die App nennt es in Worten). */
+export type IbmTestGrund = 'schluessel' | 'instanz' | 'kein_geraet' | 'netz' | 'form';
+
+export class IbmTestFehler extends IbmFehler {
+  constructor(public grund: IbmTestGrund, text: string) {
+    super(text);
+  }
+}
+
+/**
+ * Prüft einen Zugang, BEVOR er gespeichert wird -- ohne Rechenzeit: Anmeldung
+ * mit dem API-Schlüssel und die Liste der Quantenrechner dieser Instanz. Es gibt
+ * mindestens einen freien mit genug Qubits, sonst ein Fehler mit Grund. Der
+ * Schlüssel erscheint in keiner Meldung.
+ */
+export async function ibmZugangTesten(z: IbmZugang, fetchFn: typeof fetch, jetztMs: number): Promise<{ geraete: number; bestes: string }> {
+  let g: IbmZugang;
+  try {
+    g = zugangPruefen(z);
+  } catch {
+    throw new IbmTestFehler('form', 'Schlüssel oder Instanz nicht in gültiger Form');
+  }
+  let token: string;
+  try {
+    token = (await holeToken(g, jetztMs, fetchFn)).token;
+  } catch (e) {
+    // Nur eine Ablehnung (HTTP 4xx) heißt "Schlüssel falsch"; alles andere
+    // (Netz, 5xx, seltsame Antwort) heißt "IBM gerade nicht erreichbar".
+    if (/^Anmeldung bei IBM: HTTP 4\d\d$/.test(String((e as Error)?.message ?? ''))) {
+      throw new IbmTestFehler('schluessel', 'IBM nimmt den API-Schlüssel nicht an');
+    }
+    throw new IbmTestFehler('netz', 'IBM nicht erreichbar');
+  }
+  let liste;
+  try {
+    liste = await geraeteListe(token, g.crn, fetchFn);
+  } catch (e) {
+    const t = String((e as Error)?.message ?? '');
+    if (/^Geräte: HTTP 4\d\d$/.test(t) || t === 'Instanz (CRN): unbekannte Region') {
+      throw new IbmTestFehler('instanz', 'Die Instanz (CRN) passt nicht zu diesem Schlüssel');
+    }
+    throw new IbmTestFehler('netz', 'IBM nicht erreichbar');
+  }
+  const passend = liste.filter((d) => d.qubits >= MAX_QUBITS_KREIS);
+  if (passend.length === 0) throw new IbmTestFehler('kein_geraet', 'In dieser Instanz ist gerade kein Quantenrechner frei');
+  return { geraete: passend.length, bestes: passend[0].name };
+}
+
 export interface IbmUmgebung {
   fetchFn: typeof fetch;
   /** Millisekunden */

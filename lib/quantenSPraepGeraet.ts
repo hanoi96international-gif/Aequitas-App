@@ -17,7 +17,7 @@ import type { IbmZugang } from './ibmQuantum';
 import { QuantenSFehler } from './quantenS';
 import { zufallInStuecken, type Speicher } from './quantenSInhaberin';
 import { runde, type PraepUmgebung, type RundenBericht, type WalletSchluessel } from './quantenSPraepAblauf';
-import { IBM_ZUGANG, ibmMesser, ibmZugangLesen, ibmZugangSpeichern } from './quantenSPraepIbm';
+import { IBM_ZUGANG, ibmMesser, ibmZugangLesen, ibmZugangSpeichern, ibmZugangTesten } from './quantenSPraepIbm';
 
 function asyncStorage(): { getItem(k: string): Promise<string | null>; setItem(k: string, v: string): Promise<void>; removeItem(k: string): Promise<void> } {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -64,6 +64,20 @@ export async function ibmZugangDa(u: Pick<PraepUmgebung, 'geheim'> = praepUmgebu
 
 export async function ibmZugangSetzen(z: IbmZugang, u: Pick<PraepUmgebung, 'geheim'> = praepUmgebung()): Promise<void> {
   await ibmZugangSpeichern(u.geheim, z);
+}
+
+/**
+ * Erst prüfen (Anmeldung und Geräteliste bei IBM, ohne Rechenzeit), dann
+ * speichern. Scheitert die Prüfung, wird nichts gespeichert (IbmTestFehler mit
+ * Grund).
+ */
+export async function ibmZugangPruefenUndSetzen(
+  z: IbmZugang,
+  u: Pick<PraepUmgebung, 'geheim' | 'fetchFn' | 'jetzt'> = praepUmgebung(),
+): Promise<{ geraete: number; bestes: string }> {
+  const ergebnis = await ibmZugangTesten(z, u.fetchFn, u.jetzt());
+  await ibmZugangSpeichern(u.geheim, z);
+  return ergebnis;
 }
 
 export async function ibmZugangLoeschen(u: Pick<PraepUmgebung, 'geheim'> = praepUmgebung()): Promise<void> {
