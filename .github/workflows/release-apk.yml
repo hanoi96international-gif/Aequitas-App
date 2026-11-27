@@ -33,6 +33,12 @@ permissions:
   contents: write
   actions: read
 
+# Nie zwei Veroeffentlichungen zugleich (sonst entschiede die Reihenfolge,
+# welches Release "das neueste" ist).
+concurrency:
+  group: release-apk
+  cancel-in-progress: false
+
 # Eingaben nur ueber env:, nie direkt in run: (Beta-Pruefung 14.10.2026):
 # ein Tag wie `x"; curl ... #` liefe sonst mit contents: write als Skript.
 env:
@@ -43,9 +49,18 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     # Was hier veroeffentlicht wird, installiert jeder neue Mensch (die Kette
-    # leitet /download/app.apk auf das neueste Release um). Deshalb dieselbe
-    # geschuetzte Umgebung wie das Signieren: nur mit Freigabe.
-    environment: app-signatur
+    # leitet /download/app.apk auf das neueste Release um).
+    #
+    # KEINE ZWEITE FREIGABE MEHR (Entscheidung des Betreibers, 27.11.2026):
+    # die menschliche Freigabe liegt beim SIGNIEREN (Umgebung app-signatur in
+    # build-apk.yml) -- nur dort gibt es den Release-Schluessel. Was die
+    # zweite Freigabe sicherte, pruefen jetzt fail-closed
+    # scripts/release_lauf_pruefen.sh (Lauf von build-apk.yml auf
+    # aequitas-app in diesem Repo, Job signieren erfolgreich, Tag neuer als
+    # das neueste Release) und die Schritte unten (Fingerabdruck des
+    # Release-Schluessels aus der APK, Tag gleich Version des gebauten
+    # Commits). Dieser Job hat keinen Zugriff auf den Schluessel.
+    timeout-minutes: 15
     steps:
       - name: Eingaben pruefen
         run: |
@@ -56,6 +71,22 @@ jobs:
           # nicht und meldete den Apps 12 Stunden lang weiter 1.18.5 -- keine
           # Update-Meldung fuer eine neue Version.
           [[ "$TAG" =~ ^v[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]] || { echo "::error title=Tag hat die falsche Form::\"$TAG\" -- erwartet v1.2.3 (v und die Version aus app.json). Andere Formen liest die Kette nicht, die App bekaeme keine Update-Meldung."; exit 1; }
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Lauf pruefen (Herkunft, signiert, nicht zurueck)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/actions/runs/$RUN_ID" > /tmp/lauf.json
+          gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" > /tmp/jobs.json
+          # Fehler der API brechen ab (set -e); keine Releases = "".
+          neuester="$(gh api "repos/$REPO/releases?per_page=1" --jq '.[0].tag_name // ""')"
+          bash scripts/release_lauf_pruefen.sh /tmp/lauf.json /tmp/jobs.json "$REPO" "$TAG" "$neuester"
 
       - name: Artefakt des Builds holen
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
