@@ -1112,7 +1112,7 @@ const id: Translations = {
   },
   marke: {
     titel: "Anti-palsu",
-    leitsatz: "Uang anti-palsu paling adil – dari satu orang untuk semua orang",
+    leitsatz: "Uang paling adil – dari satu orang untuk semua orang",
     p1: "Setiap orang semestinya hanya ada satu kali: pencocokan wajah mencegah akun kedua. Di beta, ini dilakukan satu layanan pencocokan saja. Mulai pemeriksa independen kedua, operator tidak bisa lagi mendaftarkan siapa pun sendirian – setiap node memeriksanya.",
     p2: "Dompetmu bisa dilindungi dari komputer kuantum masa depan; dompet baru terlindungi otomatis.",
     p3: "Uang kuantum: sejak 17/11/2026 token kuantum sungguhan pertama berjalan di jaringan utama – rantai menolak penyerahan kedua dari token yang sama.",

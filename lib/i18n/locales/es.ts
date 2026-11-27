@@ -1112,7 +1112,7 @@ const es: Translations = {
   },
   marke: {
     titel: "Infalsificable",
-    leitsatz: "El dinero infalsificable más justo – de una persona para todas las personas",
+    leitsatz: "El dinero más justo – de una persona para todas las personas",
     p1: "Cada persona debe existir una sola vez: una comparación facial impide una segunda cuenta. En la beta lo hace un único servicio de comparación. A partir del segundo verificador independiente, el operador ya no puede registrar a nadie por sí solo; lo comprueba cada nodo.",
     p2: "Tu monedero puede protegerse frente a futuros ordenadores cuánticos; los nuevos lo están automáticamente.",
     p3: "Dinero cuántico: desde el 17/11/2026 funciona el primer token cuántico real en la red principal; la cadena rechazó una segunda presentación del mismo token.",
