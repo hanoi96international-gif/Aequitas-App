@@ -676,6 +676,16 @@ export interface Translations {
     qrCrn: string;
     qrSpeichern: string;
     qrGespeichert: string;
+    qrPruefen: string;
+    qrGeprueft: string;
+    qrFSchluessel: string;
+    qrFInstanz: string;
+    qrFGeraet: string;
+    qrFNetz: string;
+    qrFForm: string;
+    qrAnleitungTitel: string;
+    qrAnleitung: string;
+    qrAnleitungLink: string;
     qrZugangDa: string;
     qrRunde: string;
     qrLaeuft: string;

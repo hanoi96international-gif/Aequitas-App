@@ -52,16 +52,24 @@ const mockPfandZurueck = jest.fn(async () => {});
 
 // Weg B, Runde der Praeparatorin (lib/quantenSPraepGeraet.ts): als Attrappe.
 let mockZugangDa = false;
-const mockZugangSetzen = jest.fn(async (_z: any) => { mockZugangDa = true; });
+// Prüfung bei IBM als Attrappe: ein Schlüssel 'F…' wird abgelehnt (nichts gespeichert).
+const mockZugangSetzen = jest.fn(async (z: any) => {
+  if (z.apiKey.startsWith('F')) {
+    throw new IbmTestFehler('schluessel', 'IBM nimmt den API-Schlüssel nicht an');
+  }
+  mockZugangDa = true;
+  return { geraete: 2, bestes: 'ibm_frei' };
+});
 const mockRunde = jest.fn(async (_w: any) => ({ briefe: 3, abgewiesen: [], beantwortet: ['k'], bestaetigt: [], geoeffnet: [], wiederholt: [], abgelehnt: [], antworten: [], bestaetigungen: [], offen: 0, quittiertBis: 3 }));
 jest.mock('@/lib/quantenSPraepGeraet', () => ({
   ibmZugangDa: async () => mockZugangDa,
-  ibmZugangSetzen: (z: any) => mockZugangSetzen(z),
+  ibmZugangPruefenUndSetzen: (z: any) => mockZugangSetzen(z),
   ibmZugangLoeschen: async () => { mockZugangDa = false; },
   praepRundeJetzt: (w: any) => mockRunde(w),
 }));
 jest.mock('@/lib/wallet', () => ({ unlockWallet: async () => ({ privateKey: '0x' + '11'.repeat(32) }) }));
 
+import { IbmTestFehler } from '@/lib/quantenSPraepIbm';
 import Quantengeld from '../../app/quantengeld';
 const RN = require('react-native');
 
@@ -275,11 +283,27 @@ describe('Quantengeld-Seite', () => {
     expect(felder).toHaveLength(2);
     expect(felder[0].props.secureTextEntry).toBe(true);
     expect(felder[1].props.secureTextEntry).toBeFalsy();
+    // Anleitung zum IBM-Konto steht dabei, mit fester Adresse.
+    expect(texte(r)).toContain('node.qrAnleitung');
+    const zuIbm = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qrAnleitungLink'));
+    const oeffnen = jest.spyOn(RN.Linking, 'openURL').mockResolvedValue(true);
+    await act(async () => { zuIbm.props.onPress(); });
+    expect(oeffnen).toHaveBeenCalledWith('https://quantum.cloud.ibm.com/');
+    oeffnen.mockRestore();
+    const sichern = () => r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qrSpeichern'));
+    // IBM lehnt den Schlüssel ab: Grund genannt, Felder bleiben, nichts gesichert.
+    const FALSCH = 'F'.repeat(44);
+    await act(async () => { praepFelder()[0].props.onChangeText(FALSCH); praepFelder()[1].props.onChangeText('crn:x'); });
+    await act(async () => { await sichern().props.onPress(); });
+    expect(texte(r)).toContain('node.qrFSchluessel');
+    expect(texte(r)).not.toContain('node.qrZugangDa');
+    expect(praepFelder()).toHaveLength(2);
+    expect(JSON.stringify(texte(r))).not.toContain(FALSCH);
     const SCHLUESSEL = 'S'.repeat(44);
-    await act(async () => { felder[0].props.onChangeText(SCHLUESSEL); felder[1].props.onChangeText('crn:x'); });
-    const sichern = r.root.findAllByType(RN.TouchableOpacity).find((k: any) => texteIn(k).includes('node.qrSpeichern'));
-    await act(async () => { sichern.props.onPress(); });
-    expect(mockZugangSetzen).toHaveBeenCalledWith({ apiKey: SCHLUESSEL, crn: 'crn:x' });
+    await act(async () => { praepFelder()[0].props.onChangeText(' ' + SCHLUESSEL); praepFelder()[1].props.onChangeText('crn:x '); });
+    await act(async () => { await sichern().props.onPress(); });
+    expect(mockZugangSetzen).toHaveBeenLastCalledWith({ apiKey: SCHLUESSEL, crn: 'crn:x' });
+    expect(texte(r)).toContain('node.qrGeprueft');
     // Gesichert: Felder weg, Schluessel nirgends mehr auf der Seite.
     expect(praepFelder()).toHaveLength(0);
     expect(r.root.findAllByType(RN.TextInput).some((f: any) => f.props.value === SCHLUESSEL)).toBe(false);
