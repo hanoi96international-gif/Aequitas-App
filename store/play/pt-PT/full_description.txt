@@ -5,6 +5,6 @@ Aequitas é uma carteira para um dinheiro que dá a cada pessoa o mesmo saldo in
 • Seguro contra computação quântica: o teu saldo pode ir para um cofre que só assina com a norma pós-quântica ML-DSA-65 (FIPS 204), protegido mesmo contra futuros computadores quânticos.
 • Rendimento básico: cada pessoa confirmada recebe uma parte diária. Uma vez por ano confirmas com uma prova de vida que continuas aqui.
 • Justo: o dinheiro parado devolve uma pequena parte a todos. As transferências são gratuitas.
-• Descentralizado e aberto: todo o código é público.
+• Pensado para a descentralização e aberto: cada nó verifica cada regra por si, todo o código é público. Na beta ainda funciona um único nó; procuram-se mais operadores.
 
 Nota: Aequitas está em beta pública. Para maiores de 18 anos.

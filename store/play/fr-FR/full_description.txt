@@ -5,6 +5,6 @@ Aequitas est un portefeuille pour une monnaie qui donne à chaque humain le mêm
 • Résistant au quantique : ton solde peut aller dans un coffre qui ne signe qu’avec la norme post-quantique ML-DSA-65 (FIPS 204), protégé même contre les futurs ordinateurs quantiques.
 • Revenu de base : chaque humain confirmé reçoit une part quotidienne. Une fois par an, tu confirmes par une preuve de vie que tu es toujours là.
 • Équitable : l’argent qui dort rend une petite part à tous. Les virements sont gratuits.
-• Décentralisé et ouvert : tout le code est public.
+• Conçu pour la décentralisation et ouvert : chaque nœud vérifie lui-même chaque règle, tout le code est public. Pendant la bêta, un seul nœud fonctionne encore ; d'autres opérateurs sont recherchés.
 
 Remarque : Aequitas est en bêta publique. Réservé aux 18 ans et plus.

@@ -359,6 +359,12 @@ export async function getPriceHistory(): Promise<PricePoint[]> {
 
 /** Wirtschaftsregeln fuer ein Konto (gebuehrenfreier Monatsrest, Umlaufabgabe
  *  ...) -- /api/wirtschaft/konto der Kette. Siehe lib/ueberweisung.ts. */
+/** Wirtschaftsregeln der Kette (fairer Anteil, Grundeinkommen der letzten 30
+ *  Tage). Roh -- gelesen wird streng mit leseRegeln (lib/fairerAnteil.ts). */
+export function getWirtschaftRegeln() {
+  return apiGet<unknown>('/wirtschaft/regeln');
+}
+
 export function getWirtschaftKonto(wallet: string) {
   return apiGet<import('./ueberweisung').WirtschaftKonto>('/wirtschaft/konto?adresse=' + wallet);
 }

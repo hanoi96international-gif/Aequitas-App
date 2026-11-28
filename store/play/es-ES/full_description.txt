@@ -5,6 +5,6 @@ Aequitas es una cartera para un dinero que da a cada persona el mismo saldo inic
 • Resistente a la computación cuántica: tu saldo puede ir a una bóveda que solo firma con el estándar poscuántico ML-DSA-65 (FIPS 204), protegida incluso frente a futuros ordenadores cuánticos.
 • Renta básica: cada persona confirmada recibe una parte diaria. Una vez al año confirmas con una prueba de vida que sigues aquí.
 • Justo para todos: el dinero inactivo devuelve una pequeña parte a todos. Las transferencias son gratuitas.
-• Descentralizado y abierto: todo el código es público.
+• Pensado para la descentralización y abierto: cada nodo comprueba cada regla por sí mismo, todo el código es público. En la beta aún funciona un solo nodo; se buscan más operadores.
 
 Aviso: Aequitas está en fase de prueba pública. Para mayores de 18 años.

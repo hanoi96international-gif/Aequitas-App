@@ -9,7 +9,8 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { TranslationKey } from '@/contexts/LanguageContext';
 import { formatBalance, isValidAddress, parseAEQToWei, shortWallet } from '@/lib/format';
-import { getWirtschaftKonto, postFaucet } from '@/lib/api';
+import { getWirtschaftKonto, getWirtschaftRegeln, postFaucet } from '@/lib/api';
+import { anteilProzent, leseRegeln, nettoMonat, zweiStellen, type WirtschaftRegeln } from '@/lib/fairerAnteil';
 import { betragText, fehlerArt, freierRest, gebuehrFuer, hoechstbetrag, imGleichgewicht, type WirtschaftKonto } from '@/lib/ueberweisung';
 import { leseZahlungsziel } from '@/lib/zahlungslink';
 import { leseQr as leseBuergschaftsQr } from '@/lib/altersbuergschaft';
@@ -37,6 +38,7 @@ export default function Wallet() {
   const [faucetStatus, setFaucetStatus] = useState('');
   const [scannerOffen, setScannerOffen] = useState(false);
   const [konto, setKonto] = useState<WirtschaftKonto | null>(null);
+  const [regeln, setRegeln] = useState<WirtschaftRegeln | null>(null);
 
   // Wirtschaftsregeln dieses Kontos (gebuehrenfreier Monatsrest,
   // Umlaufabgabe). Faellt die Auskunft aus, rechnet die App mit der vollen
@@ -52,8 +54,19 @@ export default function Wallet() {
   useEffect(() => {
     ladeKonto();
   }, [ladeKonto, balance?.balance]);
+  // Fairer Anteil und Grundeinkommen der letzten 30 Tage (nur Anzeige).
+  useEffect(() => {
+    let weg = false;
+    getWirtschaftRegeln().then(
+      (d) => { if (!weg) setRegeln(leseRegeln(d)); },
+      () => { if (!weg) setRegeln(null); },
+    );
+    return () => { weg = true; };
+  }, []);
 
   const guthaben = Number(balance?.balance ?? 0);
+  const prozent = balance?.balance !== undefined ? anteilProzent(guthaben, regeln) : null;
+  const netto = nettoMonat(regeln, konto);
   const betragZahl = Number(String(sendAmount).replace(',', '.'));
   const betragGueltig = Number.isFinite(betragZahl) && betragZahl > 0;
   const gebuehr = betragGueltig ? gebuehrFuer(betragZahl, konto) : 0;
@@ -219,6 +232,20 @@ export default function Wallet() {
         <View style={S.balanceCard}>
           <Text style={S.balanceLabel}>AEQ</Text>
           <Text style={S.balanceValue}>{formatBalance(balance?.balance)}</Text>
+          {prozent !== null && regeln ? (
+            <Text style={S.fairAnteil}>
+              {t('wallet.fairAnteil', { p: String(prozent), fair: betragText(regeln.fairerAnteil) })}
+            </Text>
+          ) : null}
+          {netto ? (
+            <Text style={S.fairNetto}>
+              {t(netto.netto >= 0 ? 'wallet.nettoPlus' : 'wallet.nettoMinus', {
+                netto: zweiStellen(Math.abs(netto.netto)),
+                ge: zweiStellen(netto.grundeinkommen),
+                abgabe: zweiStellen(netto.abgabe),
+              })}
+            </Text>
+          ) : null}
           <View style={S.divider} />
           <Text style={S.balanceLabel}>tUSD</Text>
           <Text style={S.balanceValueSmall}>{formatBalance(balance?.tusd_balance)}</Text>
@@ -362,6 +389,8 @@ const S = StyleSheet.create({
   balanceCard: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: theme.radius, padding: 24, borderWidth: 1, borderColor: theme.border, marginBottom: 16, alignItems: 'center' },
   balanceLabel: { color: theme.muted, fontSize: 11, letterSpacing: 2 },
   balanceValue: { color: theme.gold, fontSize: 38, fontWeight: '900', marginTop: 4 },
+  fairAnteil: { color: theme.text, fontSize: 13, marginTop: 6, textAlign: 'center' },
+  fairNetto: { color: theme.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
   balanceValueSmall: { color: theme.text, fontSize: 20, fontWeight: '700', marginTop: 4 },
   divider: { height: 1, backgroundColor: theme.border, width: '100%', marginVertical: 16 },
   demurrageWarn: { marginTop: 14, backgroundColor: 'rgba(245,165,36,0.06)', borderWidth: 1, borderColor: 'rgba(245,165,36,0.2)', borderRadius: 8, padding: 10 },
