@@ -1,6 +1,6 @@
 # Google Play: Launch-Vorbereitung
 
-Stand 14.11.2026. Alles, was sich im Repo vorbereiten lässt, liegt hier. Was nur
+Stand 28.11.2026 (zuerst 14.11.2026). Alles, was sich im Repo vorbereiten lässt, liegt hier. Was nur
 der Betreiber tun kann, steht unter „Deine Schritte“.
 
 ## 1. Deine Schritte (nur du)
@@ -29,11 +29,13 @@ der Betreiber tun kann, steht unter „Deine Schritte“.
    (PEPK) hochladen. Dann sind Play- und Website-Fassung dieselbe App und
    lassen sich gegenseitig aktualisieren. Der Schlüssel liegt verschlüsselt in
    der Sicherung (Aufgabe „Schlüssel-Sicherung“).
-4. **12 Tester einladen:** eine Google-Gruppe oder E-Mail-Liste mit
+4. **12 Tester einladen** (Tipp: dieselben Menschen können zugleich Präparatorinnen
+   für den Pilot Weg B werden, `Aequitas/docs/PILOT_PRAEPARATORINNEN_GESUCHT.md` --
+   beide Male braucht es mindestens 12 Menschen mit Android): eine Google-Gruppe oder E-Mail-Liste mit
    mindestens 12 Personen (Android, Google-Konto), in der Play Console unter
    „Geschlossener Test“ eintragen, Einladungslink verschicken (Vorlage
    unten). Die Tester müssen die App installieren und 14 Tage behalten.
-5. **Bundle hochladen:** Workflow „Android APK bauen“ mit `variant: bundle`
+5. **Bundle hochladen** (aktuell App 1.34.0 oder neuer): Workflow „Android APK bauen“ mit `variant: bundle`
    starten, Freigabe `app-signatur` erteilen, das Artefakt
    `aequitas-release-aab` herunterladen und in der Play Console als Release
    hochladen (zuerst interner Test, dann geschlossener Test, dann Produktion).
@@ -55,6 +57,12 @@ Identität, Explorer).
 
 Seit 14.11.2026 steht in allen 12 Beschreibungen auch der **quantensichere
 Tresor** (ML-DSA-65, FIPS 204; Senden ab 14.11.2026 22:00 UTC freigeschaltet).
+
+Seit 28.11.2026 **ehrlich zur Dezentralität:** statt „Dezentral“ als Tatsache steht
+in allen 12 Sprachen „auf Dezentralität angelegt“ und dass im Testbetrieb noch ein
+einziger Knoten läuft. Läuft ein zweiter Knoten eines anderen Betreibers, den Satz
+anpassen (Test `lib/__tests__/storeTexte.test.ts` prüft Längengrenzen von Google, den
+Hinweis auf den einen Knoten und verbotene absolute Aussagen wie „fälschungssicher“).
 
 ## 3. Formular „Datensicherheit“ (Antworten)
 

@@ -5,7 +5,6 @@ Aequitas is a wallet for money that gives every human the same starting balance 
 • Quantum-safe: your balance can go into a vault that signs only with the quantum-safe ML-DSA-65 standard (FIPS 204) – protected even against future quantum computers.
 • Basic income: every confirmed human receives a daily share. Once a year you confirm with a proof of life that you are still here.
 • Fair for everyone: idle money returns a small part to all (equilibrium). Transfers are free.
-• Decentralised: verifiers are admitted by two thirds of the existing verifiers, every node checks every rule itself.
-• Open: the entire code is public.
+• Built for decentralisation, and open: every node checks every rule itself, the entire code is public. In the beta a single node is still running; more operators are wanted.
 
 Note: Aequitas is in public beta. For ages 18 and over.

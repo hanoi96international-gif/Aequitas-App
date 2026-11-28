@@ -5,7 +5,6 @@ Aequitas ist eine Wallet für ein Geld, das jedem Menschen gleich viel Startguth
 • Quantensicher: Dein Guthaben kann in einen Tresor, der nur mit dem quantensicheren Verfahren ML-DSA-65 (FIPS 204) unterschreibt – geschützt auch gegen künftige Quantencomputer.
 • Grundeinkommen: Jeder bestätigte Mensch erhält einen täglichen Anteil. Einmal im Jahr bestätigst du mit einem Lebensnachweis, dass du noch da bist.
 • Fair für alle: Liegendes Geld gibt einen kleinen Teil an alle zurück (Gleichgewicht). Überweisungen sind kostenlos.
-• Dezentral: Prüfer werden von zwei Dritteln der bestehenden Prüfer aufgenommen, jeder Knoten prüft jede Regel selbst.
-• Offen: Der gesamte Code ist öffentlich.
+• Auf Dezentralität angelegt und offen: Jeder Knoten prüft jede Regel selbst, der gesamte Code ist öffentlich. Im Testbetrieb läuft noch ein einziger Knoten; weitere Betreiber werden gesucht.
 
 Hinweis: Aequitas befindet sich im öffentlichen Testbetrieb. Nutzung ab 18 Jahren.

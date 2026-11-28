@@ -5,6 +5,6 @@ Aequitas adalah dompet untuk uang yang memberi setiap manusia saldo awal yang sa
 • Aman terhadap kuantum: saldomu bisa disimpan di brankas yang hanya menandatangani dengan standar pascakuantum ML-DSA-65 (FIPS 204), terlindungi bahkan dari komputer kuantum masa depan.
 • Pendapatan dasar: setiap manusia yang terkonfirmasi menerima bagian harian. Setahun sekali kamu mengonfirmasi dengan bukti hidup.
 • Adil untuk semua: uang yang diam mengembalikan sebagian kecil ke semua orang. Transfer gratis.
-• Terdesentralisasi dan terbuka: seluruh kode bersifat publik.
+• Dirancang untuk desentralisasi dan terbuka: setiap node memeriksa setiap aturan sendiri, seluruh kode bersifat publik. Selama beta baru satu node yang berjalan; operator lain sedang dicari.
 
 Catatan: Aequitas dalam tahap beta publik. Untuk usia 18 tahun ke atas.
