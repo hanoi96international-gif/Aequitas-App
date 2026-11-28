@@ -150,6 +150,9 @@ export interface Translations {
     freeAddressNote: string;
     levyNotice: string;
     levyNoticeGG: string;
+    fairAnteil: string;
+    nettoPlus: string;
+    nettoMinus: string;
     errUnknown: string;
     err_abgebrochen: string;
     err_zeitueberschreitung: string;
