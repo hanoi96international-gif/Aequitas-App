@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "digital.aequitas.app",
-      "buildNumber": "71",
+      "buildNumber": "72",
       "config": {
         "usesNonExemptEncryption": false
       },
